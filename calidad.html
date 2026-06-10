@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Control de Calidad — MIGRIN S.A.</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --primary:#1a5276;--primary-dark:#154360;--primary-light:#2e86c1;--primary-xlight:#d6eaf8;
+  --header-bg:#1a1a1a;--text:#333333;--text-secondary:#555555;--text-muted:#888888;
+  --bg:#f5f5f5;--card:#ffffff;--border:#e0e0e0;
+  --error:#c53030;--error-bg:#fff5f5;--success:#276749;--success-bg:#f0fff4;
+  --warning:#b7791f;--warning-bg:#fffff0;
+  --radius:12px;--radius-sm:8px;--shadow:0 2px 8px rgba(0,0,0,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app-header{background:var(--header-bg);color:#fff;display:flex;align-items:center;
+  justify-content:space-between;padding:10px 18px;position:sticky;top:0;z-index:100;
+  box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.hdr-brand{display:flex;align-items:center;gap:11px}
+.hdr-brand img{height:42px;object-fit:contain}
+.hdr-title{font-size:.95rem;font-weight:700;line-height:1.2}
+.hdr-sub{font-size:.72rem;color:rgba(255,255,255,.55);font-weight:400}
+.hdr-actions{display:flex;gap:6px;align-items:center}
+.btn-hdr{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);
+  padding:7px 13px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:600;
+  cursor:pointer;font-family:'Inter',sans-serif;min-height:40px;transition:background .2s}
+.btn-hdr:hover{background:rgba(255,255,255,.22)}
+.main{max-width:1080px;margin:0 auto;padding:22px 14px 40px}
+.home-intro{text-align:center;margin-bottom:28px}
+.home-intro h2{font-size:1.4rem;font-weight:700;color:var(--primary);margin-bottom:6px}
+.home-intro p{color:var(--text-secondary);font-size:.9rem}
+.modules-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media(min-width:700px){.modules-grid{grid-template-columns:repeat(3,1fr)}}
+.mod-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:20px 16px;cursor:pointer;transition:transform .2s,box-shadow .2s;
+  border:2px solid transparent;position:relative;min-height:76px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
+.mod-card.active{border-color:var(--primary)}
+.mod-card.active:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(26,82,118,.18)}
+.mod-card.disabled{opacity:.58;cursor:not-allowed}
+.mod-label{font-weight:700;font-size:.95rem;color:var(--text)}
+.prod-mosaic{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+@media(min-width:580px){.prod-mosaic{flex-direction:row}}
+.prod-btn{flex:1;padding:14px 18px;background:#fff;border:2px solid var(--border);
+  border-radius:var(--radius-sm);cursor:pointer;text-align:center;font-family:'Inter',sans-serif;
+  font-size:.9rem;font-weight:700;color:var(--text);transition:all .2s;min-height:52px;line-height:1.3}
+.prod-btn:hover{border-color:var(--primary-light);background:var(--primary-xlight);color:var(--primary)}
+.prod-btn.sel{border-color:var(--primary);background:var(--primary-xlight);color:var(--primary-dark);border-width:3px}
+.prod-no-sel{text-align:center;padding:32px 16px;color:var(--text-muted);font-size:.92rem;
+  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px;
+  border:1.5px dashed var(--border)}
+.badge-soon{position:absolute;top:9px;right:9px;background:var(--warning-bg);color:var(--warning);
+  border:1px solid #f6e05e;font-size:.62rem;font-weight:700;padding:2px 8px;
+  border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
+.sec-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+.sec-card-hdr{background:var(--primary);color:#fff;padding:11px 18px;font-weight:600;
+  font-size:.9rem;display:flex;align-items:center;gap:7px}
+.sec-card-body{padding:18px}
+.fg{display:grid;gap:14px}
+.fg-2{grid-template-columns:1fr}
+.fg-3{grid-template-columns:1fr}
+@media(min-width:580px){.fg-2{grid-template-columns:1fr 1fr}.fg-3{grid-template-columns:1fr 1fr 1fr}}
+.fg-quim{display:grid;gap:14px;grid-template-columns:1fr}
+@media(min-width:580px){.fg-quim{grid-template-columns:1fr 1fr}}
+@media(min-width:900px){.fg-quim{grid-template-columns:1fr 1fr 1fr}}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:.82rem;font-weight:600;color:var(--text-secondary)}
+.req{color:var(--error);margin-left:2px}
+.field input,.field select,.field textarea{
+  font-family:'Inter',sans-serif;font-size:.92rem;color:var(--text);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:9px 12px;width:100%;background:#fff;transition:border-color .2s;min-height:44px}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(46,134,193,.14)}
+.field input.err,.field select.err{border-color:var(--error);background:var(--error-bg)}
+.ferr{font-size:.78rem;color:var(--error);font-weight:500}
+.fhint{font-size:.73rem;color:var(--text-muted)}
+.f-ro{background:var(--primary-xlight)!important;color:var(--primary-dark)!important;font-weight:600}
+.calc-badge{font-size:.68rem;background:var(--primary-xlight);color:var(--primary-dark);
+  padding:2px 7px;border-radius:20px;font-weight:600;margin-left:6px}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.gtbl{width:100%;border-collapse:collapse;font-size:.82rem;min-width:680px}
+.gtbl th{background:var(--primary);color:#fff;padding:9px 11px;text-align:center;font-weight:600;white-space:nowrap}
+.gtbl td{padding:7px 9px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.gtbl td:first-child{font-weight:600;background:#f8f9fa;text-align:left;padding-left:12px}
+.gtbl tr:last-child td{background:#f0f0f0;font-weight:700}
+.gtbl input{font-family:'Inter',sans-serif;font-size:.88rem;width:88px;
+  padding:5px 7px;border:1px solid var(--border);border-radius:4px;text-align:right;min-height:34px}
+.gtbl input:focus{outline:none;border-color:var(--primary-light)}
+.c-ok{background:#e6ffed!important;color:#276749;font-weight:600}
+.c-err{background:#fff5f5!important;color:#c53030;font-weight:600}
+.c-neu{color:var(--text-secondary)}
+.closure{margin-top:10px;padding:9px 15px;border-radius:var(--radius-sm);font-size:.85rem;font-weight:600}
+.closure-ok{background:var(--success-bg);color:var(--success);border:1px solid #9ae6b4}
+.closure-err{background:var(--error-bg);color:var(--error);border:1px solid #feb2b2}
+.btn{font-family:'Inter',sans-serif;font-size:.92rem;font-weight:600;
+  padding:11px 22px;border-radius:var(--radius-sm);border:none;cursor:pointer;min-height:44px;transition:all .2s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+.btn-secondary{background:#fff;color:var(--primary);border:2px solid var(--primary)}
+.btn-secondary:hover{background:var(--primary-xlight)}
+.btn-danger{background:var(--error);color:#fff}
+.btn-danger:hover{background:#9b2335}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#1e5631}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;padding:18px 0;flex-wrap:wrap}
+.page-hdr{display:flex;align-items:center;gap:11px;margin-bottom:22px}
+.page-hdr h2{font-size:1.25rem;font-weight:700;color:var(--primary)}
+.back-btn{background:none;border:none;color:var(--primary);font-size:1.3rem;cursor:pointer;
+  padding:4px;min-height:44px;min-width:44px;display:flex;align-items:center;
+  justify-content:center;border-radius:var(--radius-sm);transition:background .2s}
+.back-btn:hover{background:var(--primary-xlight)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;
+  display:flex;align-items:center;justify-content:center;padding:14px}
+.modal{background:#fff;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.3);
+  padding:30px;max-width:400px;width:100%}
+.modal h3{font-size:1.15rem;font-weight:700;margin-bottom:18px}
+.toast{position:fixed;bottom:18px;right:18px;z-index:2000;padding:13px 18px;
+  border-radius:var(--radius-sm);font-size:.88rem;font-weight:500;
+  box-shadow:0 4px 16px rgba(0,0,0,.2);max-width:340px}
+.toast-success{background:var(--success-bg);color:var(--success);border:1px solid #9ae6b4}
+.toast-error{background:var(--error-bg);color:var(--error);border:1px solid #feb2b2}
+.toast-warning{background:var(--warning-bg);color:var(--warning);border:1px solid #f6e05e}
+.rev-tbl{width:100%;border-collapse:collapse;font-size:.86rem}
+.rev-tbl td{padding:8px 11px;border-bottom:1px solid var(--border)}
+.rev-tbl td:first-child{font-weight:600;color:var(--text-secondary);width:42%}
+.htbl{width:100%;border-collapse:collapse;font-size:.82rem}
+.htbl th{background:var(--primary);color:#fff;padding:9px 11px;text-align:left;font-weight:600}
+.htbl td{padding:9px 11px;border-bottom:1px solid var(--border)}
+.htbl tr:hover td{background:var(--primary-xlight)}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.73rem;font-weight:700}
+.badge-s{background:var(--success-bg);color:var(--success)}
+.badge-w{background:var(--warning-bg);color:var(--warning)}
+.cc{font-size:.73rem;color:var(--text-muted);text-align:right;margin-top:2px}
+.auth-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:60vh;gap:18px;text-align:center;padding:20px}
+.auth-title{font-size:1.3rem;font-weight:700}
+.auth-sub{font-size:.92rem;color:var(--text-secondary);max-width:380px}
+.spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--primary);
+  border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err-box{background:var(--error-bg);border:1px solid #feb2b2;border-radius:var(--radius-sm);
+  padding:12px 15px;margin-bottom:16px;color:var(--error);font-size:.85rem}
+.err-box strong{display:block;margin-bottom:6px}
+.err-box ul{padding-left:18px}
+.err-box li{margin-bottom:3px}
+@media(max-width:480px){.hdr-title{font-size:.82rem}.btn-hdr .lbl{display:none}}
+.rmodal-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;
+  display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px}
+.rmodal-wrap{background:var(--card);border-radius:var(--radius);box-shadow:0 24px 80px rgba(0,0,0,.45);
+  max-width:860px;width:100%;margin:auto}
+.rmodal-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
+  border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.rmodal-bar-title{font-size:.9rem;font-weight:700;color:var(--text)}
+#report-card{padding:32px;background:#fff;font-family:'Inter',sans-serif}
+.rc-hdr{display:flex;align-items:center;gap:20px;margin-bottom:18px}
+.rc-titles{display:flex;flex-direction:column;gap:2px}
+.rc-title{font-size:1.25rem;font-weight:800;color:#1a1a1a}
+.rc-sub{font-size:.82rem;color:#555}
+.rc-div{height:1px;background:#e0e0e0;margin:12px 0}
+.rc-meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 28px;font-size:.82rem;margin-bottom:14px}
+.rc-meta-row{display:flex;gap:6px}
+.rc-meta-k{font-weight:700;color:#555;white-space:nowrap}
+.rc-sec{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+  color:#1a5276;margin:14px 0 10px}
+.rc-granu{display:flex;gap:14px;margin-bottom:6px}
+.rc-tbl{flex:0 0 50%;overflow:hidden}
+.rc-chart{flex:1;position:relative}
+.rc-gtbl{width:100%;border-collapse:collapse;font-size:10px}
+.rc-gtbl th{background:#1a5276;color:#fff;padding:4px 7px;text-align:center;font-weight:700}
+.rc-gtbl td{padding:3px 7px;text-align:center;border-bottom:1px solid #f0f0f0;font-size:10px}
+.rc-gtbl tr.oob td{background:#fff5f5}
+.rc-gtbl tr.inb td{background:#f0fff4}
+.rc-gtbl tr.fnd td{background:#f5f5f5;font-weight:700}
+.rc-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:6px}
+.rc-kpi{border-left:4px solid #e0e0e0;padding:9px 11px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.rc-kpi.g{border-left-color:#276749}.rc-kpi.y{border-left-color:#b7791f}.rc-kpi.r{border-left-color:#c53030}
+.rc-kpi-name{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:3px}
+.rc-kpi-val{font-size:1.05rem;font-weight:800;color:#1a1a1a;margin-bottom:1px}
+.rc-kpi-lim{font-size:.68rem;color:#666;margin-bottom:4px}
+.rc-kpi-st{font-size:.69rem;font-weight:700;display:flex;align-items:center;gap:3px}
+.rc-chem-tbl{width:100%;border-collapse:collapse;font-size:.79rem;margin-bottom:8px}
+.rc-chem-tbl th{background:#f0f4f8;color:#555;padding:5px 10px;text-align:left;font-weight:700;border-bottom:2px solid #e0e0e0}
+.rc-chem-tbl td{padding:4px 10px;border-bottom:1px solid #f0f0f0}
+.rc-foot{text-align:center;font-size:.67rem;color:#aaa;margin-top:14px}
+.rmodal-ctrl{display:flex;justify-content:center;gap:12px;padding:18px 16px;flex-wrap:wrap}
+@media(max-width:680px){.rc-granu{flex-direction:column}.rc-tbl{flex:none}.rc-kpi-grid{grid-template-columns:1fr 1fr}#report-card{padding:18px}}
+.dash-filter-bar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;
+  background:var(--card);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow)}
+.dash-filter-bar .field{min-width:140px;flex:1}
+.dash-tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid var(--border)}
+.dash-tab{padding:9px 22px;font-family:'Inter',sans-serif;font-size:.9rem;font-weight:600;
+  border:none;background:none;cursor:pointer;color:var(--text-secondary);
+  border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s}
+.dash-tab.act{color:var(--primary);border-bottom-color:var(--primary);background:var(--primary-xlight)}
+.dash-layout{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:800px){.dash-layout{grid-template-columns:70fr 30fr}}
+.dash-chart-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.dash-chart-title{font-size:.82rem;font-weight:700;color:var(--text-secondary);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em}
+.dash-kpi-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.dash-kpi-item{padding:10px 0;border-bottom:1px solid var(--border)}
+.dash-kpi-item:last-child{border-bottom:none}
+.dash-kpi-name{font-size:.72rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px}
+.dash-kpi-row{display:flex;align-items:baseline;gap:8px}
+.dash-kpi-val{font-size:1.1rem;font-weight:800;color:var(--text)}
+.dash-kpi-lim{font-size:.72rem;color:var(--text-muted)}
+.sem-ok{color:var(--success);font-size:.72rem;font-weight:700}
+.sem-warn{color:var(--warning);font-size:.72rem;font-weight:700}
+.sem-err{color:var(--error);font-size:.72rem;font-weight:700}
+.sem-info{color:var(--text-muted);font-size:.72rem;font-weight:700}
+.ma-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:.82rem;font-weight:600;color:var(--text-secondary)}
+.ma-bar select{font-family:'Inter',sans-serif;font-size:.82rem;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useMemo,useCallback,useRef}=React;
+
+const MSAL_CFG={
+  auth:{
+    clientId:'1acc4905-4dc2-4bb0-b17c-1738c87f17b1',
+    authority:'https://login.microsoftonline.com/b82f992b-02a3-48f7-92c0-5c5bc836cde2',
+    redirectUri:window.location.origin+window.location.pathname,
+  },
+  cache:{cacheLocation:'localStorage',storeAuthStateInCookie:false},
+};
+const SCOPES=['User.Read','Files.ReadWrite'];
+const OD_FOLDER='Consolidado.Calidad.2026';
+const OD_FILE='calidad_arenas.xlsx';
+const ADMIN_PW='ADMIN';
+
+let msalApp=null;
+try{msalApp=new msal.PublicClientApplication(MSAL_CFG);}catch(e){console.error('MSAL',e);}
+
+const SIEVE_CONFIG={
+  'A36':[
+    {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},{us:'#25',mm:'0,710'},
+    {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},{us:'#40',mm:'0,425'},
+    {us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},
+    {us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},{us:'#200',mm:'0,075'},
+    {us:'#270',mm:'0,053'},
+  ],
+  'A38':[
+    {us:'#16',mm:'1,180'},{us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+    {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},{us:'#40',mm:'0,425'},
+    {us:'#45',mm:'0,355'},{us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},
+    {us:'#120',mm:'0,125'},{us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},
+    {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},{us:'#400',mm:'0,038'},
+  ],
+  'ALIM':[
+    {us:'#16',mm:'1,180'},{us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+    {us:'#25',mm:'0,710'},{us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},
+    {us:'#40',mm:'0,425'},{us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},
+    {us:'#120',mm:'0,125'},{us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},
+    {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
+  ],
+};
+const GRANU_TITLE={A36:'A36 TLH',A38:'A38 Fierrillo',ALIM:'Alimentacion a Planta'};
+
+const SPECS_A36={
+  LIRQUEN:{
+    nombre:'Vidrios Lirquen',
+    granulometria:{
+      '#18':{retAcumMax:0,retAcumMin:null},
+      '#25':{retAcumMax:0.4,retAcumMin:null},
+      '#35':{retAcumMax:2.0,retAcumMin:null},
+      '#120':{retAcumMax:null,retAcumMin:86.0},
+      '#170':{retAcumMax:null,retAcumMin:95.0},
+    },
+    d50Max:0.290,
+    quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:null,max:0.2},Fe2O3:{min:null,max:0.11}},
+  },
+  CRISTALERIAS:{
+    nombre:'Cristalerias Chile',
+    granulometria:{
+      '#16':{retAcumMax:0,retAcumMin:null},
+      '#20':{retAcumMax:0,retAcumMin:null},
+      '#30':{retAcumMax:0.1,retAcumMin:null},
+      '#100':{retAcumMax:null,retAcumMin:98.5},
+    },
+    quimica:{SiO2:{min:94.3,max:null},Al2O3:{min:2.2,max:3.0},Fe2O3:{min:0.06,max:0.12}},
+  },
+};
+
+function calcSemaforo(valor,limMin,limMax){
+  if(valor===null||valor===undefined||isNaN(valor))return'info';
+  if(limMin===null&&limMax===null)return'info';
+  if(limMax!==null&&valor>limMax)return'error';
+  if(limMin!==null&&valor<limMin)return'error';
+  if(limMax!==null&&valor>limMax*0.85)return'warning';
+  if(limMin!==null&&valor<limMin*1.02)return'warning';
+  return'ok';
+}
+const SEM_COLOR={ok:'#276749',warning:'#b7791f',error:'#c53030',info:'#999'};
+const SEM_LABEL={ok:'CUMPLE',warning:'ADVERTENCIA',error:'DESVIADO',info:'INFORMATIVO'};
+const SEM_ICON={ok:'✓',warning:'⚠',error:'✗',info:'—'};
+
+const PRODUCTS=[
+  {value:'A36',label:'A36 — TLH'},
+  {value:'A38',label:'A38 — Fierrillo'},
+  {value:'ALIM',label:'Alimentacion a Planta'},
+];
+const TURNOS=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'}];
+const ANALISTAS=[{value:'Camila Opazo',label:'Camila Opazo'},{value:'Ximena Gutierrez',label:'Ximena Gutierrez'}];
+
+function parseDecimal(s){
+  if(s===null||s===undefined||s==='')return NaN;
+  return parseFloat(String(s).replace(',','.'))||0;
+}
+function fmt(n,d){
+  if(d===undefined)d=2;
+  if(n===null||n===undefined||isNaN(n))return'';
+  return n.toFixed(d).replace('.',',');
+}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function today(){return new Date().toISOString().slice(0,10);}
+function nowTime(){return new Date().toTimeString().slice(0,5);}
+
+const LS='cq_arenas_pending';
+function getPending(){try{return JSON.parse(localStorage.getItem(LS)||'[]');}catch{return[];}}
+function savePending(r){localStorage.setItem(LS,JSON.stringify(r));}
+function addPending(r){var p=getPending();p.push(r);savePending(p);}
+function delPending(id){savePending(getPending().filter(function(r){return r.id!==id;}));}
+
+async function getToken(){
+  if(!msalApp)throw new Error('MSAL no inicializado');
+  var accs=msalApp.getAllAccounts();
+  if(!accs.length)throw new Error('Sin sesion activa');
+  try{
+    var r=await msalApp.acquireTokenSilent({scopes:SCOPES,account:accs[0]});
+    return r.accessToken;
+  }catch{
+    if(window.innerWidth<=768){await msalApp.acquireTokenRedirect({scopes:SCOPES});return null;}
+    var r2=await msalApp.acquireTokenPopup({scopes:SCOPES});
+    return r2.accessToken;
+  }
+}
+async function dlXlsx(token,file){
+  var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
+  var r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error('GET '+file+': '+r.status);
+  return XLSX.read(await r.arrayBuffer(),{type:'array'});
+}
+async function ulXlsx(token,file,wb){
+  var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
+  var r;
+  try{
+    r=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':blob.type},body:blob});
+  }catch(netErr){
+    var e=new Error('NETWORK');e.odCode='NETWORK';throw e;
+  }
+  if(r.status===423){var e423=new Error('LOCKED');e423.odCode=423;throw e423;}
+  if(r.status===403){var e403=new Error('FORBIDDEN');e403.odCode=403;throw e403;}
+  if(!r.ok){var eg=new Error('HTTP_'+r.status);eg.odCode=r.status;throw eg;}
+}
+
+function buildRow(d,account){
+  var sieves=SIEVE_CONFIG[d.producto]||[];
+  var row={
+    ID:d.id,FechaMuestreo:d.fecha,FechaEnvio:d.fechaEnvio,HoraEnvio:d.horaEnvio,
+    Turno:d.turno,Analista:d.analista,Producto:d.productoLabel,
+    PesoInicial:parseDecimal(d.pesoInicial),PesoFinal:parseDecimal(d.pesoFinal),
+  };
+  sieves.forEach(function(s,i){row[s.us+'_'+s.mm+'g']=parseDecimal(d.granu[i]||'')||0;});
+  row.PesoFondo=d.pesoFondo;
+  row.PctHumedad=parseDecimal(d.pctHumedad);
+  row.SiO2=parseDecimal(d.quimica.sio2);
+  row.Al2O3=parseDecimal(d.quimica.al2o3);
+  row.Fe2O3=parseDecimal(d.quimica.fe2o3);
+  row.CaO=parseDecimal(d.quimica.cao);
+  row.MgO=parseDecimal(d.quimica.mgo);
+  row.K2O=parseDecimal(d.quimica.k2o);
+  row.Na2O=parseDecimal(d.quimica.na2o);
+  row.TiO2=parseDecimal(d.quimica.tio2);
+  row.K2O_Na2O=parseFloat(((parseDecimal(d.quimica.k2o)||0)+(parseDecimal(d.quimica.na2o)||0)).toFixed(2));
+  row.Observaciones=d.observaciones;
+  row.Timestamp=new Date().toISOString();
+  row.EnviadoPor=account?account.username:'';
+  return row;
+}
+
+async function sendToOD(data,account){
+  var token=await getToken();
+  if(!token)return;
+  var wb=await dlXlsx(token,OD_FILE);
+  var row=buildRow(data,account);
+  if(!wb){
+    wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([row]),'Registros');
+  }else{
+    var ws=wb.Sheets[wb.SheetNames[0]];
+    var rows=XLSX.utils.sheet_to_json(ws);
+    rows.push(row);
+    wb.Sheets[wb.SheetNames[0]]=XLSX.utils.json_to_sheet(rows);
+  }
+  await ulXlsx(token,OD_FILE,wb);
+}
+
+function calcGranu(producto,gv,pesoFinalRaw){
+  var sieves=SIEVE_CONFIG[producto]||[];
+  var pf=parseDecimal(pesoFinalRaw);
+  var acum=0;
+  var rows=sieves.map(function(s,i){
+    var peso=parseDecimal(gv[i]||'')||0;
+    var pctP=(!isNaN(pf)&&pf>0)?(peso/pf)*100:0;
+    acum+=pctP;
+    return{us:s.us,mm:s.mm,peso:peso,pctP:pctP,pctA:acum,pctPas:100-acum};
+  });
+  var sumPesos=rows.reduce(function(s,r){return s+r.peso;},0);
+  var fondPeso=(!isNaN(pf)?pf:0)-sumPesos;
+  var fondPctP=(!isNaN(pf)&&pf>0)?(fondPeso/pf)*100:0;
+  var fondAcum=acum+fondPctP;
+  var fondPas=100-fondAcum;
+  rows.push({us:'Fondo',mm:'—',peso:fondPeso,pctP:fondPctP,pctA:fondAcum,pctPas:fondPas,isFondo:true});
+  var negative=fondPeso<-0.001;
+  var closeOk=!negative&&fondAcum>=99&&fondAcum<=101&&fondPas<=1;
+  return{rows:rows,fondPeso:fondPeso,fondAcum:fondAcum,fondPas:fondPas,closeOk:closeOk,negative:negative};
+}
+
+/* ── SMALL COMPONENTS ── */
+function Toast({msg,type,onClose}){
+  useEffect(function(){var t=setTimeout(onClose,4200);return function(){clearTimeout(t);};},[]);
+  return <div className={'toast toast-'+type}>{msg}</div>;
+}
+
+function Field({name,label,hint,type,required,value,onChange,error,readOnly,placeholder,maxLength}){
+  if(!type)type='text';
+  function handleDecimal(e){e.target.value=e.target.value.replace('.',',');onChange(e);}
+  return(
+    <div className="field">
+      <label htmlFor={name}>{label}{required&&<span className="req">*</span>}</label>
+      {type==='textarea'
+        ?<textarea id={name} value={value} onChange={onChange} placeholder={placeholder}
+            maxLength={maxLength} rows={3} className={error?'err':''}/>
+        :<input id={name} type={type==='decimal'?'text':type}
+            inputMode={type==='decimal'?'decimal':undefined}
+            value={value}
+            onChange={type==='decimal'&&!readOnly?handleDecimal:onChange}
+            placeholder={placeholder}
+            className={(error?'err ':' ')+(readOnly?'f-ro':'')}
+            readOnly={readOnly}/>
+      }
+      {hint&&type!=='decimal'&&!error&&<span className="fhint">{hint}</span>}
+      {error&&<span className="ferr">{error}</span>}
+    </div>
+  );
+}
+
+function Sel({name,label,options,value,onChange,error,required}){
+  return(
+    <div className="field">
+      <label htmlFor={name}>{label}{required&&<span className="req">*</span>}</label>
+      <select id={name} value={value} onChange={onChange} className={error?'err':''}>
+        <option value="">Seleccionar...</option>
+        {options.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}
+      </select>
+      {error&&<span className="ferr">{error}</span>}
+    </div>
+  );
+}
+
+function SecCard({title,icon,children}){
+  return(
+    <div className="sec-card">
+      <div className="sec-card-hdr">{icon&&<span>{icon}</span>}{title}</div>
+      <div className="sec-card-body">{children}</div>
+    </div>
+  );
+}
+
+function PassModal({onOk,onCancel}){
+  var[pw,setPw]=useState('');
+  var[err,setErr]=useState('');
+  function submit(){if(pw===ADMIN_PW)onOk();else setErr('Contrasena incorrecta');}
+  return(
+    <div className="overlay">
+      <div className="modal">
+        <h3>Acceso Administrador</h3>
+        <div className="field" style={{marginBottom:16}}>
+          <label>Contrasena</label>
+          <input type="password" value={pw} onChange={function(e){setPw(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')submit();}} autoFocus className={err?'err':''}/>
+          {err&&<span className="ferr">{err}</span>}
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
+          <button className="btn btn-primary" onClick={submit}>Ingresar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GranuTable({producto,pesoFinal,values,onChange}){
+  var gc=useMemo(function(){return calcGranu(producto,values,pesoFinal);},[producto,values,pesoFinal]);
+  return(
+    <div>
+      <div className="tbl-wrap">
+        <table className="gtbl">
+          <thead><tr>
+            <th>Tamiz US</th><th>mm</th><th>Peso Ret. (g)</th>
+            <th>% Ret. Parcial</th><th>% Ret. Acum.</th><th>% Pasante</th>
+          </tr></thead>
+          <tbody>
+            {gc.rows.map(function(row,i){
+              var isFondo=!!row.isFondo;
+              var acumCls=isFondo?(gc.closeOk?'c-ok':'c-err'):'c-neu';
+              var pasCls=isFondo?(gc.fondPas<=1?'c-ok':'c-err'):'c-neu';
+              return(
+                <tr key={i}>
+                  <td>{row.us}</td>
+                  <td style={{color:'var(--text-muted)'}}>{row.mm}</td>
+                  <td>
+                    {isFondo
+                      ?<span style={{color:gc.negative?'var(--error)':'inherit',fontWeight:700}}>{fmt(row.peso)}</span>
+                      :<input type="text" inputMode="decimal" value={values[i]||''}
+                          onChange={function(e){e.target.value=e.target.value.replace('.',',');onChange(i,e.target.value);}}
+                          placeholder="0,00"/>
+                    }
+                  </td>
+                  <td className="c-neu">{fmt(row.pctP)}</td>
+                  <td className={acumCls}>{fmt(row.pctA)}</td>
+                  <td className={pasCls}>{fmt(row.pctPas)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className={'closure '+(gc.closeOk?'closure-ok':'closure-err')}>
+        {gc.negative
+          ?'Aviso: Los pesos superan el peso final (Fondo = '+fmt(gc.fondPeso)+' g)'
+          :gc.closeOk
+            ?'Cierre correcto — Ret. Acum. = '+fmt(gc.fondAcum)+'% | Pasante = '+fmt(gc.fondPas)+'%'
+            :'El retenido acumulado cierra en '+fmt(gc.fondAcum)+'% — debe ser 100%. Revise los pesos. | Pasante = '+fmt(gc.fondPas)+'%'
+        }
+      </div>
+    </div>
+  );
+}
+
+/* ── REVIEW SCREEN ── */
+function ReviewScreen({data,gc,onConfirm,onBack,sending}){
+  var prodLabel=PRODUCTS.find(function(p){return p.value===data.producto;})||{label:data.producto};
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <h2>Revisar antes de enviar</h2>
+      </div>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <table className="rev-tbl"><tbody>
+          <tr><td>Fecha de muestreo</td><td>{data.fecha}</td></tr>
+          <tr><td>Fecha/hora de envio</td><td>{data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):''} — {data.horaEnvio}</td></tr>
+          <tr><td>Turno</td><td>{data.turno?'Turno '+data.turno:'-'}</td></tr>
+          <tr><td>Analista</td><td>{data.analista}</td></tr>
+          <tr><td>Producto</td><td>{prodLabel.label}</td></tr>
+          <tr><td>Peso Inicial</td><td>{data.pesoInicial} g</td></tr>
+          <tr><td>Peso Final</td><td>{data.pesoFinal} g</td></tr>
+        </tbody></table>
+      </SecCard>
+      <SecCard title="Granulometria" icon="&#128300;">
+        <div className="tbl-wrap">
+          <table className="gtbl" style={{minWidth:480}}>
+            <thead><tr>
+              <th>Tamiz US</th><th>mm</th><th>Peso Ret. (g)</th>
+              <th>% Ret. Parcial</th><th>% Ret. Acum.</th><th>% Pasante</th>
+            </tr></thead>
+            <tbody>
+              {gc.rows.map(function(r,i){
+                return(
+                  <tr key={i}>
+                    <td>{r.us}</td><td style={{color:'var(--text-muted)'}}>{r.mm}</td>
+                    <td>{fmt(r.peso)}</td>
+                    <td>{fmt(r.pctP)}</td><td>{fmt(r.pctA)}</td><td>{fmt(r.pctPas)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SecCard>
+      <SecCard title="Humedad" icon="&#128167;">
+        <table className="rev-tbl"><tbody>
+          <tr><td>% Humedad</td><td>{data.pctHumedad||'-'}</td></tr>
+        </tbody></table>
+      </SecCard>
+      <SecCard title="Quimica" icon="&#9879;&#65039;">
+        <table className="rev-tbl"><tbody>
+          <tr><td>SiO&#8322; (%)</td><td>{data.quimica.sio2||'-'}</td></tr>
+          <tr><td>Al&#8322;O&#8323; (%)</td><td>{data.quimica.al2o3||'-'}</td></tr>
+          <tr><td>Fe&#8322;O&#8323; (%)</td><td>{data.quimica.fe2o3||'-'}</td></tr>
+          <tr><td>CaO (%)</td><td>{data.quimica.cao||'-'}</td></tr>
+          <tr><td>MgO (%)</td><td>{data.quimica.mgo||'-'}</td></tr>
+          <tr><td>K&#8322;O (%)</td><td>{data.quimica.k2o||'-'}</td></tr>
+          <tr><td>Na&#8322;O (%)</td><td>{data.quimica.na2o||'-'}</td></tr>
+          <tr><td>TiO&#8322; (%)</td><td>{data.quimica.tio2||'-'}</td></tr>
+          <tr><td>K&#8322;O + Na&#8322;O (%)</td><td>{fmt((parseDecimal(data.quimica.k2o)||0)+(parseDecimal(data.quimica.na2o)||0))}</td></tr>
+        </tbody></table>
+      </SecCard>
+      {data.observaciones&&(
+        <SecCard title="Observaciones" icon="&#128221;">
+          <p style={{fontSize:'.92rem'}}>{data.observaciones}</p>
+        </SecCard>
+      )}
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack} disabled={sending}>Volver</button>
+        <button className="btn btn-primary" onClick={onConfirm} disabled={sending}>
+          {sending?'Enviando...':'Confirmar y Enviar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── REPORT MODAL ── */
+function ReportModal({data,gc,onClose,sendError,onRetry,retrying}){
+  var chartRef=useRef(null);
+  var instRef=useRef(null);
+  var pendingDlRef=useRef(null);
+  var logoSrc=useMemo(function(){return document.querySelector('.hdr-brand img')?document.querySelector('.hdr-brand img').src:'';},[]);
+
+  var isA36=data.producto==='A36';
+  var[specKey,setSpecKey]=useState(isA36?'LIRQUEN':null);
+
+  var sieves=SIEVE_CONFIG[data.producto]||[];
+  var sieveRows=gc.rows.filter(function(r){return !r.isFondo;});
+  var fondRow=gc.rows.find(function(r){return r.isFondo;})||null;
+
+  function parseMm(s){return parseFloat(String(s).replace(',','.'))||0;}
+  function interp(thr){
+    for(var i=0;i<sieveRows.length-1;i++){
+      if(sieveRows[i].pctPas>=thr&&sieveRows[i+1].pctPas<thr){
+        var m1=parseMm(sieves[i]?sieves[i].mm:0),m2=parseMm(sieves[i+1]?sieves[i+1].mm:0);
+        var p1=sieveRows[i].pctPas,p2=sieveRows[i+1].pctPas;
+        return p1===p2?m1:m1+(m2-m1)*(p1-thr)/(p1-p2);
+      }
+    }
+    return null;
+  }
+  var d50=interp(50),p80=interp(80);
+
+  function sv(us,field){
+    if(!field)field='pctP';
+    var idx=sieves.findIndex(function(s){return s.us===us;});
+    return idx>=0?(sieveRows[idx]?sieveRows[idx][field]:null):null;
+  }
+
+  function getKpis(){
+    var hum={name:'Humedad',val:parseDecimal(data.pctHumedad)||0,unit:'%',dec:2,limMin:null,limMax:null,limLabel:'—'};
+    if(isA36&&specKey){
+      if(specKey==='LIRQUEN')return[
+        {name:'Ret. Acum. #18',val:sv('#18','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
+        {name:'Ret. Acum. #25',val:sv('#25','pctA'),unit:'%',dec:2,limMin:null,limMax:0.4,limLabel:'<= 0,40 %'},
+        {name:'Ret. Acum. #35',val:sv('#35','pctA'),unit:'%',dec:2,limMin:null,limMax:2.0,limLabel:'<= 2,00 %'},
+        {name:'Ret. Acum. #120',val:sv('#120','pctA'),unit:'%',dec:2,limMin:86,limMax:null,limLabel:'>= 86,00 %'},
+        {name:'Ret. Acum. #170',val:sv('#170','pctA'),unit:'%',dec:2,limMin:95,limMax:null,limLabel:'>= 95,00 %'},
+        {name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:0.290,limLabel:'<= 0,290 mm'},
+        hum,
+      ];
+      if(specKey==='CRISTALERIAS')return[
+        {name:'Ret. Acum. #16',val:sv('#16','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
+        {name:'Ret. Acum. #20',val:sv('#20','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
+        {name:'Ret. Acum. #30',val:sv('#30','pctA'),unit:'%',dec:2,limMin:null,limMax:0.1,limLabel:'<= 0,10 %'},
+        {name:'Pasante #100',val:sv('#100','pctPas'),unit:'%',dec:2,limMin:null,limMax:1.5,limLabel:'<= 1,50 %'},
+        hum,
+      ];
+    }
+    return[
+      {name:'Ret. Acum. #35',val:sv('#35','pctA'),unit:'%',dec:2,limMin:null,limMax:2,limLabel:'<= 2,00 %'},
+      {name:'Ret. Acum. #120',val:sv('#120','pctA'),unit:'%',dec:2,limMin:86,limMax:null,limLabel:'>= 86,00 %'},
+      {name:'Ret. Acum. #170',val:sv('#170','pctA'),unit:'%',dec:2,limMin:95,limMax:null,limLabel:'>= 95,00 %'},
+      {name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
+      {name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
+      hum,
+    ];
+  }
+
+  var q=data.quimica||{};
+  var k2ona2o=(parseDecimal(q.k2o)||0)+(parseDecimal(q.na2o)||0);
+  var chemSpec=(isA36&&specKey)?SPECS_A36[specKey].quimica:{};
+  var chemRows=[
+    {p:'SiO₂',sk:'SiO2',v:q.sio2},
+    {p:'Al₂O₃',sk:'Al2O3',v:q.al2o3},
+    {p:'Fe₂O₃',sk:'Fe2O3',v:q.fe2o3},
+    {p:'CaO',sk:null,v:q.cao},
+    {p:'MgO',sk:null,v:q.mgo},
+    {p:'K₂O',sk:null,v:q.k2o},
+    {p:'Na₂O',sk:null,v:q.na2o},
+    {p:'TiO₂',sk:null,v:q.tio2},
+    {p:'K₂O+Na₂O',sk:null,v:fmt(k2ona2o),isCalc:true},
+  ];
+  var granuSpec=(isA36&&specKey)?SPECS_A36[specKey].granulometria:{};
+
+  useEffect(function(){
+    if(!chartRef.current||!window.Chart)return;
+    if(instRef.current){instRef.current.destroy();instRef.current=null;}
+    instRef.current=new window.Chart(chartRef.current,{
+      type:'line',
+      data:{labels:sieves.map(function(s){return s.us;}),datasets:[{
+        data:sieveRows.map(function(r){return +r.pctP.toFixed(2);}),
+        borderColor:'#1a5276',backgroundColor:'rgba(26,82,118,.1)',
+        borderWidth:2,pointRadius:4,fill:true,tension:.3,
+      }]},
+      options:{
+        animation:false,responsive:false,
+        plugins:{legend:{display:false},title:{display:true,text:'Distribucion Granulometrica',font:{size:11,family:'Inter'},color:'#333'}},
+        scales:{
+          x:{ticks:{font:{size:9,family:'Inter'}},grid:{color:'#f0f0f0'}},
+          y:{min:0,max:100,ticks:{font:{size:9,family:'Inter'}},grid:{color:'#f0f0f0'}},
+        },
+      },
+    });
+    return function(){if(instRef.current){instRef.current.destroy();instRef.current=null;}};
+  },[]);
+
+  function doDownload(key){
+    window.html2canvas(document.getElementById('report-card'),{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false})
+    .then(function(canvas){
+      var link=document.createElement('a');
+      var prod=(data.productoLabel||data.producto).replace(/[\s—]+/g,'_');
+      var suf=key==='LIRQUEN'?'_Lirquen':key==='CRISTALERIAS'?'_Cristalerias':'';
+      link.download='Ensayo_'+prod+suf+'_'+(data.fecha||'fecha')+'.png';
+      link.href=canvas.toDataURL('image/png');link.click();
+    });
+  }
+  function downloadWith(key){
+    if(key!==specKey){pendingDlRef.current=key;setSpecKey(key);}
+    else doDownload(key);
+  }
+  useEffect(function(){
+    if(pendingDlRef.current!==null){
+      var k=pendingDlRef.current;pendingDlRef.current=null;
+      setTimeout(function(){doDownload(k);},350);
+    }
+  },[specKey]);
+
+  var fechaLocal=data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):data.fecha;
+  var footer='Generado por Sistema de Calidad MIGRIN S.A. · '+fechaLocal+' '+( data.horaEnvio||'');
+  var showSpecCols=isA36&&specKey;
+
+  return(
+    <div className="rmodal-ov" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
+      <div className="rmodal-wrap">
+        <div className="rmodal-bar">
+          <span className="rmodal-bar-title">Informe de Ensayo</span>
+          {isA36&&(
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              {Object.entries(SPECS_A36).map(function(entry){
+                var k=entry[0],s=entry[1];
+                return(
+                  <button key={k} onClick={function(){setSpecKey(k);}} style={{
+                    padding:'4px 12px',borderRadius:20,fontFamily:'Inter',fontWeight:600,fontSize:'.74rem',
+                    border:'1.5px solid '+(specKey===k?'#1a5276':'#e0e0e0'),cursor:'pointer',
+                    background:specKey===k?'#1a5276':'#fff',color:specKey===k?'#fff':'#555',
+                  }}>{s.nombre}</button>
+                );
+              })}
+            </div>
+          )}
+          <button className="btn btn-secondary" style={{padding:'5px 14px'}} onClick={onClose}>X Cerrar</button>
+        </div>
+
+        {/* ── BANNER DE ERROR OD ── */}
+        {sendError&&(
+          <div style={{
+            margin:'0',padding:'14px 20px',
+            background: sendError.type==='locked'?'#fffff0':sendError.type==='forbidden'?'#fff5f5':'#fff5f5',
+            borderBottom:'3px solid '+(sendError.type==='locked'?'#b7791f':sendError.type==='forbidden'?'#c53030':'#c53030'),
+            display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10,
+          }}>
+            <div style={{flex:1,minWidth:200}}>
+              <div style={{fontWeight:700,fontSize:'.9rem',
+                color:sendError.type==='locked'?'#b7791f':'#c53030',marginBottom:3}}>
+                {sendError.type==='locked'&&'⚠ Archivo bloqueado'}
+                {sendError.type==='forbidden'&&'⛔ Sin permisos'}
+                {sendError.type==='network'&&'📵 Sin conexion'}
+              </div>
+              <div style={{fontSize:'.84rem',color:'#555'}}>{sendError.msg}</div>
+              {sendError.type!=='locked'&&(
+                <div style={{fontSize:'.78rem',color:'var(--success)',marginTop:4,fontWeight:600}}>
+                  ✓ Copia guardada localmente como Pendiente
+                </div>
+              )}
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {sendError.type==='locked'&&(
+                <>
+                  <button className="btn btn-primary" disabled={retrying}
+                    onClick={onRetry}
+                    style={{padding:'8px 16px',fontSize:'.85rem'}}>
+                    {retrying?'Reintentando...':'↻ Reintentar'}
+                  </button>
+                  <button className="btn btn-secondary"
+                    onClick={onClose}
+                    style={{padding:'8px 16px',fontSize:'.85rem'}}>
+                    Guardar local y cerrar
+                  </button>
+                </>
+              )}
+              {sendError.type!=='locked'&&(
+                <button className="btn btn-secondary"
+                  onClick={onRetry}
+                  style={{padding:'8px 16px',fontSize:'.85rem'}}
+                  disabled={retrying}>
+                  {retrying?'Reintentando...':'↻ Reintentar'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── BANNER ÉXITO ── */}
+        {!sendError&&!retrying&&(
+          <div style={{margin:'0',padding:'10px 20px',background:'var(--success-bg)',
+            borderBottom:'2px solid #9ae6b4',color:'var(--success)',fontSize:'.88rem',fontWeight:600}}>
+            ✓ Registro enviado exitosamente a OneDrive
+          </div>
+        )}
+        {retrying&&(
+          <div style={{margin:'0',padding:'10px 20px',background:'var(--primary-xlight)',
+            borderBottom:'2px solid var(--primary-light)',color:'var(--primary)',fontSize:'.88rem',fontWeight:600,
+            display:'flex',alignItems:'center',gap:8}}>
+            <div className="spinner" style={{width:18,height:18,borderWidth:2}}/>
+            Enviando a OneDrive...
+          </div>
+        )}
+
+        <div id="report-card">
+          <div className="rc-hdr">
+            {logoSrc&&<img src={logoSrc} style={{height:60,width:'auto',objectFit:'contain'}} alt=""/>}
+            <div className="rc-titles">
+              <div className="rc-title">INFORME DE ENSAYO</div>
+              <div className="rc-sub">Control de Calidad — MIGRIN S.A.</div>
+            </div>
+          </div>
+          <div className="rc-div"/>
+          <div className="rc-meta">
+            <div className="rc-meta-row"><span className="rc-meta-k">Planta:</span><span>Arenas</span></div>
+            <div className="rc-meta-row"><span className="rc-meta-k">Producto:</span><span>{data.productoLabel||data.producto}</span></div>
+            {showSpecCols&&<div className="rc-meta-row" style={{gridColumn:'1/-1'}}>
+              <span className="rc-meta-k">Especificacion:</span>
+              <span style={{fontWeight:700,color:'#1a5276'}}>{SPECS_A36[specKey].nombre}</span>
+            </div>}
+            <div className="rc-meta-row"><span className="rc-meta-k">Fecha muestreo:</span><span>{data.fecha}</span></div>
+            <div className="rc-meta-row"><span className="rc-meta-k">Turno:</span><span>{data.turno?'Turno '+data.turno:'—'}</span></div>
+            <div className="rc-meta-row"><span className="rc-meta-k">Analista:</span><span>{data.analista}</span></div>
+            <div className="rc-meta-row"><span className="rc-meta-k">Hora envio:</span><span>{data.horaEnvio||'—'}</span></div>
+          </div>
+          <div className="rc-div"/>
+
+          <div className="rc-sec">1 — Granulometria</div>
+          <div className="rc-granu">
+            <div className="rc-tbl">
+              <table className="rc-gtbl">
+                <thead><tr>
+                  <th>Tamiz</th><th>mm</th><th>Ret.P(%)</th><th>Ret.A(%)</th><th>Pas.(%)</th>
+                  {showSpecCols&&<><th>Lim.Min</th><th>Lim.Max</th></>}
+                </tr></thead>
+                <tbody>
+                  {sieveRows.map(function(r,i){
+                    var gs=granuSpec[r.us];
+                    var limAMin=gs?gs.retAcumMin:null;
+                    var limAMax=gs?gs.retAcumMax:null;
+                    var sem=showSpecCols?calcSemaforo(r.pctA,limAMin,limAMax):'info';
+                    return(
+                      <tr key={i} style={{background:sem==='error'?'#fff5f5':sem==='warning'?'#fffff0':''}}>
+                        <td style={{fontWeight:700}}>{r.us}</td>
+                        <td style={{color:'#888'}}>{sieves[i]?sieves[i].mm:'—'}</td>
+                        <td>{fmt(r.pctP)}</td><td>{fmt(r.pctA)}</td><td>{fmt(r.pctPas)}</td>
+                        {showSpecCols&&<>
+                          <td style={{color:'#555',fontSize:'9px'}}>{limAMin!=null?fmt(limAMin,2):'—'}</td>
+                          <td style={{color:'#555',fontSize:'9px'}}>{limAMax!=null?fmt(limAMax,2):'—'}</td>
+                        </>}
+                      </tr>
+                    );
+                  })}
+                  {fondRow&&<tr className="fnd">
+                    <td style={{fontWeight:700}}>Fondo</td><td>—</td>
+                    <td>{fmt(fondRow.pctP)}</td><td>{fmt(fondRow.pctA)}</td><td>{fmt(fondRow.pctPas)}</td>
+                    {showSpecCols&&<><td>—</td><td>—</td></>}
+                  </tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="rc-chart"><canvas ref={chartRef} width={340} height={220}/></div>
+          </div>
+          <div className="rc-div"/>
+
+          <div className="rc-sec">2 — Control de Calidad</div>
+          <div className="rc-kpi-grid">
+            {getKpis().map(function(k,i){
+              var sem=calcSemaforo(k.val,k.limMin,k.limMax);
+              var fv=(k.val!==null&&!isNaN(k.val)&&k.val!==0)?fmt(k.val,k.dec)+' '+k.unit:'—';
+              var borderC={ok:'#276749',warning:'#b7791f',error:'#c53030',info:'#e0e0e0'}[sem];
+              return(
+                <div key={i} className={'rc-kpi '+(sem==='ok'?'g':sem==='warning'?'y':sem==='error'?'r':'')} style={{borderLeftColor:borderC}}>
+                  <div className="rc-kpi-name">{k.name}</div>
+                  <div className="rc-kpi-val">{fv}</div>
+                  <div className="rc-kpi-lim">Limite: {k.limLabel}</div>
+                  <div className="rc-kpi-st" style={{color:SEM_COLOR[sem]}}>&#9679; {SEM_LABEL[sem]}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="rc-div"/>
+
+          <div className="rc-sec">3 — Analisis Quimico</div>
+          <table className="rc-chem-tbl">
+            <thead><tr>
+              <th>Parametro</th><th>Valor (%)</th>
+              {showSpecCols&&<><th>Lim.Min</th><th>Lim.Max</th></>}
+              <th>Estado</th>
+            </tr></thead>
+            <tbody>
+              {chemRows.map(function(c,i){
+                var sp=c.sk?chemSpec[c.sk]:null;
+                var limMin=sp?sp.min:null;
+                var limMax=sp?sp.max:null;
+                var sem=calcSemaforo(parseDecimal(c.v),limMin,limMax);
+                return(
+                  <tr key={i} style={{background:c.isCalc?'#d6eaf8':sem==='error'?'#fff5f5':''}}>
+                    <td style={{fontWeight:600}}>{c.p}</td>
+                    <td>{c.v||'—'}</td>
+                    {showSpecCols&&<>
+                      <td style={{color:'#555',fontSize:'.72rem'}}>{limMin!=null?fmt(limMin,3):'—'}</td>
+                      <td style={{color:'#555',fontSize:'.72rem'}}>{limMax!=null?fmt(limMax,3):'—'}</td>
+                    </>}
+                    <td style={{color:SEM_COLOR[sem],fontWeight:700,fontSize:'.72rem'}}>{SEM_ICON[sem]}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="rc-div"/>
+          <div className="rc-foot">{footer}</div>
+        </div>
+
+        <div className="rmodal-ctrl">
+          {isA36?(
+            <>
+              <button className="btn btn-primary" onClick={function(){downloadWith('LIRQUEN');}}>Descargar PNG — Vidrios Lirquen</button>
+              <button className="btn btn-primary" onClick={function(){downloadWith('CRISTALERIAS');}}>Descargar PNG — Cristalerias Chile</button>
+            </>
+          ):(
+            <button className="btn btn-primary" onClick={function(){doDownload(null);}}>Descargar PNG</button>
+          )}
+          <button className="btn btn-secondary" onClick={onClose}>X Cerrar y volver</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ARENAS FORM ── */
+function ArenasForm({account,onBack,onSuccess}){
+  var[view,setView]=useState('form');
+  var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[fecha,setFecha]=useState(today());
+  var[fechaEnvio,setFechaEnvio]=useState('');
+  var[horaEnvio,setHoraEnvio]=useState('');
+  var[turno,setTurno]=useState('');
+  var[analista,setAnalista]=useState('');
+  var[producto,setProducto]=useState('');
+  var[pesoInicial,setPesoInicial]=useState('');
+  var[pesoFinal,setPesoFinal]=useState('');
+  var[gv,setGv]=useState([]);
+  var[pctHumedad,setPctHumedad]=useState('');
+  var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
+  var[obs,setObs]=useState('');
+  var[errors,setErrors]=useState({});
+
+  useEffect(function(){
+    setGv(Array(SIEVE_CONFIG[producto]?SIEVE_CONFIG[producto].length:0).fill(''));
+  },[producto]);
+
+  var gc=useMemo(function(){return calcGranu(producto,gv,pesoFinal);},[producto,gv,pesoFinal]);
+  function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Requerido';
+    if(!analista)e.analista='Requerido';
+    if(!producto)e.producto='Seleccione un producto';
+    var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
+    if(!pesoInicial)e.pesoInicial='Requerido';
+    if(!pesoFinal)e.pesoFinal='Requerido';
+    else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
+      e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+    if(!pctHumedad)e.pctHumedad='Requerido';
+    if(!quimica.sio2)e.sio2='Requerido';
+    if(!quimica.al2o3)e.al2o3='Requerido';
+    if(!quimica.fe2o3)e.fe2o3='Requerido';
+    if(!quimica.cao)e.cao='Requerido';
+    if(!quimica.mgo)e.mgo='Requerido';
+    if(!quimica.k2o)e.k2o='Requerido';
+    if(!quimica.na2o)e.na2o='Requerido';
+    if(!quimica.tio2)e.tio2='Requerido';
+    if(producto&&!gc.closeOk)
+      e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+    return e;
+  }
+
+  function handleReview(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    var now=new Date();
+    setFechaEnvio(now.toISOString());
+    setHoraEnvio(now.toLocaleTimeString('es-CL'));
+    setErrors({});setView('review');
+  }
+
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
+
+  function buildOdError(err){
+    if(err.odCode===423||err.message==='LOCKED')
+      return{type:'locked',msg:'El archivo Excel esta abierto en otro equipo. Cierralo y presiona Reintentar.'};
+    if(err.odCode===403||err.message==='FORBIDDEN')
+      return{type:'forbidden',msg:'Sin permisos suficientes para escribir en OneDrive. Contacta al administrador.'};
+    return{type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'};
+  }
+
+  async function handleConfirm(){
+    setSending(true);
+    var prodObj=PRODUCTS.find(function(p){return p.value===producto;});
+    var prodLabel=prodObj?prodObj.label:producto;
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,
+      turno:turno,analista:analista,producto:producto,productoLabel:prodLabel,
+      pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
+      pctHumedad:pctHumedad,quimica:quimica,observaciones:obs,
+    };
+    addPending(data);
+    setSendError(null);
+    try{
+      await sendToOD(data,account);
+      delPending(data.id);
+      setSending(false);
+      setReportModal({data:data,gc:gc,msg:'Registro enviado exitosamente a OneDrive.'});
+    }catch(err){
+      console.error(err);
+      setSending(false);
+      setSendError(buildOdError(err));
+      setReportModal({data:data,gc:gc,msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);
+    setSendError(null);
+    try{
+      await sendToOD(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro enviado exitosamente a OneDrive.'});});
+    }catch(err){
+      console.error(err);
+      setRetrying(false);
+      setSendError(buildOdError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data}
+        gc={reportModal.gc}
+        sendError={sendError}
+        retrying={retrying}
+        onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
+  }
+
+  if(view==='review'){
+    return(
+      <ReviewScreen
+        data={{fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,turno:turno,
+               analista:analista,producto:producto,pesoInicial:pesoInicial,pesoFinal:pesoFinal,
+               pctHumedad:pctHumedad,quimica:quimica,observaciones:obs}}
+        gc={gc} onConfirm={handleConfirm} onBack={function(){setView('form');}} sending={sending}/>
+    );
+  }
+
+  var prodObj=PRODUCTS.find(function(p){return p.value===producto;});
+  var prodLabel=prodObj?prodObj.label:null;
+  var errList=Object.values(errors);
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div>
+          <h2>Planta Arenas</h2>
+          {prodLabel&&<div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{prodLabel}</div>}
+        </div>
+      </div>
+
+      <div className="prod-mosaic">
+        {PRODUCTS.map(function(p){
+          return(
+            <button key={p.value}
+              className={'prod-btn'+(producto===p.value?' sel':'')}
+              onClick={function(){setProducto(p.value);}}>
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {!producto&&(
+        <div className="prod-no-sel">Selecciona un producto para continuar</div>
+      )}
+
+      {producto&&(
+        <div>
+          {errList.length>0&&(
+            <div className="err-box">
+              <strong>Corrija los siguientes errores:</strong>
+              <ul>{errList.map(function(e,i){return <li key={i}>{e}</li>;})}</ul>
+            </div>
+          )}
+
+          <SecCard title="Informacion General" icon="&#128203;">
+            <div className="fg fg-2" style={{marginBottom:14}}>
+              <Field name="fecha" label="Fecha de muestreo" type="date" required value={fecha}
+                onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}
+                hint="Fecha en que se tomo la muestra"/>
+              <div className="field">
+                <label style={{fontSize:'.82rem',fontWeight:600,color:'var(--text-secondary)'}}>Hora de envio</label>
+                <input type="text" value="Se registra automaticamente al confirmar" readOnly className="f-ro"/>
+              </div>
+            </div>
+            <div className="fg fg-2">
+              <Sel name="turno" label="Turno" options={TURNOS} value={turno}
+                onChange={function(e){setTurno(e.target.value);}} error={errors.turno}/>
+              <Sel name="analista" label="Analista" required options={ANALISTAS} value={analista}
+                onChange={function(e){setAnalista(e.target.value);}} error={errors.analista}/>
+            </div>
+          </SecCard>
+
+          <SecCard title="Pesos" icon="&#9878;&#65039;">
+            <div className="fg fg-2">
+              <Field name="pi" label="Peso Inicial (g)" type="decimal" required value={pesoInicial}
+                onChange={function(e){setPesoInicial(e.target.value);}} error={errors.pesoInicial} placeholder="0,00"/>
+              <Field name="pf" label="Peso Final (g)" type="decimal" required value={pesoFinal}
+                onChange={function(e){setPesoFinal(e.target.value);}} error={errors.pesoFinal} placeholder="0,00"/>
+            </div>
+          </SecCard>
+
+          <SecCard title={'Granulometria — '+(GRANU_TITLE[producto]||prodLabel)} icon="&#128300;">
+            <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
+            {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+              Aviso: {errors.granu}
+            </div>}
+          </SecCard>
+
+          <SecCard title="Humedad" icon="&#128167;">
+            <div style={{maxWidth:240}}>
+              <Field name="pctHumedad" label="% Humedad" type="decimal" required value={pctHumedad}
+                onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"/>
+            </div>
+          </SecCard>
+
+          <SecCard title="Quimica" icon="&#9879;&#65039;">
+            <div className="fg-quim">
+              <Field name="sio2" label="SiO₂ (%)" type="decimal" required value={quimica.sio2}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{sio2:e.target.value});});}} error={errors.sio2} placeholder="0,00"/>
+              <Field name="al2o3" label="Al₂O₃ (%)" type="decimal" required value={quimica.al2o3}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{al2o3:e.target.value});});}} error={errors.al2o3} placeholder="0,00"/>
+              <Field name="fe2o3" label="Fe₂O₃ (%)" type="decimal" required value={quimica.fe2o3}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{fe2o3:e.target.value});});}} error={errors.fe2o3} placeholder="0,00"/>
+              <Field name="cao" label="CaO (%)" type="decimal" required value={quimica.cao}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{cao:e.target.value});});}} error={errors.cao} placeholder="0,00"/>
+              <Field name="mgo" label="MgO (%)" type="decimal" required value={quimica.mgo}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{mgo:e.target.value});});}} error={errors.mgo} placeholder="0,00"/>
+              <Field name="k2o" label="K₂O (%)" type="decimal" required value={quimica.k2o}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{k2o:e.target.value});});}} error={errors.k2o} placeholder="0,00"/>
+              <Field name="na2o" label="Na₂O (%)" type="decimal" required value={quimica.na2o}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{na2o:e.target.value});});}} error={errors.na2o} placeholder="0,00"/>
+              <Field name="tio2" label="TiO₂ (%)" type="decimal" required value={quimica.tio2}
+                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{tio2:e.target.value});});}} error={errors.tio2} placeholder="0,00"/>
+              <div className="field">
+                <label>K₂O + Na₂O (%)<span className="calc-badge">Calculado</span></label>
+                <input type="text" readOnly className="f-ro" placeholder="—"
+                  value={(quimica.k2o||quimica.na2o)?fmt((parseDecimal(quimica.k2o)||0)+(parseDecimal(quimica.na2o)||0)):''}/>
+              </div>
+            </div>
+          </SecCard>
+
+          <SecCard title="Observaciones" icon="&#128221;">
+            <Field name="obs" label="Observaciones" type="textarea" value={obs}
+              onChange={function(e){if(e.target.value.length<=300)setObs(e.target.value);}}
+              placeholder="Observaciones adicionales (opcional)" maxLength={300}/>
+            <div className="cc">{obs.length}/300</div>
+          </SecCard>
+
+          <div className="form-actions">
+            <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+            <button className="btn btn-primary" onClick={handleReview}>Revisar &#8594;</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── DASHBOARD SCREEN ── */
+function DashboardScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[loading,setLoading]=useState(true);
+  var[tab,setTab]=useState('granu');
+  var[prod,setProd]=useState('A36');
+  var[period,setPeriod]=useState(30);
+  var[filterTurno,setFilterTurno]=useState('');
+  var[filterAnalista,setFilterAnalista]=useState('');
+  var[maWin,setMaWin]=useState(5);
+  var chartGRef=useRef(null);
+  var chartQRef=useRef(null);
+  var instG=useRef(null);
+  var instQ=useRef(null);
+
+  useEffect(function(){loadData();},[]);
+
+  async function loadData(){
+    setLoading(true);
+    var cloud=[];
+    try{
+      var token=await getToken();
+      if(token){
+        var wb=await dlXlsx(token,OD_FILE);
+        if(wb){
+          var ws=wb.Sheets[wb.SheetNames[0]];
+          cloud=XLSX.utils.sheet_to_json(ws);
+        }
+      }
+    }catch(e){console.error(e);}
+    var pending=getPending().map(function(r){return Object.assign({},r,{_src:'local'});});
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pending.filter(function(r){return !ids.has(r.id);}));
+    merged.sort(function(a,b){
+      return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');
+    });
+    setRecords(merged);
+    setLoading(false);
+  }
+
+  var filtered=useMemo(function(){
+    var cutoff=new Date(Date.now()-period*86400000).toISOString().slice(0,10);
+    return records.filter(function(r){
+      var fecha=r.FechaMuestreo||r.fecha||'';
+      if(fecha<cutoff)return false;
+      var rProd=r.Producto||r.productoLabel||'';
+      var prodKey=prod==='A36'?'A36':prod==='A38'?'A38':'Alim';
+      if(!rProd.includes(prodKey))return false;
+      if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return false;
+      if(filterAnalista&&(r.Analista||r.analista)!==filterAnalista)return false;
+      return true;
+    });
+  },[records,prod,period,filterTurno,filterAnalista]);
+
+  function fmtXDate(s){
+    if(!s)return'';
+    var d=new Date(s+'T12:00:00');
+    var mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return(d.getDate())+'/'+(d.getMonth()+1<10?'0':'')+(d.getMonth()+1)+' '+mn[d.getMonth()];
+  }
+
+  function movAvg(arr,w){
+    return arr.map(function(v,i){
+      var sl=arr.slice(Math.max(0,i-w+1),i+1).filter(function(x){return x!==null&&!isNaN(x);});
+      return sl.length?sl.reduce(function(a,b){return a+b;},0)/sl.length:null;
+    });
+  }
+
+  function computeStats(row){
+    var sieves=SIEVE_CONFIG[prod]||[];
+    var pf=parseDecimal(row.PesoFinal);
+    if(!pf||pf<=0)return null;
+    var acum=0;
+    var stats={};
+    sieves.forEach(function(s){
+      var key=s.us+'_'+s.mm+'g';
+      var peso=parseDecimal(row[key])||0;
+      var pctP=(peso/pf)*100;
+      acum+=pctP;
+      stats[s.us]={pctP:pctP,pctA:acum,pctPas:100-acum};
+    });
+    function interp2(thr){
+      for(var i=0;i<sieves.length-1;i++){
+        var s1=stats[sieves[i].us],s2=stats[sieves[i+1].us];
+        if(!s1||!s2)continue;
+        if(s1.pctPas>=thr&&s2.pctPas<thr){
+          var m1=parseFloat(sieves[i].mm.replace(',','.')),m2=parseFloat(sieves[i+1].mm.replace(',','.'));
+          var p1=s1.pctPas,p2=s2.pctPas;
+          return p1===p2?m1:m1+(m2-m1)*(p1-thr)/(p1-p2);
+        }
+      }
+      return null;
+    }
+    stats._d50=interp2(50);
+    stats._p80=interp2(80);
+    return stats;
+  }
+
+  var labels=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
+
+  var GRANU_CONTROLS=[
+    {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:null,limMax:2},
+    {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:86,limMax:null},
+    {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:95,limMax:null},
+    {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:0.290},
+    {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
+  ];
+
+  var CHEM_CONTROLS=[
+    {key:'SiO2',label:'SiO2 (%)',color:'#1a5276'},
+    {key:'Al2O3',label:'Al2O3 (%)',color:'#c53030'},
+    {key:'Fe2O3',label:'Fe2O3 (%)',color:'#b7791f'},
+  ];
+
+  useEffect(function(){
+    if(tab!=='granu'||!chartGRef.current||!window.Chart)return;
+    if(instG.current){instG.current.destroy();instG.current=null;}
+    var datasets=GRANU_CONTROLS.map(function(ctrl){
+      var data=filtered.map(function(r){
+        var st=computeStats(r);
+        if(!st)return null;
+        if(ctrl.field)return st[ctrl.key]?+(st[ctrl.key][ctrl.field]||0).toFixed(2):null;
+        return st[ctrl.key]!=null?+st[ctrl.key].toFixed(3):null;
+      });
+      return{
+        label:ctrl.label,data:data,borderColor:ctrl.color,
+        backgroundColor:ctrl.color+'22',borderWidth:2,
+        pointRadius:3,tension:.3,spanGaps:true,
+      };
+    });
+    instG.current=new window.Chart(chartGRef.current,{
+      type:'line',
+      data:{labels:labels,datasets:datasets},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:10,family:'Inter'}}}},
+        scales:{
+          x:{ticks:{font:{size:9,family:'Inter'},maxRotation:45}},
+          y:{ticks:{font:{size:9,family:'Inter'}}},
+        },
+      },
+    });
+    return function(){if(instG.current){instG.current.destroy();instG.current=null;}};
+  },[tab,filtered,prod]);
+
+  useEffect(function(){
+    if(tab!=='quim'||!chartQRef.current||!window.Chart)return;
+    if(instQ.current){instQ.current.destroy();instQ.current=null;}
+    var datasets=[];
+    CHEM_CONTROLS.forEach(function(ctrl){
+      var raw=filtered.map(function(r){
+        var v=parseDecimal(r[ctrl.key]);
+        return isNaN(v)?null:+v.toFixed(3);
+      });
+      var ma=movAvg(raw,maWin);
+      datasets.push({
+        label:ctrl.label,data:raw,borderColor:ctrl.color,
+        backgroundColor:'transparent',borderWidth:1.5,
+        pointRadius:3,tension:.3,spanGaps:true,borderDash:[],
+      });
+      datasets.push({
+        label:ctrl.label+' MA'+maWin,data:ma,borderColor:ctrl.color,
+        backgroundColor:ctrl.color+'33',borderWidth:2.5,
+        pointRadius:0,tension:.4,spanGaps:true,fill:false,
+        borderDash:[4,2],
+      });
+    });
+    instQ.current=new window.Chart(chartQRef.current,{
+      type:'line',
+      data:{labels:labels,datasets:datasets},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:10,family:'Inter'}}}},
+        scales:{
+          x:{ticks:{font:{size:9,family:'Inter'},maxRotation:45}},
+          y:{ticks:{font:{size:9,family:'Inter'}}},
+        },
+      },
+    });
+    return function(){if(instQ.current){instQ.current.destroy();instQ.current=null;}};
+  },[tab,filtered,maWin,prod]);
+
+  var kpiStats=useMemo(function(){
+    return GRANU_CONTROLS.map(function(ctrl){
+      var vals=filtered.map(function(r){
+        var st=computeStats(r);
+        if(!st)return null;
+        if(ctrl.field)return st[ctrl.key]?st[ctrl.key][ctrl.field]:null;
+        return st[ctrl.key]!=null?st[ctrl.key]:null;
+      }).filter(function(v){return v!==null&&!isNaN(v);});
+      if(!vals.length)return Object.assign({},ctrl,{avg:null,last:null,sem:'info'});
+      var avg=vals.reduce(function(a,b){return a+b;},0)/vals.length;
+      var last=vals[vals.length-1];
+      var sem=calcSemaforo(last,ctrl.limMin,ctrl.limMax);
+      return Object.assign({},ctrl,{avg:avg,last:last,sem:sem});
+    });
+  },[filtered,prod]);
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <h2>Reportes — Planta Arenas</h2>
+      </div>
+
+      <div className="dash-filter-bar">
+        <div className="field" style={{minWidth:120}}>
+          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Producto</label>
+          <select value={prod} onChange={function(e){setProd(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
+            <option value="A36">A36 TLH</option>
+            <option value="A38">A38 Fierrillo</option>
+            <option value="ALIM">Alimentacion</option>
+          </select>
+        </div>
+        <div className="field" style={{minWidth:120}}>
+          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Periodo</label>
+          <select value={period} onChange={function(e){setPeriod(parseInt(e.target.value));}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
+            <option value="7">Ultimos 7 dias</option>
+            <option value="14">Ultimos 14 dias</option>
+            <option value="30">Ultimos 30 dias</option>
+            <option value="90">Ultimos 90 dias</option>
+          </select>
+        </div>
+        <div className="field" style={{minWidth:110}}>
+          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Turno</label>
+          <select value={filterTurno} onChange={function(e){setFilterTurno(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
+            <option value="">Todos</option>
+            <option value="A">Turno A</option>
+            <option value="B">Turno B</option>
+          </select>
+        </div>
+        <div className="field" style={{minWidth:160}}>
+          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Analista</label>
+          <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
+            <option value="">Todos</option>
+            {ANALISTAS.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
+          </select>
+        </div>
+        <button className="btn btn-secondary" onClick={loadData} style={{padding:'7px 14px',alignSelf:'flex-end',minHeight:36}}>
+          &#8635; Actualizar
+        </button>
+      </div>
+
+      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+
+      {!loading&&(
+        <div>
+          <div className="dash-tabs">
+            <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
+            <button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>
+          </div>
+
+          {filtered.length===0&&(
+            <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+              Sin registros para los filtros seleccionados
+            </div>
+          )}
+
+          {filtered.length>0&&tab==='granu'&&(
+            <div className="dash-layout">
+              <div className="dash-chart-card">
+                <div className="dash-chart-title">Controles Granulometricos — {filtered.length} registros</div>
+                <div style={{position:'relative',height:320}}>
+                  <canvas ref={chartGRef}/>
+                </div>
+              </div>
+              <div className="dash-kpi-card">
+                <div style={{fontSize:'.8rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:12,textTransform:'uppercase',letterSpacing:'.04em'}}>KPIs — Ultimo registro</div>
+                {kpiStats.map(function(k,i){
+                  var semCls=k.sem==='ok'?'sem-ok':k.sem==='warning'?'sem-warn':k.sem==='error'?'sem-err':'sem-info';
+                  var semTxt=k.sem==='ok'?'CUMPLE':k.sem==='warning'?'ADVERTENCIA':k.sem==='error'?'DESVIADO':'INFO';
+                  return(
+                    <div key={i} className="dash-kpi-item">
+                      <div className="dash-kpi-name">{k.label}</div>
+                      <div className="dash-kpi-row">
+                        <span className="dash-kpi-val">{k.last!=null?fmt(k.last,3):'-'}</span>
+                        <span className="dash-kpi-lim">
+                          {k.limMax!=null?'max '+k.limMax:k.limMin!=null?'min '+k.limMin:''}
+                        </span>
+                      </div>
+                      <div className={'dash-kpi-stat '+semCls}>{semTxt}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {filtered.length>0&&tab==='quim'&&(
+            <div>
+              <div className="ma-bar">
+                <span>Promedio movil:</span>
+                <select value={maWin} onChange={function(e){setMaWin(parseInt(e.target.value));}}>
+                  <option value="5">5 periodos</option>
+                  <option value="7">7 periodos</option>
+                </select>
+                <span style={{color:'var(--text-muted)',fontWeight:400}}>({filtered.length} registros)</span>
+              </div>
+              <div className="dash-chart-card">
+                <div className="dash-chart-title">Tendencias Quimicas</div>
+                <div style={{position:'relative',height:360}}>
+                  <canvas ref={chartQRef}/>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── HISTORY SCREEN ── */
+function HistoryScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[loading,setLoading]=useState(true);
+  var[isAdmin,setIsAdmin]=useState(false);
+  var[showPass,setShowPass]=useState(false);
+  var[toast,setToast]=useState(null);
+
+  useEffect(function(){load();},[]);
+
+  async function load(){
+    setLoading(true);
+    var pending=getPending().map(function(r){return Object.assign({},r,{status:'pending'});});
+    var cloud=[];
+    try{
+      var token=await getToken();
+      if(token){
+        var wb=await dlXlsx(token,OD_FILE);
+        if(wb){
+          var ws=wb.Sheets[wb.SheetNames[0]];
+          cloud=XLSX.utils.sheet_to_json(ws).map(function(r){return Object.assign({},r,{status:'sent'});});
+        }
+      }
+    }catch(e){console.error('History',e);}
+    var cids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pending.filter(function(r){return !cids.has(r.id);}));
+    merged.sort(function(a,b){return(b.FechaMuestreo||b.fecha||'').localeCompare(a.FechaMuestreo||a.fecha||'');});
+    setRecords(merged);
+    setLoading(false);
+  }
+
+  async function resend(r){
+    try{
+      await sendToOD(r,account);
+      delPending(r.id);
+      setToast({msg:'Registro reenviado exitosamente',type:'success'});
+      load();
+    }catch(e){setToast({msg:'Error al reenviar: '+e.message,type:'error'});}
+  }
+
+  function exportCSV(){
+    var hdr=['ID','Fecha','Hora','Turno','Analista','Producto','PesoInicial','PesoFinal','Estado'];
+    var rows=records.map(function(r){
+      return[r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
+        r.Analista||r.analista,r.Producto||r.productoLabel,
+        r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
+        r.status==='sent'?'Enviado':'Pendiente'];
+    });
+    var csv=[hdr].concat(rows).map(function(r){return r.join(',');}).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='historial_arenas.csv';
+    a.click();
+  }
+
+  return(
+    <div>
+      {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
+      {showPass&&<PassModal onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <h2>Historial — Planta Arenas</h2>
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+        <button className="btn btn-secondary" onClick={exportCSV}>Exportar CSV</button>
+        {!isAdmin&&<button className="btn btn-secondary" onClick={function(){setShowPass(true);}}>Modo Admin</button>}
+        {isAdmin&&<span className="badge badge-s" style={{padding:'4px 12px'}}>Admin activo</span>}
+        <button className="btn btn-secondary" onClick={load} style={{marginLeft:'auto'}}>&#8635; Actualizar</button>
+      </div>
+      {loading
+        ?<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>
+        :<div className="sec-card">
+          <div className="sec-card-hdr">Registros ({records.length})</div>
+          <div style={{overflowX:'auto'}}>
+            <table className="htbl">
+              <thead><tr>
+                <th>Fecha</th><th>Hora</th><th>Producto</th>
+                <th>P. Inicial</th><th>P. Final</th><th>Analista</th><th>Estado</th>
+                {isAdmin&&<th>Acciones</th>}
+              </tr></thead>
+              <tbody>
+                {records.length===0&&(
+                  <tr><td colSpan={isAdmin?8:7} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
+                    No hay registros
+                  </td></tr>
+                )}
+                {records.map(function(r,i){
+                  return(
+                    <tr key={i}>
+                      <td>{r.FechaMuestreo||r.fecha}</td>
+                      <td>{r.HoraEnvio||r.horaEnvio}</td>
+                      <td>{r.Producto||r.productoLabel}</td>
+                      <td>{r.PesoInicial||r.pesoInicial}</td>
+                      <td>{r.PesoFinal||r.pesoFinal}</td>
+                      <td>{r.Analista||r.analista}</td>
+                      <td>{r.status==='sent'
+                        ?<span className="badge badge-s">Enviado</span>
+                        :<span className="badge badge-w">Pendiente</span>}
+                      </td>
+                      {isAdmin&&<td>
+                        {r.status==='pending'&&<>
+                          <button className="btn btn-success" style={{padding:'3px 9px',fontSize:'.78rem',marginRight:4}}
+                            onClick={function(){resend(r);}}>Reenviar</button>
+                          <button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                            onClick={function(){delPending(r.id||r.ID);load();}}>Eliminar</button>
+                        </>}
+                      </td>}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+  );
+}
+
+/* ── SETTINGS SCREEN ── */
+function SettingsScreen({account,onBack,onLogout}){
+  var[isAdmin,setIsAdmin]=useState(false);
+  var[showPass,setShowPass]=useState(false);
+  var[pending,setPending]=useState(getPending());
+  var[toast,setToast]=useState(null);
+  function refresh(){setPending(getPending());}
+  return(
+    <div>
+      {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
+      {showPass&&<PassModal onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <h2>Ajustes</h2>
+      </div>
+      <SecCard title="Sesion Microsoft" icon="&#128272;">
+        {account
+          ?<div>
+            <p style={{marginBottom:12}}>Conectado como: <strong>{account.username}</strong></p>
+            <button className="btn btn-danger" onClick={onLogout}>Cerrar sesion</button>
+          </div>
+          :<p>No hay sesion activa.</p>
+        }
+      </SecCard>
+      <SecCard title="Administracion" icon="&#9881;&#65039;">
+        {!isAdmin
+          ?<button className="btn btn-secondary" onClick={function(){setShowPass(true);}}>Acceder como Admin</button>
+          :<div>
+            <div style={{marginBottom:14,padding:'8px 12px',background:'var(--success-bg)',borderRadius:'var(--radius-sm)',color:'var(--success)',fontWeight:600}}>Admin activo</div>
+            <p style={{marginBottom:12,color:'var(--text-secondary)',fontSize:'.88rem'}}>
+              Registros pendientes locales: <strong>{pending.length}</strong>
+            </p>
+            {pending.length>0&&(
+              <div>
+                <div style={{overflowX:'auto',marginBottom:12}}>
+                  <table className="htbl">
+                    <thead><tr><th>ID</th><th>Fecha</th><th>Producto</th><th>Accion</th></tr></thead>
+                    <tbody>{pending.map(function(r){
+                      return(
+                        <tr key={r.id}>
+                          <td style={{fontSize:'.72rem',color:'var(--text-muted)'}}>{r.id}</td>
+                          <td>{r.fecha}</td>
+                          <td>{r.productoLabel}</td>
+                          <td>
+                            <button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                              onClick={function(){delPending(r.id);refresh();}}>Eliminar</button>
+                          </td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+                <button className="btn btn-danger" onClick={function(){
+                  if(confirm('Eliminar todos los registros pendientes?')){
+                    localStorage.removeItem(LS);refresh();
+                    setToast({msg:'Registros locales eliminados',type:'success'});
+                  }
+                }}>Eliminar todos los pendientes</button>
+              </div>
+            )}
+          </div>
+        }
+      </SecCard>
+    </div>
+  );
+}
+
+/* ── HOME SCREEN ── */
+const MODULES=[
+  {id:'secado-peral',label:'Secado Peral',active:false},
+  {id:'lavado-peral',label:'Lavado Peral',active:false},
+  {id:'secado-turco',label:'Secado Turco',active:false},
+  {id:'lavado-turco',label:'Lavado Turco',active:false},
+  {id:'arenas',label:'Arenas',active:true},
+  {id:'cuarzo',label:'Cuarzo',active:false},
+];
+
+function HomeScreen({onSelect}){
+  return(
+    <div>
+      <div className="home-intro">
+        <h2>Modulos de Control</h2>
+        <p>Seleccione un modulo para iniciar el registro de calidad</p>
+      </div>
+      <div className="modules-grid">
+        {MODULES.map(function(m){
+          return(
+            <div key={m.id} className={'mod-card '+(m.active?'active':'disabled')}
+              onClick={function(){if(m.active)onSelect(m.id);}}
+              role={m.active?'button':undefined}
+              tabIndex={m.active?0:undefined}
+              onKeyDown={m.active?function(e){if(e.key==='Enter')onSelect(m.id);}:undefined}>
+              {!m.active&&<span className="badge-soon">Proximamente</span>}
+              <div className="mod-label">{m.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── AUTH SCREEN ── */
+function AuthScreen({onLogin,loading}){
+  return(
+    <div className="auth-screen">
+      <div className="auth-title">Control de Calidad — MIGRIN S.A.</div>
+      <div className="auth-sub">Inicie sesion con su cuenta Microsoft para acceder al sistema.</div>
+      {loading
+        ?<div className="spinner"/>
+        :<button className="btn btn-primary" onClick={onLogin} style={{minWidth:220}}>
+          Iniciar sesion con Microsoft
+        </button>
+      }
+    </div>
+  );
+}
+
+/* ── APP ROOT ── */
+function App(){
+  var[account,setAccount]=useState(null);
+  var[authLoading,setAuthLoading]=useState(true);
+  var[screen,setScreen]=useState('home');
+  var[toast,setToast]=useState(null);
+
+  useEffect(function(){
+    if(!msalApp){setAuthLoading(false);return;}
+    msalApp.handleRedirectPromise()
+      .then(function(resp){
+        if(resp&&resp.account){msalApp.setActiveAccount(resp.account);setAccount(resp.account);}
+        else{
+          var accs=msalApp.getAllAccounts();
+          if(accs.length)setAccount(accs[0]);
+        }
+        setAuthLoading(false);
+      })
+      .catch(function(e){setAuthLoading(false);console.error(e);});
+  },[]);
+
+  async function login(){
+    if(!msalApp)return;
+    setAuthLoading(true);
+    try{
+      if(window.innerWidth<=768){
+        await msalApp.loginRedirect({scopes:SCOPES});
+      }else{
+        var r=await msalApp.loginPopup({scopes:SCOPES});
+        setAccount(r.account);setAuthLoading(false);
+      }
+    }catch(e){setAuthLoading(false);console.error(e);}
+  }
+
+  function logout(){
+    if(msalApp)msalApp.logout();
+    setAccount(null);setScreen('home');
+  }
+
+  function handleSuccess(msg){
+    setToast({msg:msg,type:'success'});setScreen('home');
+  }
+
+  if(authLoading){
+    return(
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}>
+        <div className="spinner"/>
+      </div>
+    );
+  }
+
+  var logoUrl='data:image/svg+xml;charset=utf8,%3Csvg xmlns%3D\'http%3A//www.w3.org/2000/svg\' viewBox%3D\'0 0 140 44\'%3E%3Crect width%3D\'140\' height%3D\'44\' fill%3D\'%231a5276\'/%3E%3Ctext x%3D\'12\' y%3D\'30\' font-family%3D\'Arial\' font-size%3D\'20\' font-weight%3D\'800\' fill%3D\'white\'%3EMIGRIN%3C/text%3E%3C/svg%3E';
+
+  var header=(
+    <header className="app-header">
+      <div className="hdr-brand">
+        <img src={logoUrl} alt="MIGRIN" style={{height:42,objectFit:'contain'}}
+          onError={function(e){e.target.style.display='none';}}/>
+        <div>
+          <div className="hdr-title">Control de Calidad</div>
+          <div className="hdr-sub">MIGRIN S.A.</div>
+        </div>
+      </div>
+      {account&&(
+        <div className="hdr-actions">
+          <button className="btn-hdr" onClick={function(){setScreen('home');}}>
+            <span className="lbl">Inicio </span>&#127968;
+          </button>
+          <button className="btn-hdr" onClick={function(){setScreen('dashboard');}}>
+            <span className="lbl">Reportes </span>&#128200;
+          </button>
+          <button className="btn-hdr" onClick={function(){setScreen('history');}}>
+            <span className="lbl">Historial </span>&#128202;
+          </button>
+          <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
+            <span className="lbl">Ajustes </span>&#9881;&#65039;
+          </button>
+        </div>
+      )}
+    </header>
+  );
+
+  if(!account){
+    return(
+      <>
+        {header}
+        <div className="main"><AuthScreen onLogin={login} loading={authLoading}/></div>
+      </>
+    );
+  }
+
+  return(
+    <>
+      {header}
+      <div className="main">
+        {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
+        {screen==='home'&&<HomeScreen onSelect={function(id){if(id==='arenas')setScreen('arenas');}}/>}
+        {screen==='arenas'&&<ArenasForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
+        {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
