@@ -337,13 +337,17 @@ function delPending(id){savePending(getPending().filter(function(r){return r.id!
 async function getToken(){
   if(!msalApp)throw new Error('MSAL no inicializado');
   var accs=msalApp.getAllAccounts();
+  console.log('getToken: cuentas MSAL:', accs.length, accs.map(function(a){return a.username;}));
   if(!accs.length)throw new Error('Sin sesion activa');
   try{
     var r=await msalApp.acquireTokenSilent({scopes:SCOPES,account:accs[0]});
+    console.log('getToken: silent OK, expires:', r.expiresOn);
     return r.accessToken;
-  }catch{
+  }catch(silentErr){
+    console.warn('getToken: silent falló, intentando popup/redirect:', silentErr.message);
     if(window.innerWidth<=768){await msalApp.acquireTokenRedirect({scopes:SCOPES});return null;}
     var r2=await msalApp.acquireTokenPopup({scopes:SCOPES});
+    console.log('getToken: popup OK');
     return r2.accessToken;
   }
 }
@@ -358,16 +362,29 @@ async function ulXlsx(token,file,wb){
   var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
+  console.log('=== DEBUG ONEDRIVE PUT ===');
+  console.log('Token:', token?'obtenido ('+token.length+' chars)':'NULO');
+  console.log('URL:', url);
+  console.log('Blob size:', blob.size, 'bytes');
   var r;
   try{
     r=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':blob.type},body:blob});
+    console.log('HTTP status:', r.status, r.statusText);
   }catch(netErr){
+    console.error('=== ERROR RED (fetch lanzó) ===');
+    console.error('Tipo:', netErr.name);
+    console.error('Mensaje:', netErr.message);
+    console.error('Stack:', netErr.stack);
     var e=new Error('NETWORK');e.odCode='NETWORK';throw e;
   }
   if(r.status===401){var e401=new Error('UNAUTHORIZED');e401.odCode=401;throw e401;}
   if(r.status===423){var e423=new Error('LOCKED');e423.odCode=423;throw e423;}
   if(r.status===403){var e403=new Error('FORBIDDEN');e403.odCode=403;throw e403;}
-  if(!r.ok){var eg=new Error('HTTP_'+r.status);eg.odCode=r.status;throw eg;}
+  if(!r.ok){
+    console.error('=== ERROR HTTP ===', r.status, r.statusText);
+    var eg=new Error('HTTP_'+r.status);eg.odCode=r.status;throw eg;
+  }
+  console.log('=== UPLOAD OK ===');
 }
 
 function buildRow(d,account){
@@ -1813,7 +1830,7 @@ function HistoryScreen({account,onBack}){
                                   <button className="btn btn-primary" style={{padding:'7px 14px',fontSize:'.84rem'}}
                                     disabled={rst.loading}
                                     onClick={function(e){e.stopPropagation();resend(r);}}>
-                                    {rst.loading?'Enviando...':'&#128228; Reenviar a OneDrive'}
+                                    {rst.loading?'Enviando...':'Reenviar a OneDrive'}
                                   </button>
                                 )}
                                 {rst.ok&&(
