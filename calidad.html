@@ -100,6 +100,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .gtbl input:focus{outline:none;border-color:var(--primary-light)}
 .c-ok{background:#e6ffed!important;color:#276749;font-weight:600}
 .c-err{background:#fff5f5!important;color:#c53030;font-weight:600}
+.c-warn{background:#fffff0!important;color:#b7791f;font-weight:600}
 .c-neu{color:var(--text-secondary)}
 .closure{margin-top:10px;padding:9px 15px;border-radius:var(--radius-sm);font-size:.85rem;font-weight:600}
 .closure-ok{background:var(--success-bg);color:var(--success);border:1px solid #9ae6b4}
@@ -397,6 +398,83 @@ const SPECS_A36={
   },
 };
 
+const SPECS_CTLH={
+  granulometria:{
+    '1"' :{retMax:5,   retMin:null,pasMax:null,pasMin:null},
+    '#6' :{retMax:null,retMin:null,pasMax:5,   pasMin:null},
+  },
+  quimica:{
+    SiO2 :{min:97.0,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:null,max:null},
+    CaO  :{min:null,max:null},MgO  :{min:null,max:null},K2O  :{min:null,max:null},
+    Na2O :{min:null,max:null},TiO2 :{min:null,max:null},
+  },
+  humedad:{max:2.0},
+};
+const SPECS_CDLK={
+  granulometria:{
+    '#6'  :{retMax:0,   retMin:null,pasMax:null,pasMin:null},
+    '#18' :{retMax:5,   retMin:null,pasMax:null,pasMin:null},
+    '#400':{retMax:null,retMin:null,pasMax:10,  pasMin:null},
+  },
+  quimica:{
+    SiO2 :{min:94.0,max:100.0},Al2O3:{min:0.05,max:0.45},Fe2O3:{min:0.1,max:0.7},
+    CaO  :{min:null,max:null},  MgO  :{min:null,max:null}, K2O  :{min:null,max:null},
+    Na2O :{min:null,max:null},  TiO2 :{min:null,max:null},
+  },
+  humedad:{max:7.0},
+};
+const SPECS_VERALTA={
+  granulometria:{
+    '#20' :{retMax:0.1, retMin:null,pasMax:null,pasMin:null},
+    '#30' :{retMax:1.6, retMin:null,pasMax:null,pasMin:null},
+    '#140':{retMax:null,retMin:null,pasMax:null,pasMin:85.0},
+    '#200':{retMax:null,retMin:null,pasMax:null,pasMin:98.0},
+  },
+  quimica:{
+    SiO2    :{min:88.0,max:null}, Al2O3:{min:0.3,max:0.45}, Fe2O3:{min:null,max:2.0},
+    CaO     :{min:null,max:null}, MgO  :{min:null,max:null}, K2O  :{min:null,max:null},
+    Na2O    :{min:null,max:null}, TiO2 :{min:null,max:0.2},
+    K2O_Na2O:{min:null,max:2.0},
+  },
+  humedad:{max:5.0},
+};
+const SPECS_VERBAJA={
+  granulometria:{
+    '#20' :{retMax:0.1, retMin:null,pasMax:null,pasMin:null},
+    '#30' :{retMax:1.6, retMin:null,pasMax:null,pasMin:null},
+    '#140':{retMax:null,retMin:null,pasMax:null,pasMin:86.0},
+    '#200':{retMax:null,retMin:null,pasMax:null,pasMin:98.0},
+  },
+  quimica:{
+    SiO2    :{min:88.5,max:null}, Al2O3:{min:0.5,max:2.0}, Fe2O3:{min:null,max:0.1},
+    CaO     :{min:null,max:null}, MgO  :{min:null,max:null}, K2O  :{min:null,max:null},
+    Na2O    :{min:null,max:null}, TiO2 :{min:null,max:0.2},
+    K2O_Na2O:{min:null,max:2.0},
+  },
+  humedad:{max:5.0},
+};
+
+function getSpecs(producto){
+  if(producto==='CTLH')return SPECS_CTLH;
+  if(producto==='CDLK')return SPECS_CDLK;
+  if(producto==='VERALTA')return SPECS_VERALTA;
+  if(producto==='VERBAJA')return SPECS_VERBAJA;
+  return null;
+}
+
+function specChemHint(s){
+  if(!s)return null;
+  if(s.min!==null&&s.max!==null)return fmt(s.min,2)+' – '+fmt(s.max,2)+'%';
+  if(s.min!==null)return 'min '+fmt(s.min,2)+'%';
+  if(s.max!==null)return 'max '+fmt(s.max,2)+'%';
+  return null;
+}
+
+function specSem(val,s){
+  if(!s)return'info';
+  return calcSemaforo(parseDecimal(String(val||'')),s.min,s.max);
+}
+
 function calcSemaforo(valor,limMin,limMax){
   if(valor===null||valor===undefined||isNaN(valor))return'info';
   if(limMin===null&&limMax===null)return'info';
@@ -584,9 +662,11 @@ function Toast({msg,type,onClose}){
   return <div className={'toast toast-'+type}>{msg}</div>;
 }
 
-function Field({name,label,hint,type,required,value,onChange,error,readOnly,placeholder,maxLength}){
+function Field({name,label,hint,specHint,specSemVal,type,required,value,onChange,error,readOnly,placeholder,maxLength}){
   if(!type)type='text';
   function handleDecimal(e){e.target.value=e.target.value.replace('.',',');onChange(e);}
+  var specBg=specSemVal==='error'?'rgba(197,48,48,.07)':specSemVal==='warning'?'rgba(183,121,31,.07)':specSemVal==='ok'?'rgba(39,103,73,.07)':'';
+  var specHintColor=specSemVal==='error'?'#c53030':specSemVal==='warning'?'#b7791f':specSemVal==='ok'?'#276749':'#888';
   return(
     <div className="field">
       <label htmlFor={name}>{label}{required&&<span className="req">*</span>}</label>
@@ -598,10 +678,12 @@ function Field({name,label,hint,type,required,value,onChange,error,readOnly,plac
             value={value}
             onChange={type==='decimal'&&!readOnly?handleDecimal:onChange}
             placeholder={placeholder}
+            style={specBg?{background:specBg}:{}}
             className={(error?'err ':' ')+(readOnly?'f-ro':'')}
             readOnly={readOnly}/>
       }
       {hint&&type!=='decimal'&&!error&&<span className="fhint">{hint}</span>}
+      {specHint&&!error&&<span className="fhint" style={{color:specHintColor}}>{specHint}</span>}
       {error&&<span className="ferr">{error}</span>}
     </div>
   );
@@ -654,6 +736,9 @@ function PassModal({onOk,onCancel}){
 
 function GranuTable({producto,pesoFinal,values,onChange}){
   var gc=useMemo(function(){return calcGranu(producto,values,pesoFinal);},[producto,values,pesoFinal]);
+  var specs=getSpecs(producto);
+  var granuSpec=specs?specs.granulometria:{};
+  var hasSpec=Object.keys(granuSpec).length>0;
   return(
     <div>
       <div className="tbl-wrap">
@@ -661,12 +746,20 @@ function GranuTable({producto,pesoFinal,values,onChange}){
           <thead><tr>
             <th>Tamiz US</th><th>mm</th><th>Peso Ret. (g)</th>
             <th>% Ret. Parcial</th><th>% Ret. Acum.</th><th>% Pasante</th>
+            {hasSpec&&<><th>Lím.Mín</th><th>Lím.Máx</th></>}
           </tr></thead>
           <tbody>
             {gc.rows.map(function(row,i){
               var isFondo=!!row.isFondo;
-              var acumCls=isFondo?(gc.closeOk?'c-ok':'c-err'):'c-neu';
-              var pasCls=isFondo?(gc.fondPas<=1?'c-ok':'c-err'):'c-neu';
+              var gs=!isFondo?granuSpec[row.us]:null;
+              var hasRet=gs&&(gs.retMax!==null||gs.retMin!==null);
+              var hasPas=gs&&(gs.pasMax!==null||gs.pasMin!==null);
+              var retSem=hasRet?calcSemaforo(row.pctA,gs.retMin,gs.retMax):'info';
+              var pasSem=hasPas?calcSemaforo(row.pctPas,gs.pasMin,gs.pasMax):'info';
+              var acumCls=isFondo?(gc.closeOk?'c-ok':'c-err'):retSem==='error'?'c-err':retSem==='warning'?'c-warn':'c-neu';
+              var pasCls=isFondo?(gc.fondPas<=1?'c-ok':'c-err'):pasSem==='error'?'c-err':pasSem==='warning'?'c-warn':'c-neu';
+              var limMin=gs?(gs.retMin!==null?gs.retMin:gs.pasMin!==null?gs.pasMin:null):null;
+              var limMax=gs?(gs.retMax!==null?gs.retMax:gs.pasMax!==null?gs.pasMax:null):null;
               return(
                 <tr key={i}>
                   <td>{row.us}</td>
@@ -682,6 +775,11 @@ function GranuTable({producto,pesoFinal,values,onChange}){
                   <td className="c-neu">{fmt(row.pctP)}</td>
                   <td className={acumCls}>{fmt(row.pctA)}</td>
                   <td className={pasCls}>{fmt(row.pctPas)}</td>
+                  {hasSpec&&!isFondo&&<>
+                    <td style={{color:'#888',fontSize:'.78rem'}}>{limMin!==null?fmt(limMin,2):'—'}</td>
+                    <td style={{color:'#888',fontSize:'.78rem'}}>{limMax!==null?fmt(limMax,2):'—'}</td>
+                  </>}
+                  {hasSpec&&isFondo&&<><td style={{color:'#888',fontSize:'.78rem'}}>—</td><td style={{color:'#888',fontSize:'.78rem'}}>—</td></>}
                 </tr>
               );
             })}
@@ -789,6 +887,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
 
   var isA36=data.producto==='A36';
   var[specKey,setSpecKey]=useState(isA36?'LIRQUEN':null);
+  var prodSpecs=getSpecs(data.producto);
 
   var sieves=SIEVE_CONFIG[data.producto]||[];
   var sieveRows=gc.rows.filter(function(r){return !r.isFondo;});
@@ -814,7 +913,9 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
   }
 
   function getKpis(){
-    var hum={name:'Humedad',val:parseDecimal(data.pctHumedad)||0,unit:'%',dec:2,limMin:null,limMax:null,limLabel:'—'};
+    var humMax=prodSpecs&&prodSpecs.humedad?prodSpecs.humedad.max:null;
+    var hum={name:'Humedad',val:parseDecimal(data.pctHumedad)||0,unit:'%',dec:2,
+      limMin:null,limMax:humMax,limLabel:humMax!==null?'<= '+fmt(humMax,1)+' %':'—'};
     if(isA36&&specKey){
       if(specKey==='LIRQUEN')return[
         {name:'Ret. Acum. #18',val:sv('#18','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
@@ -833,6 +934,22 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
         hum,
       ];
     }
+    if(prodSpecs&&prodSpecs.granulometria){
+      var kpis=[];
+      Object.entries(prodSpecs.granulometria).forEach(function(entry){
+        var us=entry[0],s=entry[1];
+        if(s.retMax!==null||s.retMin!==null){
+          var ll=s.retMax!==null?'<= '+fmt(s.retMax,2)+' %':'>= '+fmt(s.retMin,2)+' %';
+          kpis.push({name:'Ret.Acum '+us,val:sv(us,'pctA'),unit:'%',dec:2,limMin:s.retMin,limMax:s.retMax,limLabel:ll});
+        }
+        if(s.pasMax!==null||s.pasMin!==null){
+          var llp=s.pasMax!==null?'<= '+fmt(s.pasMax,2)+' %':'>= '+fmt(s.pasMin,2)+' %';
+          kpis.push({name:'Pasante '+us,val:sv(us,'pctPas'),unit:'%',dec:2,limMin:s.pasMin,limMax:s.pasMax,limLabel:llp});
+        }
+      });
+      kpis.push(hum);
+      return kpis;
+    }
     return[
       {name:'Ret. Acum. #35',val:sv('#35','pctA'),unit:'%',dec:2,limMin:null,limMax:2,limLabel:'<= 2,00 %'},
       {name:'Ret. Acum. #120',val:sv('#120','pctA'),unit:'%',dec:2,limMin:86,limMax:null,limLabel:'>= 86,00 %'},
@@ -845,7 +962,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
 
   var q=data.quimica||{};
   var k2ona2o=(parseDecimal(q.k2o)||0)+(parseDecimal(q.na2o)||0);
-  var chemSpec=(isA36&&specKey)?SPECS_A36[specKey].quimica:{};
+  var chemSpec=(isA36&&specKey)?SPECS_A36[specKey].quimica:(prodSpecs&&prodSpecs.quimica)||{};
   var chemRows=[
     {p:'SiO₂',sk:'SiO2',v:q.sio2},
     {p:'Al₂O₃',sk:'Al2O3',v:q.al2o3},
@@ -855,9 +972,9 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
     {p:'K₂O',sk:null,v:q.k2o},
     {p:'Na₂O',sk:null,v:q.na2o},
     {p:'TiO₂',sk:null,v:q.tio2},
-    {p:'K₂O+Na₂O',sk:null,v:fmt(k2ona2o),isCalc:true},
+    {p:'K₂O+Na₂O',sk:'K2O_Na2O',v:fmt(k2ona2o),isCalc:true},
   ];
-  var granuSpec=(isA36&&specKey)?SPECS_A36[specKey].granulometria:{};
+  var granuSpec=(isA36&&specKey)?SPECS_A36[specKey].granulometria:(prodSpecs&&prodSpecs.granulometria)||{};
 
   useEffect(function(){
     if(!chartRef.current||!window.Chart)return;
@@ -904,7 +1021,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
 
   var fechaLocal=data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):data.fecha;
   var footer='Generado por Sistema de Calidad MIGRIN S.A. · '+fechaLocal+' '+( data.horaEnvio||'');
-  var showSpecCols=isA36&&specKey;
+  var showSpecCols=(isA36&&specKey)||!!prodSpecs;
 
   return(
     <div className="rmodal-ov" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
@@ -1028,17 +1145,19 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
                 <tbody>
                   {sieveRows.map(function(r,i){
                     var gs=granuSpec[r.us];
-                    var limAMin=gs?gs.retAcumMin:null;
-                    var limAMax=gs?gs.retAcumMax:null;
-                    var sem=showSpecCols?calcSemaforo(r.pctA,limAMin,limAMax):'info';
+                    var limAMin=gs?(gs.retAcumMin!==undefined?gs.retAcumMin:gs.retMin):null;
+                    var limAMax=gs?(gs.retAcumMax!==undefined?gs.retAcumMax:gs.retMax):null;
+                    var limPMin=gs?gs.pasMin:null;
+                    var limPMax=gs?gs.pasMax:null;
+                    var sem=showSpecCols?(limAMin!==null||limAMax!==null)?calcSemaforo(r.pctA,limAMin,limAMax):(limPMin!==null||limPMax!==null)?calcSemaforo(r.pctPas,limPMin,limPMax):'info':'info';
                     return(
                       <tr key={i} style={{background:sem==='error'?'#fff5f5':sem==='warning'?'#fffff0':''}}>
                         <td style={{fontWeight:700}}>{r.us}</td>
                         <td style={{color:'#888'}}>{sieves[i]?sieves[i].mm:'—'}</td>
                         <td>{fmt(r.pctP)}</td><td>{fmt(r.pctA)}</td><td>{fmt(r.pctPas)}</td>
                         {showSpecCols&&<>
-                          <td style={{color:'#555',fontSize:'9px'}}>{limAMin!=null?fmt(limAMin,2):'—'}</td>
-                          <td style={{color:'#555',fontSize:'9px'}}>{limAMax!=null?fmt(limAMax,2):'—'}</td>
+                          <td style={{color:'#555',fontSize:'9px'}}>{limAMin!=null?fmt(limAMin,2):limPMin!=null?fmt(limPMin,2):'—'}</td>
+                          <td style={{color:'#555',fontSize:'9px'}}>{limAMax!=null?fmt(limAMax,2):limPMax!=null?fmt(limPMax,2):'—'}</td>
                         </>}
                       </tr>
                     );
@@ -1158,6 +1277,9 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
   var[retrying,setRetrying]=useState(false);
 
   var cfg=PRODUCT_CONFIG[producto]||{quimica:false,humedad:false,tipoMuestra:false};
+  var specs=getSpecs(producto);
+  var qspec=specs?specs.quimica:{};
+  var hspec=specs?specs.humedad:null;
 
   useEffect(function(){
     setGv(Array(SIEVE_CONFIG[producto]?SIEVE_CONFIG[producto].length:0).fill(''));
@@ -1373,7 +1495,9 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
             <SecCard title="Humedad" icon="&#128167;">
               <div style={{maxWidth:240}}>
                 <Field name="pctHumedad" label="% Humedad" type="decimal" value={pctHumedad}
-                  onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"/>
+                  onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"
+                  specHint={hspec?'max '+fmt(hspec.max,1)+'%':null}
+                  specSemVal={hspec?calcSemaforo(parseDecimal(pctHumedad),null,hspec.max):'info'}/>
               </div>
             </SecCard>
           )}
@@ -1382,25 +1506,44 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
             <SecCard title="Quimica" icon="&#9879;&#65039;">
               <div className="fg-quim">
                 <Field name="sio2" label="SiO₂ (%)" type="decimal" required value={quimica.sio2}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{sio2:e.target.value});});}} error={errors.sio2} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{sio2:e.target.value});});}} error={errors.sio2} placeholder="0,00"
+                  specHint={specChemHint(qspec.SiO2)} specSemVal={specSem(quimica.sio2,qspec.SiO2)}/>
                 <Field name="al2o3" label="Al₂O₃ (%)" type="decimal" required value={quimica.al2o3}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{al2o3:e.target.value});});}} error={errors.al2o3} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{al2o3:e.target.value});});}} error={errors.al2o3} placeholder="0,00"
+                  specHint={specChemHint(qspec.Al2O3)} specSemVal={specSem(quimica.al2o3,qspec.Al2O3)}/>
                 <Field name="fe2o3" label="Fe₂O₃ (%)" type="decimal" required value={quimica.fe2o3}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{fe2o3:e.target.value});});}} error={errors.fe2o3} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{fe2o3:e.target.value});});}} error={errors.fe2o3} placeholder="0,00"
+                  specHint={specChemHint(qspec.Fe2O3)} specSemVal={specSem(quimica.fe2o3,qspec.Fe2O3)}/>
                 <Field name="cao" label="CaO (%)" type="decimal" required value={quimica.cao}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{cao:e.target.value});});}} error={errors.cao} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{cao:e.target.value});});}} error={errors.cao} placeholder="0,00"
+                  specHint={specChemHint(qspec.CaO)} specSemVal={specSem(quimica.cao,qspec.CaO)}/>
                 <Field name="mgo" label="MgO (%)" type="decimal" required value={quimica.mgo}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{mgo:e.target.value});});}} error={errors.mgo} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{mgo:e.target.value});});}} error={errors.mgo} placeholder="0,00"
+                  specHint={specChemHint(qspec.MgO)} specSemVal={specSem(quimica.mgo,qspec.MgO)}/>
                 <Field name="k2o" label="K₂O (%)" type="decimal" required value={quimica.k2o}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{k2o:e.target.value});});}} error={errors.k2o} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{k2o:e.target.value});});}} error={errors.k2o} placeholder="0,00"
+                  specHint={specChemHint(qspec.K2O)} specSemVal={specSem(quimica.k2o,qspec.K2O)}/>
                 <Field name="na2o" label="Na₂O (%)" type="decimal" required value={quimica.na2o}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{na2o:e.target.value});});}} error={errors.na2o} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{na2o:e.target.value});});}} error={errors.na2o} placeholder="0,00"
+                  specHint={specChemHint(qspec.Na2O)} specSemVal={specSem(quimica.na2o,qspec.Na2O)}/>
                 <Field name="tio2" label="TiO₂ (%)" type="decimal" required value={quimica.tio2}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{tio2:e.target.value});});}} error={errors.tio2} placeholder="0,00"/>
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{tio2:e.target.value});});}} error={errors.tio2} placeholder="0,00"
+                  specHint={specChemHint(qspec.TiO2)} specSemVal={specSem(quimica.tio2,qspec.TiO2)}/>
                 <div className="field">
                   <label>K₂O + Na₂O (%)<span className="calc-badge">Calculado</span></label>
-                  <input type="text" readOnly className="f-ro" placeholder="—"
-                    value={(quimica.k2o||quimica.na2o)?fmt((parseDecimal(quimica.k2o)||0)+(parseDecimal(quimica.na2o)||0)):''}/>
+                  {(function(){
+                    var k2na2val=(parseDecimal(quimica.k2o)||0)+(parseDecimal(quimica.na2o)||0);
+                    var kns=qspec.K2O_Na2O;
+                    var knSem=kns?calcSemaforo(k2na2val,kns.min,kns.max):'info';
+                    var knBg=knSem==='error'?'rgba(197,48,48,.07)':knSem==='warning'?'rgba(183,121,31,.07)':knSem==='ok'?'rgba(39,103,73,.07)':'';
+                    var knHint=specChemHint(kns);
+                    return(<>
+                      <input type="text" readOnly className="f-ro" placeholder="—"
+                        style={knBg?{background:knBg}:{}}
+                        value={(quimica.k2o||quimica.na2o)?fmt(k2na2val):''}/>
+                      {knHint&&<span className="fhint" style={{color:knSem==='error'?'#c53030':knSem==='warning'?'#b7791f':knSem==='ok'?'#276749':'#888'}}>{knHint}</span>}
+                    </>);
+                  })()}
                 </div>
               </div>
             </SecCard>
@@ -1465,20 +1608,22 @@ function DashboardScreen({account,onBack}){
 
   async function loadData(){
     setLoading(true);
-    var cloud=[];
+    var cloudA=[],cloudC=[];
     try{
       var token=await getToken();
       if(token){
-        var wb=await dlXlsx(token,OD_FILE);
-        if(wb){
-          var ws=wb.Sheets[wb.SheetNames[0]];
-          cloud=XLSX.utils.sheet_to_json(ws);
-        }
+        var wb1=await dlXlsx(token,OD_FILE);
+        if(wb1){var ws1=wb1.Sheets[wb1.SheetNames[0]];cloudA=XLSX.utils.sheet_to_json(ws1);}
+        var wb2=await dlXlsx(token,OD_FILE_CUARZO);
+        if(wb2){var ws2=wb2.Sheets[wb2.SheetNames[0]];cloudC=XLSX.utils.sheet_to_json(ws2);}
       }
     }catch(e){console.error(e);}
-    var pending=getPending().map(function(r){return Object.assign({},r,{_src:'local'});});
-    var ids=new Set(cloud.map(function(r){return r.ID;}));
-    var merged=cloud.concat(pending.filter(function(r){return !ids.has(r.id);}));
+    var allCloud=cloudA.concat(cloudC);
+    var pendingA=getPending().map(function(r){return Object.assign({},r,{_src:'local'});});
+    var pendingC=getPendingCuarzo().map(function(r){return Object.assign({},r,{_src:'local'});});
+    var ids=new Set(allCloud.map(function(r){return r.ID;}));
+    var merged=allCloud.concat(pendingA.filter(function(r){return !ids.has(r.id);}))
+                       .concat(pendingC.filter(function(r){return !ids.has(r.id);}));
     merged.sort(function(a,b){
       return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');
     });
@@ -1491,9 +1636,10 @@ function DashboardScreen({account,onBack}){
     return records.filter(function(r){
       var fecha=r.FechaMuestreo||r.fecha||'';
       if(fecha<cutoff)return false;
-      var rProd=r.Producto||r.productoLabel||'';
-      var prodKey=prod==='A36'?'A36':prod==='A38'?'A38':'Alim';
-      if(!rProd.includes(prodKey))return false;
+      var rProdKey=r.ProductoKey||r.producto||'';
+      var rProdLabel=r.Producto||r.productoLabel||'';
+      if(rProdKey){if(rProdKey!==prod)return false;}
+      else{var legacyKey={A36:'A36',A38:'A38',ALIM:'Alim'}[prod]||prod;if(!rProdLabel.includes(legacyKey))return false;}
       if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return false;
       if(filterAnalista&&(r.Analista||r.analista)!==filterAnalista)return false;
       if(prod==='A36'){
@@ -1602,24 +1748,44 @@ function DashboardScreen({account,onBack}){
 
   var labels=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
 
-  var GRANU_CONTROLS=[
-    {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:null,limMax:2},
-    {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:86,limMax:null},
-    {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:95,limMax:null},
-    {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:0.290},
-    {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
-  ];
+  var granuControls=useMemo(function(){
+    var ps=getSpecs(prod);
+    if(prod==='A36'||!ps||!ps.granulometria)return[
+      {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:null,limMax:2},
+      {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:86,limMax:null},
+      {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:95,limMax:null},
+      {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:0.290},
+      {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
+    ];
+    var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
+    var ci=0;
+    var ctrls=[];
+    Object.entries(ps.granulometria).forEach(function(e){
+      var us=e[0],s=e[1];
+      var col=cols[ci++%cols.length];
+      if(s.retMax!==null||s.retMin!==null)ctrls.push({key:us,field:'pctA',label:'Ret.Acum '+us,color:col,limMin:s.retMin,limMax:s.retMax});
+      if(s.pasMax!==null||s.pasMin!==null)ctrls.push({key:us,field:'pctPas',label:'Pasante '+us,color:col,limMin:s.pasMin,limMax:s.pasMax});
+    });
+    return ctrls;
+  },[prod]);
 
-  var CHEM_CONTROLS=[
-    {key:'SiO2',label:'SiO2 (%)',color:'#1a5276'},
-    {key:'Al2O3',label:'Al2O3 (%)',color:'#c53030'},
-    {key:'Fe2O3',label:'Fe2O3 (%)',color:'#b7791f'},
-  ];
+  var chemControls=useMemo(function(){
+    var ps=getSpecs(prod);
+    if(!ps||!ps.quimica)return[
+      {key:'SiO2',label:'SiO2 (%)',color:'#1a5276'},
+      {key:'Al2O3',label:'Al2O3 (%)',color:'#c53030'},
+      {key:'Fe2O3',label:'Fe2O3 (%)',color:'#b7791f'},
+    ];
+    var cols=['#1a5276','#c53030','#b7791f','#276749','#8e44ad','#555'];
+    var pairs=[['SiO2','SiO₂'],['Al2O3','Al₂O₃'],['Fe2O3','Fe₂O₃'],['CaO','CaO'],['MgO','MgO'],['K2O','K₂O'],['Na2O','Na₂O'],['TiO2','TiO₂']];
+    return pairs.filter(function(p){var s=ps.quimica[p[0]];return s&&(s.min!==null||s.max!==null);})
+      .map(function(p,i){return{key:p[0],label:p[1]+' (%)',color:cols[i%cols.length]};});
+  },[prod]);
 
   useEffect(function(){
     if(tab!=='granu'||!chartGRef.current||!window.Chart)return;
     if(instG.current){instG.current.destroy();instG.current=null;}
-    var datasets=GRANU_CONTROLS.map(function(ctrl){
+    var datasets=granuControls.map(function(ctrl){
       var data=filtered.map(function(r){
         var st=computeStats(r);
         if(!st)return null;
@@ -1645,13 +1811,13 @@ function DashboardScreen({account,onBack}){
       },
     });
     return function(){if(instG.current){instG.current.destroy();instG.current=null;}};
-  },[tab,filtered,prod]);
+  },[tab,filtered,prod,granuControls]);
 
   useEffect(function(){
     if(tab!=='quim'||!chartQRef.current||!window.Chart)return;
     if(instQ.current){instQ.current.destroy();instQ.current=null;}
     var datasets=[];
-    CHEM_CONTROLS.forEach(function(ctrl){
+    chemControls.forEach(function(ctrl){
       var raw=filtered.map(function(r){
         var v=parseDecimal(r[ctrl.key]);
         return isNaN(v)?null:+v.toFixed(3);
@@ -1682,10 +1848,10 @@ function DashboardScreen({account,onBack}){
       },
     });
     return function(){if(instQ.current){instQ.current.destroy();instQ.current=null;}};
-  },[tab,filtered,maWin,prod]);
+  },[tab,filtered,maWin,prod,chemControls]);
 
   var kpiStats=useMemo(function(){
-    return GRANU_CONTROLS.map(function(ctrl){
+    return granuControls.map(function(ctrl){
       var vals=filtered.map(function(r){
         var st=computeStats(r);
         if(!st)return null;
@@ -1698,7 +1864,7 @@ function DashboardScreen({account,onBack}){
       var sem=calcSemaforo(last,ctrl.limMin,ctrl.limMax);
       return Object.assign({},ctrl,{avg:avg,last:last,sem:sem});
     });
-  },[filtered,prod]);
+  },[filtered,prod,granuControls]);
 
   return(
     <div>
@@ -1711,9 +1877,17 @@ function DashboardScreen({account,onBack}){
         <div className="field" style={{minWidth:120}}>
           <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Producto</label>
           <select value={prod} onChange={function(e){setProd(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
-            <option value="A36">A36 TLH</option>
-            <option value="A38">A38 Fierrillo</option>
-            <option value="ALIM">Alimentacion</option>
+            <optgroup label="Arenas">
+              <option value="A36">A36 TLH</option>
+              <option value="A38">A38 Fierrillo</option>
+              <option value="ALIM">Alimentacion</option>
+              <option value="VERALTA">Veralia Alta</option>
+              <option value="VERBAJA">Veralia Baja</option>
+            </optgroup>
+            <optgroup label="Cuarzo">
+              <option value="CTLH">TLH Cuarzo</option>
+              <option value="CDLK">DLK</option>
+            </optgroup>
           </select>
         </div>
         <div className="field" style={{minWidth:120}}>
