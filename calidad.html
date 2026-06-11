@@ -49,9 +49,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .mod-card.active:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(26,82,118,.18)}
 .mod-card.disabled{opacity:.58;cursor:not-allowed}
 .mod-label{font-weight:700;font-size:.95rem;color:var(--text)}
-.prod-mosaic{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
-@media(min-width:580px){.prod-mosaic{flex-direction:row}}
-.prod-btn{flex:1;padding:14px 18px;background:#fff;border:2px solid var(--border);
+.prod-mosaic{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px}
+@media(min-width:580px){.prod-mosaic{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:900px){.prod-mosaic{grid-template-columns:repeat(4,1fr)}}
+.prod-btn{padding:14px 18px;background:#fff;border:2px solid var(--border);
   border-radius:var(--radius-sm);cursor:pointer;text-align:center;font-family:'Inter',sans-serif;
   font-size:.9rem;font-weight:700;color:var(--text);transition:all .2s;min-height:52px;line-height:1.3}
 .prod-btn:hover{border-color:var(--primary-light);background:var(--primary-xlight);color:var(--primary)}
@@ -228,6 +229,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 <script type="text/babel">
 const{useState,useEffect,useMemo,useCallback,useRef}=React;
 
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    var focusable=Array.from(document.querySelectorAll(
+      'input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled])'
+    )).filter(function(el){return el.offsetParent!==null;});
+    var idx=focusable.indexOf(document.activeElement);
+    if(idx>-1&&idx<focusable.length-1){e.preventDefault();focusable[idx+1].focus();}
+  }
+});
+
 const MSAL_CFG={
   auth:{
     clientId:'1acc4905-4dc2-4bb0-b17c-1738c87f17b1',
@@ -239,12 +250,31 @@ const MSAL_CFG={
 const SCOPES=['User.Read','Files.ReadWrite'];
 const OD_FOLDER='Consolidado.Calidad.2026';
 const OD_FILE='calidad_arenas.xlsx';
+const OD_FILE_CUARZO='calidad_cuarzo.xlsx';
 const ADMIN_PW='ADMIN';
 
 let msalApp=null;
 try{msalApp=new msal.PublicClientApplication(MSAL_CFG);}catch(e){console.error('MSAL',e);}
 
+const MOLINO_SIEVES=[
+  {us:'1/4"',mm:'6,350'},{us:'#4',mm:'4,750'},
+  {us:'#6',mm:'3,350'},{us:'#8',mm:'2,360'},
+  {us:'#14',mm:'1,410'},{us:'#18',mm:'1,000'},
+  {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},
+  {us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},
+  {us:'#120',mm:'0,125'},{us:'#170',mm:'0,090'},
+];
+const CALIM_SIEVES=[
+  {us:'1"',mm:'25,400'},{us:'3/4"',mm:'19,050'},
+  {us:'1/2"',mm:'12,700'},{us:'5/16"',mm:'8,000'},
+  {us:'1/4"',mm:'6,350'},{us:'#4',mm:'4,750'},
+  {us:'#5',mm:'4,000'},{us:'#6',mm:'3,350'},
+  {us:'#8',mm:'2,360'},{us:'#12',mm:'1,680'},
+  {us:'#16',mm:'1,180'},{us:'#20',mm:'0,850'},
+  {us:'#100',mm:'0,150'},
+];
 const SIEVE_CONFIG={
+  // ── ARENAS ──
   'A36':[
     {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},{us:'#25',mm:'0,710'},
     {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},{us:'#40',mm:'0,425'},
@@ -266,8 +296,81 @@ const SIEVE_CONFIG={
     {us:'#120',mm:'0,125'},{us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},
     {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
   ],
+  'REC2001':[
+    {us:'1/4"',mm:'6,350'},{us:'#4',mm:'4,750'},
+    {us:'#6',mm:'3,350'},{us:'#8',mm:'2,360'},
+    {us:'#14',mm:'1,410'},{us:'#18',mm:'1,000'},
+    {us:'#25',mm:'0,710'},{us:'#30',mm:'0,600'},
+    {us:'#35',mm:'0,500'},{us:'#60',mm:'0,250'},
+    {us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},
+    {us:'#170',mm:'0,090'},
+  ],
+  'VERALTA':[
+    {us:'#20',mm:'0,850'},{us:'#30',mm:'0,600'},
+    {us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},
+    {us:'#140',mm:'0,106'},{us:'#200',mm:'0,075'},
+  ],
+  'VERBAJA':[
+    {us:'#20',mm:'0,850'},{us:'#30',mm:'0,600'},
+    {us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},
+    {us:'#140',mm:'0,106'},{us:'#200',mm:'0,075'},
+  ],
+  'MOL1':   MOLINO_SIEVES,
+  'MOL2':   MOLINO_SIEVES,
+  'UND2007':MOLINO_SIEVES,
+  'OVR2007':MOLINO_SIEVES,
+  'UTACK':  MOLINO_SIEVES,
+  'MESP':   MOLINO_SIEVES,
+  'LODOSA': [{us:'#120',mm:'0,125'}],
+  // ── CUARZO ──
+  'CALIM':  CALIM_SIEVES,
+  'CTLH':   CALIM_SIEVES,
+  'CCOMP':[
+    {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+    {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},
+    {us:'#40',mm:'0,425'},{us:'#60',mm:'0,250'},
+    {us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},
+    {us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},
+    {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
+  ],
+  'CDLK':[
+    {us:'#6',mm:'3,350'},{us:'#18',mm:'1,000'},
+    {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},
+    {us:'#40',mm:'0,425'},{us:'#60',mm:'0,250'},
+    {us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},
+    {us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},
+    {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
+    {us:'#400',mm:'0,038'},
+  ],
+  'CLODOS':[{us:'#120',mm:'0,125'}],
 };
-const GRANU_TITLE={A36:'A36 TLH',A38:'A38 Fierrillo',ALIM:'Alimentacion a Planta'};
+const PRODUCT_CONFIG={
+  'A36':    {quimica:true, humedad:true, tipoMuestra:true },
+  'A38':    {quimica:true, humedad:true, tipoMuestra:false},
+  'ALIM':   {quimica:true, humedad:true, tipoMuestra:false},
+  'REC2001':{quimica:false,humedad:false,tipoMuestra:false},
+  'VERALTA':{quimica:true, humedad:true, tipoMuestra:true },
+  'VERBAJA':{quimica:true, humedad:true, tipoMuestra:true },
+  'MOL1':   {quimica:false,humedad:false,tipoMuestra:false},
+  'MOL2':   {quimica:false,humedad:false,tipoMuestra:false},
+  'UND2007':{quimica:false,humedad:false,tipoMuestra:false},
+  'OVR2007':{quimica:false,humedad:false,tipoMuestra:false},
+  'UTACK':  {quimica:false,humedad:false,tipoMuestra:false},
+  'MESP':   {quimica:true, humedad:true, tipoMuestra:false},
+  'LODOSA': {quimica:false,humedad:false,tipoMuestra:false},
+  'CALIM':  {quimica:true, humedad:true, tipoMuestra:false},
+  'CTLH':   {quimica:true, humedad:true, tipoMuestra:false},
+  'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
+  'CDLK':   {quimica:true, humedad:true, tipoMuestra:false},
+  'CLODOS': {quimica:false,humedad:false,tipoMuestra:false},
+};
+const GRANU_TITLE={
+  A36:'A36 TLH',A38:'A38 Fierrillo',ALIM:'Alimentacion a Planta',
+  REC2001:'Rechazo 20.01',VERALTA:'Veralia Alta Hierro',VERBAJA:'Veralia Baja Hierro',
+  MOL1:'Molino 1',MOL2:'Molino 2',UND2007:'Under 20.07',OVR2007:'Over 20.07',
+  UTACK:'Under Tack 222',MESP:'Muestras Especiales',LODOSA:'Lodos Arenas',
+  CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
+};
 
 const SPECS_A36={
   LIRQUEN:{
@@ -307,11 +410,29 @@ const SEM_COLOR={ok:'#276749',warning:'#b7791f',error:'#c53030',info:'#999'};
 const SEM_LABEL={ok:'CUMPLE',warning:'ADVERTENCIA',error:'DESVIADO',info:'INFORMATIVO'};
 const SEM_ICON={ok:'✓',warning:'⚠',error:'✗',info:'—'};
 
-const PRODUCTS=[
-  {value:'A36',label:'A36 — TLH'},
-  {value:'A38',label:'A38 — Fierrillo'},
-  {value:'ALIM',label:'Alimentacion a Planta'},
+const ARENA_PRODUCTS=[
+  {value:'A36',    label:'A36 — TLH'},
+  {value:'A38',    label:'A38 — Fierrillo'},
+  {value:'ALIM',   label:'Alimentacion a Planta'},
+  {value:'REC2001',label:'Rechazo 20.01'},
+  {value:'VERALTA',label:'Veralia Alta Hierro'},
+  {value:'VERBAJA',label:'Veralia Baja Hierro'},
+  {value:'MOL1',   label:'Molino 1'},
+  {value:'MOL2',   label:'Molino 2'},
+  {value:'UND2007',label:'Under 20.07'},
+  {value:'OVR2007',label:'Over 20.07'},
+  {value:'UTACK',  label:'Under Tack 222'},
+  {value:'MESP',   label:'Muestras Especiales'},
+  {value:'LODOSA', label:'Lodos Arenas'},
 ];
+const CUARZO_PRODUCTS=[
+  {value:'CALIM', label:'Alimentacion Cuarzo'},
+  {value:'CTLH',  label:'TLH Cuarzo'},
+  {value:'CCOMP', label:'Compacta'},
+  {value:'CDLK',  label:'DLK'},
+  {value:'CLODOS',label:'Lodos Cuarzo'},
+];
+const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS);
 const TURNOS=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'}];
 const ANALISTAS=[{value:'Camila Opazo',label:'Camila Opazo'},{value:'Ximena Gutierrez',label:'Ximena Gutierrez'}];
 
@@ -333,6 +454,11 @@ function getPending(){try{return JSON.parse(localStorage.getItem(LS)||'[]');}cat
 function savePending(r){localStorage.setItem(LS,JSON.stringify(r));}
 function addPending(r){var p=getPending();p.push(r);savePending(p);}
 function delPending(id){savePending(getPending().filter(function(r){return r.id!==id;}));}
+const LS_CUARZO='cq_cuarzo_pending';
+function getPendingCuarzo(){try{return JSON.parse(localStorage.getItem(LS_CUARZO)||'[]');}catch{return[];}}
+function savePendingCuarzo(r){localStorage.setItem(LS_CUARZO,JSON.stringify(r));}
+function addPendingCuarzo(r){var p=getPendingCuarzo();p.push(r);savePendingCuarzo(p);}
+function delPendingCuarzo(id){savePendingCuarzo(getPendingCuarzo().filter(function(r){return r.id!==id;}));}
 
 async function getToken(){
   if(!msalApp)throw new Error('MSAL no inicializado');
@@ -376,33 +502,40 @@ async function ulXlsx(token,file,wb){
 
 function buildRow(d,account){
   var sieves=SIEVE_CONFIG[d.producto]||[];
+  var cfg=PRODUCT_CONFIG[d.producto]||{quimica:true,humedad:true,tipoMuestra:false};
   var row={
     ID:d.id,FechaMuestreo:d.fecha,FechaEnvio:d.fechaEnvio,HoraEnvio:d.horaEnvio,
-    Turno:d.turno,Analista:d.analista,Producto:d.productoLabel,
+    Turno:d.turno,Analista:d.analista,
+    ProductoKey:d.producto,Producto:d.productoLabel,
+    TipoMuestra:d.tipoMuestra||'',NumAcopio:d.numAcopio||'',
     PesoInicial:parseDecimal(d.pesoInicial),PesoFinal:parseDecimal(d.pesoFinal),
   };
   sieves.forEach(function(s,i){row[s.us+'_'+s.mm+'g']=parseDecimal(d.granu[i]||'')||0;});
   row.PesoFondo=d.pesoFondo;
-  row.PctHumedad=parseDecimal(d.pctHumedad);
-  row.SiO2=parseDecimal(d.quimica.sio2);
-  row.Al2O3=parseDecimal(d.quimica.al2o3);
-  row.Fe2O3=parseDecimal(d.quimica.fe2o3);
-  row.CaO=parseDecimal(d.quimica.cao);
-  row.MgO=parseDecimal(d.quimica.mgo);
-  row.K2O=parseDecimal(d.quimica.k2o);
-  row.Na2O=parseDecimal(d.quimica.na2o);
-  row.TiO2=parseDecimal(d.quimica.tio2);
-  row.K2O_Na2O=parseFloat(((parseDecimal(d.quimica.k2o)||0)+(parseDecimal(d.quimica.na2o)||0)).toFixed(2));
+  if(cfg.humedad){row.PctHumedad=parseDecimal(d.pctHumedad);}
+  if(cfg.quimica){
+    var q=d.quimica||{};
+    row.SiO2=parseDecimal(q.sio2);
+    row.Al2O3=parseDecimal(q.al2o3);
+    row.Fe2O3=parseDecimal(q.fe2o3);
+    row.CaO=parseDecimal(q.cao);
+    row.MgO=parseDecimal(q.mgo);
+    row.K2O=parseDecimal(q.k2o);
+    row.Na2O=parseDecimal(q.na2o);
+    row.TiO2=parseDecimal(q.tio2);
+    row.K2O_Na2O=parseFloat(((parseDecimal(q.k2o)||0)+(parseDecimal(q.na2o)||0)).toFixed(2));
+  }
   row.Observaciones=d.observaciones;
   row.Timestamp=new Date().toISOString();
   row.EnviadoPor=account?account.username:'';
   return row;
 }
 
-async function sendToOD(data,account){
+async function sendToOD(data,account,file){
+  var targetFile=file||OD_FILE;
   var token=await getToken();
   if(!token)return;
-  var wb=await dlXlsx(token,OD_FILE);
+  var wb=await dlXlsx(token,targetFile);
   var row=buildRow(data,account);
   if(!wb){
     wb=XLSX.utils.book_new();
@@ -414,12 +547,12 @@ async function sendToOD(data,account){
     wb.Sheets[wb.SheetNames[0]]=XLSX.utils.json_to_sheet(rows);
   }
   try{
-    await ulXlsx(token,OD_FILE,wb);
+    await ulXlsx(token,targetFile,wb);
   }catch(err){
     if(err.odCode===401){
       var newToken=await getToken();
       if(!newToken)return;
-      await ulXlsx(newToken,OD_FILE,wb);
+      await ulXlsx(newToken,targetFile,wb);
     }else{throw err;}
   }
 }
@@ -569,7 +702,8 @@ function GranuTable({producto,pesoFinal,values,onChange}){
 
 /* ── REVIEW SCREEN ── */
 function ReviewScreen({data,gc,onConfirm,onBack,sending}){
-  var prodLabel=PRODUCTS.find(function(p){return p.value===data.producto;})||{label:data.producto};
+  var cfg=PRODUCT_CONFIG[data.producto]||{quimica:true,humedad:true,tipoMuestra:false};
+  var tipoDisplay=data.tipoMuestra==='Acopio'?(data.numAcopio||'Acopio'):data.tipoMuestra||'';
   return(
     <div>
       <div className="page-hdr">
@@ -582,7 +716,8 @@ function ReviewScreen({data,gc,onConfirm,onBack,sending}){
           <tr><td>Fecha/hora de envio</td><td>{data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):''} — {data.horaEnvio}</td></tr>
           <tr><td>Turno</td><td>{data.turno?'Turno '+data.turno:'-'}</td></tr>
           <tr><td>Analista</td><td>{data.analista}</td></tr>
-          <tr><td>Producto</td><td>{prodLabel.label}</td></tr>
+          <tr><td>Producto</td><td>{data.productoLabel||data.producto}</td></tr>
+          {cfg.tipoMuestra&&tipoDisplay&&<tr><td>Tipo de Muestra</td><td>{tipoDisplay}</td></tr>}
           <tr><td>Peso Inicial</td><td>{data.pesoInicial} g</td></tr>
           <tr><td>Peso Final</td><td>{data.pesoFinal} g</td></tr>
         </tbody></table>
@@ -608,24 +743,28 @@ function ReviewScreen({data,gc,onConfirm,onBack,sending}){
           </table>
         </div>
       </SecCard>
-      <SecCard title="Humedad" icon="&#128167;">
-        <table className="rev-tbl"><tbody>
-          <tr><td>% Humedad</td><td>{data.pctHumedad||'-'}</td></tr>
-        </tbody></table>
-      </SecCard>
-      <SecCard title="Quimica" icon="&#9879;&#65039;">
-        <table className="rev-tbl"><tbody>
-          <tr><td>SiO&#8322; (%)</td><td>{data.quimica.sio2||'-'}</td></tr>
-          <tr><td>Al&#8322;O&#8323; (%)</td><td>{data.quimica.al2o3||'-'}</td></tr>
-          <tr><td>Fe&#8322;O&#8323; (%)</td><td>{data.quimica.fe2o3||'-'}</td></tr>
-          <tr><td>CaO (%)</td><td>{data.quimica.cao||'-'}</td></tr>
-          <tr><td>MgO (%)</td><td>{data.quimica.mgo||'-'}</td></tr>
-          <tr><td>K&#8322;O (%)</td><td>{data.quimica.k2o||'-'}</td></tr>
-          <tr><td>Na&#8322;O (%)</td><td>{data.quimica.na2o||'-'}</td></tr>
-          <tr><td>TiO&#8322; (%)</td><td>{data.quimica.tio2||'-'}</td></tr>
-          <tr><td>K&#8322;O + Na&#8322;O (%)</td><td>{fmt((parseDecimal(data.quimica.k2o)||0)+(parseDecimal(data.quimica.na2o)||0))}</td></tr>
-        </tbody></table>
-      </SecCard>
+      {cfg.humedad&&(
+        <SecCard title="Humedad" icon="&#128167;">
+          <table className="rev-tbl"><tbody>
+            <tr><td>% Humedad</td><td>{data.pctHumedad||'-'}</td></tr>
+          </tbody></table>
+        </SecCard>
+      )}
+      {cfg.quimica&&(
+        <SecCard title="Quimica" icon="&#9879;&#65039;">
+          <table className="rev-tbl"><tbody>
+            <tr><td>SiO&#8322; (%)</td><td>{data.quimica.sio2||'-'}</td></tr>
+            <tr><td>Al&#8322;O&#8323; (%)</td><td>{data.quimica.al2o3||'-'}</td></tr>
+            <tr><td>Fe&#8322;O&#8323; (%)</td><td>{data.quimica.fe2o3||'-'}</td></tr>
+            <tr><td>CaO (%)</td><td>{data.quimica.cao||'-'}</td></tr>
+            <tr><td>MgO (%)</td><td>{data.quimica.mgo||'-'}</td></tr>
+            <tr><td>K&#8322;O (%)</td><td>{data.quimica.k2o||'-'}</td></tr>
+            <tr><td>Na&#8322;O (%)</td><td>{data.quimica.na2o||'-'}</td></tr>
+            <tr><td>TiO&#8322; (%)</td><td>{data.quimica.tio2||'-'}</td></tr>
+            <tr><td>K&#8322;O + Na&#8322;O (%)</td><td>{fmt((parseDecimal(data.quimica.k2o)||0)+(parseDecimal(data.quimica.na2o)||0))}</td></tr>
+          </tbody></table>
+        </SecCard>
+      )}
       {data.observaciones&&(
         <SecCard title="Observaciones" icon="&#128221;">
           <p style={{fontSize:'.92rem'}}>{data.observaciones}</p>
@@ -995,8 +1134,8 @@ function buildOdError(err){
   return{type:'network',msg:'Error al conectar con OneDrive. Registro guardado localmente.'};
 }
 
-/* ── ARENAS FORM ── */
-function ArenasForm({account,onBack,onSuccess}){
+/* ── PLANTA FORM (shared by Arenas + Cuarzo) ── */
+function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,lsAdd,lsDel}){
   var[view,setView]=useState('form');
   var[sending,setSending]=useState(false);
   var[reportModal,setReportModal]=useState(null);
@@ -1006,6 +1145,8 @@ function ArenasForm({account,onBack,onSuccess}){
   var[turno,setTurno]=useState('');
   var[analista,setAnalista]=useState('');
   var[producto,setProducto]=useState('');
+  var[tipoMuestra,setTipoMuestra]=useState('');
+  var[numAcopio,setNumAcopio]=useState('');
   var[pesoInicial,setPesoInicial]=useState('');
   var[pesoFinal,setPesoFinal]=useState('');
   var[gv,setGv]=useState([]);
@@ -1013,9 +1154,14 @@ function ArenasForm({account,onBack,onSuccess}){
   var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
   var[obs,setObs]=useState('');
   var[errors,setErrors]=useState({});
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
+
+  var cfg=PRODUCT_CONFIG[producto]||{quimica:false,humedad:false,tipoMuestra:false};
 
   useEffect(function(){
     setGv(Array(SIEVE_CONFIG[producto]?SIEVE_CONFIG[producto].length:0).fill(''));
+    setTipoMuestra('');setNumAcopio('');
   },[producto]);
 
   var gc=useMemo(function(){return calcGranu(producto,gv,pesoFinal);},[producto,gv,pesoFinal]);
@@ -1031,15 +1177,19 @@ function ArenasForm({account,onBack,onSuccess}){
     if(!pesoFinal)e.pesoFinal='Requerido';
     else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
       e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
-    if(!pctHumedad)e.pctHumedad='Requerido';
-    if(!quimica.sio2)e.sio2='Requerido';
-    if(!quimica.al2o3)e.al2o3='Requerido';
-    if(!quimica.fe2o3)e.fe2o3='Requerido';
-    if(!quimica.cao)e.cao='Requerido';
-    if(!quimica.mgo)e.mgo='Requerido';
-    if(!quimica.k2o)e.k2o='Requerido';
-    if(!quimica.na2o)e.na2o='Requerido';
-    if(!quimica.tio2)e.tio2='Requerido';
+    if(cfg.tipoMuestra&&!tipoMuestra)e.tipoMuestra='Requerido';
+    if(cfg.tipoMuestra&&tipoMuestra==='Acopio'&&!numAcopio)e.numAcopio='Requerido';
+    if(cfg.humedad&&!pctHumedad)e.pctHumedad='Requerido';
+    if(cfg.quimica){
+      if(!quimica.sio2)e.sio2='Requerido';
+      if(!quimica.al2o3)e.al2o3='Requerido';
+      if(!quimica.fe2o3)e.fe2o3='Requerido';
+      if(!quimica.cao)e.cao='Requerido';
+      if(!quimica.mgo)e.mgo='Requerido';
+      if(!quimica.k2o)e.k2o='Requerido';
+      if(!quimica.na2o)e.na2o='Requerido';
+      if(!quimica.tio2)e.tio2='Requerido';
+    }
     if(producto&&!gc.closeOk)
       e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     return e;
@@ -1054,24 +1204,24 @@ function ArenasForm({account,onBack,onSuccess}){
     setErrors({});setView('review');
   }
 
-  var[sendError,setSendError]=useState(null);
-  var[retrying,setRetrying]=useState(false);
-
   async function handleConfirm(){
     setSending(true);
-    var prodObj=PRODUCTS.find(function(p){return p.value===producto;});
+    var prodObj=products.find(function(p){return p.value===producto;});
     var prodLabel=prodObj?prodObj.label:producto;
+    var tmVal=cfg.tipoMuestra?tipoMuestra:'';
+    var naVal=cfg.tipoMuestra&&tipoMuestra==='Acopio'?numAcopio:'';
     var data={
       id:uid(),fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,
       turno:turno,analista:analista,producto:producto,productoLabel:prodLabel,
+      tipoMuestra:tmVal,numAcopio:naVal,
       pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
       pctHumedad:pctHumedad,quimica:quimica,observaciones:obs,
     };
-    addPending(data);
+    lsAdd(data);
     setSendError(null);
     try{
-      await sendToOD(data,account);
-      delPending(data.id);
+      await sendToOD(data,account,odFile);
+      lsDel(data.id);
       setSending(false);
       setReportModal({data:data,gc:gc,msg:'Registro enviado exitosamente a OneDrive.'});
     }catch(err){
@@ -1084,11 +1234,10 @@ function ArenasForm({account,onBack,onSuccess}){
 
   async function handleRetry(){
     if(!reportModal)return;
-    setRetrying(true);
-    setSendError(null);
+    setRetrying(true);setSendError(null);
     try{
-      await sendToOD(reportModal.data,account);
-      delPending(reportModal.data.id);
+      await sendToOD(reportModal.data,account,odFile);
+      lsDel(reportModal.data.id);
       setRetrying(false);
       setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro enviado exitosamente a OneDrive.'});});
     }catch(err){
@@ -1101,11 +1250,8 @@ function ArenasForm({account,onBack,onSuccess}){
   if(reportModal){
     return(
       <ReportModal
-        data={reportModal.data}
-        gc={reportModal.gc}
-        sendError={sendError}
-        retrying={retrying}
-        onRetry={handleRetry}
+        data={reportModal.data} gc={reportModal.gc}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
         onClose={function(){
           setReportModal(null);setSendError(null);
           onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
@@ -1114,17 +1260,22 @@ function ArenasForm({account,onBack,onSuccess}){
   }
 
   if(view==='review'){
+    var prodObj2=products.find(function(p){return p.value===producto;});
+    var prodLabel2=prodObj2?prodObj2.label:producto;
     return(
       <ReviewScreen
         data={{fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,turno:turno,
-               analista:analista,producto:producto,pesoInicial:pesoInicial,pesoFinal:pesoFinal,
+               analista:analista,producto:producto,productoLabel:prodLabel2,
+               tipoMuestra:cfg.tipoMuestra?tipoMuestra:'',
+               numAcopio:cfg.tipoMuestra&&tipoMuestra==='Acopio'?numAcopio:'',
+               pesoInicial:pesoInicial,pesoFinal:pesoFinal,
                pctHumedad:pctHumedad,quimica:quimica,observaciones:obs}}
         gc={gc} onConfirm={handleConfirm} onBack={function(){setView('form');}} sending={sending}/>
     );
   }
 
-  var prodObj=PRODUCTS.find(function(p){return p.value===producto;});
-  var prodLabel=prodObj?prodObj.label:null;
+  var prodObj3=products.find(function(p){return p.value===producto;});
+  var prodLabel3=prodObj3?prodObj3.label:null;
   var errList=Object.values(errors);
 
   return(
@@ -1132,13 +1283,13 @@ function ArenasForm({account,onBack,onSuccess}){
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <div>
-          <h2>Planta Arenas</h2>
-          {prodLabel&&<div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{prodLabel}</div>}
+          <h2>{plantaLabel}</h2>
+          {prodLabel3&&<div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{prodLabel3}</div>}
         </div>
       </div>
 
       <div className="prod-mosaic">
-        {PRODUCTS.map(function(p){
+        {products.map(function(p){
           return(
             <button key={p.value}
               className={'prod-btn'+(producto===p.value?' sel':'')}
@@ -1160,6 +1311,28 @@ function ArenasForm({account,onBack,onSuccess}){
               <strong>Corrija los siguientes errores:</strong>
               <ul>{errList.map(function(e,i){return <li key={i}>{e}</li>;})}</ul>
             </div>
+          )}
+
+          {cfg.tipoMuestra&&(
+            <SecCard title="Tipo de Muestra" icon="&#127758;">
+              <div className="fg fg-2">
+                <Sel name="tipoMuestra" label="Tipo de Muestra" required
+                  options={[{value:'Puntual',label:'Muestra Puntual'},{value:'Acopio',label:'Acopio'}]}
+                  value={tipoMuestra} onChange={function(e){setTipoMuestra(e.target.value);setNumAcopio('');}}
+                  error={errors.tipoMuestra}/>
+                {tipoMuestra==='Acopio'&&(
+                  <Sel name="numAcopio" label="Numero de Acopio" required
+                    options={[
+                      {value:'Acopio 1',label:'Acopio 1'},{value:'Acopio 2',label:'Acopio 2'},
+                      {value:'Acopio 3',label:'Acopio 3'},{value:'Acopio 4',label:'Acopio 4'},
+                      {value:'Acopio 5',label:'Acopio 5'},{value:'Acopio 6',label:'Acopio 6'},
+                      {value:'Acopio 7',label:'Acopio 7'},{value:'Emergencia',label:'Emergencia'},
+                    ]}
+                    value={numAcopio} onChange={function(e){setNumAcopio(e.target.value);}}
+                    error={errors.numAcopio}/>
+                )}
+              </div>
+            </SecCard>
           )}
 
           <SecCard title="Informacion General" icon="&#128203;">
@@ -1189,45 +1362,49 @@ function ArenasForm({account,onBack,onSuccess}){
             </div>
           </SecCard>
 
-          <SecCard title={'Granulometria — '+(GRANU_TITLE[producto]||prodLabel)} icon="&#128300;">
+          <SecCard title={'Granulometria — '+(GRANU_TITLE[producto]||prodLabel3)} icon="&#128300;">
             <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
             {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
               Aviso: {errors.granu}
             </div>}
           </SecCard>
 
-          <SecCard title="Humedad" icon="&#128167;">
-            <div style={{maxWidth:240}}>
-              <Field name="pctHumedad" label="% Humedad" type="decimal" required value={pctHumedad}
-                onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"/>
-            </div>
-          </SecCard>
-
-          <SecCard title="Quimica" icon="&#9879;&#65039;">
-            <div className="fg-quim">
-              <Field name="sio2" label="SiO₂ (%)" type="decimal" required value={quimica.sio2}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{sio2:e.target.value});});}} error={errors.sio2} placeholder="0,00"/>
-              <Field name="al2o3" label="Al₂O₃ (%)" type="decimal" required value={quimica.al2o3}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{al2o3:e.target.value});});}} error={errors.al2o3} placeholder="0,00"/>
-              <Field name="fe2o3" label="Fe₂O₃ (%)" type="decimal" required value={quimica.fe2o3}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{fe2o3:e.target.value});});}} error={errors.fe2o3} placeholder="0,00"/>
-              <Field name="cao" label="CaO (%)" type="decimal" required value={quimica.cao}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{cao:e.target.value});});}} error={errors.cao} placeholder="0,00"/>
-              <Field name="mgo" label="MgO (%)" type="decimal" required value={quimica.mgo}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{mgo:e.target.value});});}} error={errors.mgo} placeholder="0,00"/>
-              <Field name="k2o" label="K₂O (%)" type="decimal" required value={quimica.k2o}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{k2o:e.target.value});});}} error={errors.k2o} placeholder="0,00"/>
-              <Field name="na2o" label="Na₂O (%)" type="decimal" required value={quimica.na2o}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{na2o:e.target.value});});}} error={errors.na2o} placeholder="0,00"/>
-              <Field name="tio2" label="TiO₂ (%)" type="decimal" required value={quimica.tio2}
-                onChange={function(e){setQuimica(function(p){return Object.assign({},p,{tio2:e.target.value});});}} error={errors.tio2} placeholder="0,00"/>
-              <div className="field">
-                <label>K₂O + Na₂O (%)<span className="calc-badge">Calculado</span></label>
-                <input type="text" readOnly className="f-ro" placeholder="—"
-                  value={(quimica.k2o||quimica.na2o)?fmt((parseDecimal(quimica.k2o)||0)+(parseDecimal(quimica.na2o)||0)):''}/>
+          {cfg.humedad&&(
+            <SecCard title="Humedad" icon="&#128167;">
+              <div style={{maxWidth:240}}>
+                <Field name="pctHumedad" label="% Humedad" type="decimal" value={pctHumedad}
+                  onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"/>
               </div>
-            </div>
-          </SecCard>
+            </SecCard>
+          )}
+
+          {cfg.quimica&&(
+            <SecCard title="Quimica" icon="&#9879;&#65039;">
+              <div className="fg-quim">
+                <Field name="sio2" label="SiO₂ (%)" type="decimal" required value={quimica.sio2}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{sio2:e.target.value});});}} error={errors.sio2} placeholder="0,00"/>
+                <Field name="al2o3" label="Al₂O₃ (%)" type="decimal" required value={quimica.al2o3}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{al2o3:e.target.value});});}} error={errors.al2o3} placeholder="0,00"/>
+                <Field name="fe2o3" label="Fe₂O₃ (%)" type="decimal" required value={quimica.fe2o3}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{fe2o3:e.target.value});});}} error={errors.fe2o3} placeholder="0,00"/>
+                <Field name="cao" label="CaO (%)" type="decimal" required value={quimica.cao}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{cao:e.target.value});});}} error={errors.cao} placeholder="0,00"/>
+                <Field name="mgo" label="MgO (%)" type="decimal" required value={quimica.mgo}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{mgo:e.target.value});});}} error={errors.mgo} placeholder="0,00"/>
+                <Field name="k2o" label="K₂O (%)" type="decimal" required value={quimica.k2o}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{k2o:e.target.value});});}} error={errors.k2o} placeholder="0,00"/>
+                <Field name="na2o" label="Na₂O (%)" type="decimal" required value={quimica.na2o}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{na2o:e.target.value});});}} error={errors.na2o} placeholder="0,00"/>
+                <Field name="tio2" label="TiO₂ (%)" type="decimal" required value={quimica.tio2}
+                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{tio2:e.target.value});});}} error={errors.tio2} placeholder="0,00"/>
+                <div className="field">
+                  <label>K₂O + Na₂O (%)<span className="calc-badge">Calculado</span></label>
+                  <input type="text" readOnly className="f-ro" placeholder="—"
+                    value={(quimica.k2o||quimica.na2o)?fmt((parseDecimal(quimica.k2o)||0)+(parseDecimal(quimica.na2o)||0)):''}/>
+                </div>
+              </div>
+            </SecCard>
+          )}
 
           <SecCard title="Observaciones" icon="&#128221;">
             <Field name="obs" label="Observaciones" type="textarea" value={obs}
@@ -1244,6 +1421,18 @@ function ArenasForm({account,onBack,onSuccess}){
       )}
     </div>
   );
+}
+
+function ArenasForm({account,onBack,onSuccess}){
+  return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
+    plantaLabel="Planta Arenas" products={ARENA_PRODUCTS}
+    odFile={OD_FILE} lsGet={getPending} lsAdd={addPending} lsDel={delPending}/>;
+}
+
+function CuarzoForm({account,onBack,onSuccess}){
+  return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
+    plantaLabel="Planta Cuarzo" products={CUARZO_PRODUCTS}
+    odFile={OD_FILE_CUARZO} lsGet={getPendingCuarzo} lsAdd={addPendingCuarzo} lsDel={delPendingCuarzo}/>;
 }
 
 /* ── DASHBOARD SCREEN ── */
@@ -1594,10 +1783,12 @@ function HistoryScreen({account,onBack}){
 
   function reconstruirRegistro(r){
     var prodLabel=r.Producto||r.productoLabel||'';
-    var prod='A36';
-    if(r.producto){prod=r.producto;}
-    else if(prodLabel.includes('A38')||prodLabel.includes('Fierrillo'))prod='A38';
-    else if(prodLabel.includes('Alim')||prodLabel.includes('ALIM'))prod='ALIM';
+    var prod=r.ProductoKey||r.producto||'A36';
+    if(!SIEVE_CONFIG[prod]){
+      if(prodLabel.includes('A38')||prodLabel.includes('Fierrillo'))prod='A38';
+      else if(prodLabel.toLowerCase().includes('alim'))prod='ALIM';
+      else prod='A36';
+    }
     var sieves=SIEVE_CONFIG[prod]||[];
     var gv;
     if(r.granu&&Array.isArray(r.granu)){
@@ -1711,7 +1902,20 @@ function HistoryScreen({account,onBack}){
                       <tr style={{cursor:'pointer',background:isOpen?'var(--primary-xlight)':''}}
                         onClick={function(){setExpandedId(isOpen?null:rid);}}>
                         <td>{r.FechaMuestreo||r.fecha}</td>
-                        <td>{r.Producto||r.productoLabel}</td>
+                        <td>
+                          {r.Producto||r.productoLabel}
+                          {(function(){
+                            var tm=r.TipoMuestra||r.tipoMuestra;
+                            var na=r.NumAcopio||r.numAcopio;
+                            if(!tm)return null;
+                            var label=na||tm;
+                            var style={marginLeft:5,display:'inline-block',padding:'1px 7px',
+                              borderRadius:20,fontSize:'.68rem',fontWeight:700};
+                            if(na==='Emergencia')return <span style={Object.assign({},style,{background:'#fff5f5',color:'#c53030',border:'1px solid #feb2b2'})}>{label}</span>;
+                            if(tm==='Acopio')return <span style={Object.assign({},style,{background:'#d6eaf8',color:'#1a5276',border:'1px solid #aed6f1'})}>{label}</span>;
+                            return <span style={Object.assign({},style,{background:'#f5f5f5',color:'#888',border:'1px solid #e0e0e0'})}>{label}</span>;
+                          })()}
+                        </td>
                         <td>{r.Analista||r.analista}</td>
                         <td>{r.Turno||r.turno||'—'}</td>
                         <td>
@@ -1932,7 +2136,7 @@ const MODULES=[
   {id:'secado-turco',label:'Secado Turco',active:false},
   {id:'lavado-turco',label:'Lavado Turco',active:false},
   {id:'arenas',label:'Arenas',active:true},
-  {id:'cuarzo',label:'Cuarzo',active:false},
+  {id:'cuarzo',label:'Cuarzo',active:true},
 ];
 
 function HomeScreen({onSelect}){
@@ -2072,8 +2276,12 @@ function App(){
       {header}
       <div className="main">
         {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
-        {screen==='home'&&<HomeScreen onSelect={function(id){if(id==='arenas')setScreen('arenas');}}/>}
+        {screen==='home'&&<HomeScreen onSelect={function(id){
+          if(id==='arenas')setScreen('arenas');
+          else if(id==='cuarzo')setScreen('cuarzo');
+        }}/>}
         {screen==='arenas'&&<ArenasForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
+        {screen==='cuarzo'&&<CuarzoForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
