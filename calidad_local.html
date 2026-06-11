@@ -835,7 +835,7 @@ async function sendToSupabase(data,user){
    No lanza errores: si el correo falla, el envio del ensayo no se ve afectado. */
 async function sendAlertaEmail(data,violations,user){
   try{
-    await supabase.functions.invoke('alerta-calidad',{body:{
+    await supabase.functions.invoke('quick-processor',{body:{
       producto:data.productoLabel||data.producto,
       fecha:data.fecha,
       turno:data.turno,

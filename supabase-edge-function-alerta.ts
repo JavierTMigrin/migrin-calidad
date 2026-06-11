@@ -11,7 +11,7 @@
 //        RESEND_API_KEY = re_xxxxxxxx  (la API key de Resend)
 // ============================================================
 
-const DESTINATARIOS = ['javier.torresalazar@gmail.com']; // modo prueba: solo Javier
+const DESTINATARIOS = ['jtorres@migrin.cl']; // modo prueba: solo Javier (cuenta Resend)
 
 Deno.serve(async (req) => {
   const cors = {
