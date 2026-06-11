@@ -8,8 +8,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -293,22 +292,10 @@ document.addEventListener('keydown',function(e){
   }
 });
 
-const MSAL_CFG={
-  auth:{
-    clientId:'1acc4905-4dc2-4bb0-b17c-1738c87f17b1',
-    authority:'https://login.microsoftonline.com/b82f992b-02a3-48f7-92c0-5c5bc836cde2',
-    redirectUri:'https://javierTmigrin.github.io/migrin-calidad/calidad.html',
-  },
-  cache:{cacheLocation:'localStorage',storeAuthStateInCookie:false},
-};
-const SCOPES=['User.Read','Files.ReadWrite'];
-const OD_FOLDER='Consolidado.Calidad.2026';
-const OD_FILE='calidad_arenas.xlsx';
-const OD_FILE_CUARZO='calidad_cuarzo.xlsx';
-const ADMIN_PW='ADMIN';
-
-let msalApp=null;
-try{msalApp=new msal.PublicClientApplication(MSAL_CFG);}catch(e){console.error('MSAL',e);}
+// ── SUPABASE CONFIG ── rellena con tus datos del proyecto ──
+const SUPABASE_URL = 'https://wxjclxmtceuhlbwxtptc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_am0r8DfiGyNuU2lbn4o6aw_xgjklyKB';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MOLINO_SIEVES=[
   {us:'1/4"',mm:'6,350'},{us:'#4',mm:'4,750'},
@@ -636,7 +623,7 @@ const CUARZO_PRODUCTS=[
 ];
 const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS);
 const TURNOS=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'}];
-const ANALISTAS=[{value:'Camila Opazo',label:'Camila Opazo'},{value:'Ximena Gutierrez',label:'Ximena Gutierrez'}];
+const ANALISTAS_DEFAULT=[{value:'Camila Opazo',label:'Camila Opazo'},{value:'Ximena Gutierrez',label:'Ximena Gutierrez'}];
 
 function parseDecimal(s){
   if(s===null||s===undefined||s==='')return NaN;
@@ -651,112 +638,150 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function today(){return new Date().toISOString().slice(0,10);}
 function nowTime(){return new Date().toTimeString().slice(0,5);}
 
+// ── PENDING QUEUE (offline resilience) ──────────────────────
 const LS='cq_arenas_pending';
 function getPending(){try{return JSON.parse(localStorage.getItem(LS)||'[]');}catch{return[];}}
-function savePending(r){localStorage.setItem(LS,JSON.stringify(r));}
+function savePending(r){
+  try{localStorage.setItem(LS,JSON.stringify(r));}
+  catch(e){
+    if(e.name==='QuotaExceededError'||e.code===22){
+      console.warn('localStorage lleno — eliminando registros más viejos');
+      var arr=getPending();
+      if(arr.length>5){arr=arr.slice(arr.length-5);localStorage.setItem(LS,JSON.stringify(arr));}
+    }
+  }
+}
 function addPending(r){var p=getPending();p.push(r);savePending(p);}
 function delPending(id){savePending(getPending().filter(function(r){return r.id!==id;}));}
+
 const LS_CUARZO='cq_cuarzo_pending';
 function getPendingCuarzo(){try{return JSON.parse(localStorage.getItem(LS_CUARZO)||'[]');}catch{return[];}}
-function savePendingCuarzo(r){localStorage.setItem(LS_CUARZO,JSON.stringify(r));}
+function savePendingCuarzo(r){
+  try{localStorage.setItem(LS_CUARZO,JSON.stringify(r));}
+  catch(e){
+    if(e.name==='QuotaExceededError'||e.code===22){
+      var arr=getPendingCuarzo();
+      if(arr.length>5){arr=arr.slice(arr.length-5);localStorage.setItem(LS_CUARZO,JSON.stringify(arr));}
+    }
+  }
+}
 function addPendingCuarzo(r){var p=getPendingCuarzo();p.push(r);savePendingCuarzo(p);}
 function delPendingCuarzo(id){savePendingCuarzo(getPendingCuarzo().filter(function(r){return r.id!==id;}));}
 
-async function getToken(){
-  if(!msalApp)throw new Error('MSAL no inicializado');
-  var accs=msalApp.getAllAccounts();
-  console.log('getToken: cuentas MSAL:', accs.length, accs.map(function(a){return a.username;}));
-  if(!accs.length)throw new Error('Sin sesion activa');
-  try{
-    var r=await msalApp.acquireTokenSilent({scopes:SCOPES,account:accs[0]});
-    console.log('getToken: silent OK, expires:', r.expiresOn);
-    return r.accessToken;
-  }catch(silentErr){
-    console.warn('getToken: silent falló, intentando popup/redirect:', silentErr.message);
-    if(window.innerWidth<=768){await msalApp.acquireTokenRedirect({scopes:SCOPES});return null;}
-    var r2=await msalApp.acquireTokenPopup({scopes:SCOPES});
-    console.log('getToken: popup OK');
-    return r2.accessToken;
-  }
-}
-async function dlXlsx(token,file){
-  var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
-  var r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
-  if(r.status===404)return null;
-  if(!r.ok)throw new Error('GET '+file+': '+r.status);
-  return XLSX.read(await r.arrayBuffer(),{type:'array'});
-}
-async function ulXlsx(token,file,wb){
-  var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-  var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
-  var r;
-  try{
-    r=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':blob.type},body:blob});
-  }catch(netErr){
-    var e=new Error('NETWORK');e.odCode='NETWORK';throw e;
-  }
-  if(r.status===401){var e401=new Error('UNAUTHORIZED');e401.odCode=401;throw e401;}
-  if(r.status===423){var e423=new Error('LOCKED');e423.odCode=423;throw e423;}
-  if(r.status===403){var e403=new Error('FORBIDDEN');e403.odCode=403;throw e403;}
-  if(!r.ok){var eg=new Error('HTTP_'+r.status);eg.odCode=r.status;throw eg;}
+// ── SUPABASE DATA FUNCTIONS ──────────────────────────────────
+function buildDbRow(d,user){
+  var q=d.quimica||{};
+  return{
+    id:d.id,
+    fecha_muestreo:d.fecha,
+    fecha_envio:d.fechaEnvio?d.fechaEnvio.slice(0,10):null,
+    hora_envio:d.horaEnvio||null,
+    turno:d.turno||null,
+    analista:d.analista||null,
+    producto_key:d.producto,
+    producto_label:d.productoLabel||d.producto,
+    tipo_muestra:d.tipoMuestra||null,
+    num_acopio:d.numAcopio||null,
+    peso_inicial:parseDecimal(d.pesoInicial)||null,
+    peso_final:parseDecimal(d.pesoFinal)||null,
+    peso_fondo:d.pesoFondo!=null?d.pesoFondo:null,
+    granu:d.granu||[],
+    pct_humedad:parseDecimal(d.pctHumedad)||null,
+    quimica:{
+      sio2:q.sio2||null,al2o3:q.al2o3||null,fe2o3:q.fe2o3||null,
+      cao:q.cao||null,mgo:q.mgo||null,k2o:q.k2o||null,
+      na2o:q.na2o||null,tio2:q.tio2||null,
+    },
+    observaciones:d.observaciones||null,
+    enviado_por:user?user.email:null,
+  };
 }
 
-function buildRow(d,account){
-  var sieves=SIEVE_CONFIG[d.producto]||[];
-  var cfg=PRODUCT_CONFIG[d.producto]||{quimica:true,humedad:true,tipoMuestra:false};
+function dbToRow(r){
+  var q=r.quimica||{};
   var row={
-    ID:d.id,FechaMuestreo:d.fecha,FechaEnvio:d.fechaEnvio,HoraEnvio:d.horaEnvio,
-    Turno:d.turno,Analista:d.analista,
-    ProductoKey:d.producto,Producto:d.productoLabel,
-    TipoMuestra:d.tipoMuestra||'',NumAcopio:d.numAcopio||'',
-    PesoInicial:parseDecimal(d.pesoInicial),PesoFinal:parseDecimal(d.pesoFinal),
+    ID:r.id,
+    FechaMuestreo:r.fecha_muestreo,
+    FechaEnvio:r.fecha_envio,
+    HoraEnvio:r.hora_envio,
+    Turno:r.turno,
+    Analista:r.analista,
+    ProductoKey:r.producto_key,
+    Producto:r.producto_label,
+    TipoMuestra:r.tipo_muestra,
+    NumAcopio:r.num_acopio,
+    PesoInicial:r.peso_inicial,
+    PesoFinal:r.peso_final,
+    PesoFondo:r.peso_fondo,
+    granu:r.granu||[],
+    quimica:{
+      sio2:String(q.sio2||0),al2o3:String(q.al2o3||0),fe2o3:String(q.fe2o3||0),
+      cao:String(q.cao||0),mgo:String(q.mgo||0),k2o:String(q.k2o||0),
+      na2o:String(q.na2o||0),tio2:String(q.tio2||0),
+    },
+    PctHumedad:r.pct_humedad,
+    SiO2:parseDecimal(q.sio2),Al2O3:parseDecimal(q.al2o3),Fe2O3:parseDecimal(q.fe2o3),
+    CaO:parseDecimal(q.cao),MgO:parseDecimal(q.mgo),K2O:parseDecimal(q.k2o),
+    Na2O:parseDecimal(q.na2o),TiO2:parseDecimal(q.tio2),
+    K2O_Na2O:(parseDecimal(q.k2o)||0)+(parseDecimal(q.na2o)||0),
+    Observaciones:r.observaciones,
+    EnviadoPor:r.enviado_por,
+    Timestamp:r.created_at,
+    status:'sent',
   };
-  sieves.forEach(function(s,i){row[s.us+'_'+s.mm+'g']=parseDecimal(d.granu[i]||'')||0;});
-  row.PesoFondo=d.pesoFondo;
-  if(cfg.humedad){row.PctHumedad=parseDecimal(d.pctHumedad);}
-  if(cfg.quimica){
-    var q=d.quimica||{};
-    row.SiO2=parseDecimal(q.sio2);
-    row.Al2O3=parseDecimal(q.al2o3);
-    row.Fe2O3=parseDecimal(q.fe2o3);
-    row.CaO=parseDecimal(q.cao);
-    row.MgO=parseDecimal(q.mgo);
-    row.K2O=parseDecimal(q.k2o);
-    row.Na2O=parseDecimal(q.na2o);
-    row.TiO2=parseDecimal(q.tio2);
-    row.K2O_Na2O=parseFloat(((parseDecimal(q.k2o)||0)+(parseDecimal(q.na2o)||0)).toFixed(2));
-  }
-  row.Observaciones=d.observaciones;
-  row.Timestamp=new Date().toISOString();
-  row.EnviadoPor=account?account.username:'';
+  // Expandir granu a columnas individuales para compatibilidad con computeStats
+  var sieves=SIEVE_CONFIG[r.producto_key]||[];
+  sieves.forEach(function(s,i){
+    row[s.us+'_'+s.mm+'g']=(r.granu&&r.granu[i]!=null)?parseDecimal(r.granu[i])||0:0;
+  });
   return row;
 }
 
-async function sendToOD(data,account,file){
-  var targetFile=file||OD_FILE;
-  var token=await getToken();
-  if(!token)return;
-  var wb=await dlXlsx(token,targetFile);
-  var row=buildRow(data,account);
-  if(!wb){
-    wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([row]),'Registros');
-  }else{
-    var ws=wb.Sheets[wb.SheetNames[0]];
-    var rows=XLSX.utils.sheet_to_json(ws);
-    rows.push(row);
-    wb.Sheets[wb.SheetNames[0]]=XLSX.utils.json_to_sheet(rows);
+async function sendToSupabase(data,user){
+  var row=buildDbRow(data,user);
+  var res=await supabase.from('ensayos').insert([row]);
+  if(res.error)throw res.error;
+}
+
+async function loadEnsayos(){
+  var res=await supabase.from('ensayos')
+    .select('*')
+    .order('fecha_muestreo',{ascending:false})
+    .order('created_at',{ascending:false});
+  if(res.error)throw res.error;
+  return(res.data||[]).map(dbToRow);
+}
+
+async function deleteEnsayo(id,user){
+  // Guardar en audit_log antes de eliminar
+  var prev=await supabase.from('ensayos').select('*').eq('id',id).single();
+  if(prev.data){
+    await supabase.from('audit_log').insert([{
+      accion:'DELETE',ensayo_id:id,
+      datos_previos:prev.data,
+      usuario:user?user.email:'desconocido',
+    }]);
   }
-  try{
-    await ulXlsx(token,targetFile,wb);
-  }catch(err){
-    if(err.odCode===401){
-      var newToken=await getToken();
-      if(!newToken)return;
-      await ulXlsx(newToken,targetFile,wb);
-    }else{throw err;}
-  }
+  var res=await supabase.from('ensayos').delete().eq('id',id);
+  if(res.error)throw res.error;
+}
+
+async function loadAnalistas(){
+  var res=await supabase.from('analistas').select('nombre').eq('activo',true).order('nombre');
+  if(res.error||!res.data||!res.data.length)return ANALISTAS_DEFAULT;
+  return res.data.map(function(a){return{value:a.nombre,label:a.nombre};});
+}
+
+function buildDbError(err){
+  if(!err)return{type:'network',msg:'Error desconocido.'};
+  var msg=err.message||String(err);
+  if(msg.includes('Failed to fetch')||msg.includes('NetworkError')||msg.includes('net::'))
+    return{type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'};
+  if(msg.includes('JWT')||msg.includes('invalid claim')||msg.includes('not authenticated'))
+    return{type:'auth',msg:'Sesion expirada. Recarga la pagina e inicia sesion nuevamente.'};
+  if(msg.includes('row-level security')||msg.includes('permission'))
+    return{type:'forbidden',msg:'Sin permisos para guardar. Contacta al administrador.'};
+  return{type:'network',msg:'Error al conectar con la base de datos. Registro guardado localmente.'};
 }
 
 function calcGranu(producto,gv,pesoFinalRaw){
@@ -835,24 +860,31 @@ function SecCard({title,icon,children}){
   );
 }
 
-function PassModal({onOk,onCancel}){
-  var[pw,setPw]=useState('');
+function PassModal({onOk,onCancel,currentUser}){
+  var[loading,setLoading]=useState(false);
   var[err,setErr]=useState('');
-  function submit(){if(pw===ADMIN_PW)onOk();else setErr('Contrasena incorrecta');}
+  useEffect(function(){
+    // Verificar rol admin del usuario actual via Supabase
+    if(!currentUser){setErr('Sin sesion activa.');return;}
+    setLoading(true);
+    supabase.auth.getUser().then(function(res){
+      setLoading(false);
+      var meta=res.data&&res.data.user&&res.data.user.user_metadata;
+      if(meta&&meta.is_admin===true){onOk();}
+      else{setErr('Tu cuenta no tiene permisos de administrador.');}
+    });
+  },[]);
   return(
     <div className="overlay">
       <div className="modal">
-        <h3>Acceso Administrador</h3>
-        <div className="field" style={{marginBottom:16}}>
-          <label>Contrasena</label>
-          <input type="password" value={pw} onChange={function(e){setPw(e.target.value);}}
-            onKeyDown={function(e){if(e.key==='Enter')submit();}} autoFocus className={err?'err':''}/>
-          {err&&<span className="ferr">{err}</span>}
-        </div>
-        <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
-          <button className="btn btn-primary" onClick={submit}>Ingresar</button>
-        </div>
+        <h3>Verificando permisos…</h3>
+        {loading&&<div className="spinner" style={{margin:'20px auto'}}/>}
+        {err&&<>
+          <p style={{color:'var(--error)',marginBottom:16,fontSize:'.88rem'}}>{err}</p>
+          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <button className="btn btn-secondary" onClick={onCancel}>Cerrar</button>
+          </div>
+        </>}
       </div>
     </div>
   );
@@ -1200,41 +1232,20 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
             <div style={{flex:1,minWidth:200}}>
               <div style={{fontWeight:700,fontSize:'.9rem',
                 color:sendError.type==='locked'?'#b7791f':'#c53030',marginBottom:3}}>
-                {sendError.type==='locked'&&'⚠ Archivo bloqueado'}
-                {sendError.type==='forbidden'&&'⛔ Sin permisos'}
-                {sendError.type==='auth'&&'🔐 Sesion expirada'}
-                {sendError.type==='network'&&'📵 Sin conexion'}
+                {sendError.type==='forbidden'?'⛔ Sin permisos':sendError.type==='auth'?'🔐 Sesion expirada':'📵 Sin conexion'}
               </div>
               <div style={{fontSize:'.84rem',color:'#555'}}>{sendError.msg}</div>
-              {sendError.type!=='locked'&&(
-                <div style={{fontSize:'.78rem',color:'var(--success)',marginTop:4,fontWeight:600}}>
-                  ✓ Copia guardada localmente como Pendiente
-                </div>
-              )}
+              <div style={{fontSize:'.78rem',color:'var(--success)',marginTop:4,fontWeight:600}}>
+                ✓ Copia guardada localmente como Pendiente
+              </div>
             </div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {sendError.type==='locked'&&(
-                <>
-                  <button className="btn btn-primary" disabled={retrying}
-                    onClick={onRetry}
-                    style={{padding:'8px 16px',fontSize:'.85rem'}}>
-                    {retrying?'Reintentando...':'↻ Reintentar'}
-                  </button>
-                  <button className="btn btn-secondary"
-                    onClick={onClose}
-                    style={{padding:'8px 16px',fontSize:'.85rem'}}>
-                    Guardar local y cerrar
-                  </button>
-                </>
-              )}
-              {sendError.type!=='locked'&&(
-                <button className="btn btn-secondary"
-                  onClick={onRetry}
-                  style={{padding:'8px 16px',fontSize:'.85rem'}}
-                  disabled={retrying}>
-                  {retrying?'Reintentando...':'↻ Reintentar'}
-                </button>
-              )}
+              <button className="btn btn-secondary"
+                onClick={onRetry}
+                style={{padding:'8px 16px',fontSize:'.85rem'}}
+                disabled={retrying}>
+                {retrying?'Reintentando...':'↻ Reintentar'}
+              </button>
             </div>
           </div>
         )}
@@ -1243,7 +1254,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
         {!sendError&&!retrying&&!hideBanner&&(
           <div style={{margin:'0',padding:'10px 20px',background:'var(--success-bg)',
             borderBottom:'2px solid #9ae6b4',color:'var(--success)',fontSize:'.88rem',fontWeight:600}}>
-            ✓ Registro enviado exitosamente a OneDrive
+            ✓ Registro enviado exitosamente a la base de datos
           </div>
         )}
         {retrying&&(
@@ -1251,7 +1262,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
             borderBottom:'2px solid var(--primary-light)',color:'var(--primary)',fontSize:'.88rem',fontWeight:600,
             display:'flex',alignItems:'center',gap:8}}>
             <div className="spinner" style={{width:18,height:18,borderWidth:2}}/>
-            Enviando a OneDrive...
+            Enviando...
           </div>
         )}
 
@@ -1393,25 +1404,16 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
   );
 }
 
-/* ── HELPERS OD ERROR ── */
-function buildOdError(err){
-  var c=err.odCode;
-  if(c===423||err.message==='LOCKED')
-    return{type:'locked',msg:'El archivo Excel esta abierto en otro equipo. Cierralo y presiona Reintentar.'};
-  if(c===403||err.message==='FORBIDDEN')
-    return{type:'forbidden',msg:'Sin permisos para escribir en OneDrive. Contacta al administrador.'};
-  if(c===401||err.message==='UNAUTHORIZED'||err.message==='Sin sesion activa'||err.message==='MSAL no inicializado')
-    return{type:'auth',msg:'Sesion expirada o sin acceso. Recarga la pagina e inicia sesion nuevamente.'};
-  if(c==='NETWORK')
-    return{type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'};
-  return{type:'network',msg:'Error al conectar con OneDrive. Registro guardado localmente.'};
-}
+/* ── HELPERS ERROR (legacy alias) ── */
+var buildOdError = buildDbError;
 
 /* ── PLANTA FORM (shared by Arenas + Cuarzo) ── */
-function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,lsAdd,lsDel}){
+function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel}){
   var[view,setView]=useState('form');
   var[sending,setSending]=useState(false);
   var[reportModal,setReportModal]=useState(null);
+  var[analistasList,setAnalistasList]=useState(ANALISTAS_DEFAULT);
+  useEffect(function(){loadAnalistas().then(setAnalistasList).catch(function(){});},[]);
   var[fecha,setFecha]=useState(today());
   var[fechaEnvio,setFechaEnvio]=useState('');
   var[horaEnvio,setHoraEnvio]=useState('');
@@ -1496,14 +1498,14 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
     lsAdd(data);
     setSendError(null);
     try{
-      await sendToOD(data,account,odFile);
+      await sendToSupabase(data,account);
       lsDel(data.id);
       setSending(false);
-      setReportModal({data:data,gc:gc,msg:'Registro enviado exitosamente a OneDrive.'});
+      setReportModal({data:data,gc:gc,msg:'Registro enviado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
-      setSendError(buildOdError(err));
+      setSendError(buildDbError(err));
       setReportModal({data:data,gc:gc,msg:''});
     }
   }
@@ -1512,14 +1514,14 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
     if(!reportModal)return;
     setRetrying(true);setSendError(null);
     try{
-      await sendToOD(reportModal.data,account,odFile);
+      await sendToSupabase(reportModal.data,account);
       lsDel(reportModal.data.id);
       setRetrying(false);
-      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro enviado exitosamente a OneDrive.'});});
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro enviado exitosamente.'});});
     }catch(err){
       console.error(err);
       setRetrying(false);
-      setSendError(buildOdError(err));
+      setSendError(buildDbError(err));
     }
   }
 
@@ -1624,7 +1626,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
             <div className="fg fg-2">
               <Sel name="turno" label="Turno" options={TURNOS} value={turno}
                 onChange={function(e){setTurno(e.target.value);}} error={errors.turno}/>
-              <Sel name="analista" label="Analista" required options={ANALISTAS} value={analista}
+              <Sel name="analista" label="Analista" required options={analistasList} value={analista}
                 onChange={function(e){setAnalista(e.target.value);}} error={errors.analista}/>
             </div>
           </SecCard>
@@ -1723,13 +1725,13 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,odFile,lsGet,
 function ArenasForm({account,onBack,onSuccess}){
   return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
     plantaLabel="Planta Arenas" products={ARENA_PRODUCTS}
-    odFile={OD_FILE} lsGet={getPending} lsAdd={addPending} lsDel={delPending}/>;
+    lsGet={getPending} lsAdd={addPending} lsDel={delPending}/>;
 }
 
 function CuarzoForm({account,onBack,onSuccess}){
   return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
     plantaLabel="Planta Cuarzo" products={CUARZO_PRODUCTS}
-    odFile={OD_FILE_CUARZO} lsGet={getPendingCuarzo} lsAdd={addPendingCuarzo} lsDel={delPendingCuarzo}/>;
+    lsGet={getPendingCuarzo} lsAdd={addPendingCuarzo} lsDel={delPendingCuarzo}/>;
 }
 
 var ACOPIO_OPTS=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia'];
@@ -1779,22 +1781,13 @@ function DashboardScreen({account,onBack}){
 
   async function loadData(){
     setLoading(true);
-    var cloudA=[],cloudC=[];
-    try{
-      var token=await getToken();
-      if(token){
-        var wb1=await dlXlsx(token,OD_FILE);
-        if(wb1){var ws1=wb1.Sheets[wb1.SheetNames[0]];cloudA=XLSX.utils.sheet_to_json(ws1);}
-        var wb2=await dlXlsx(token,OD_FILE_CUARZO);
-        if(wb2){var ws2=wb2.Sheets[wb2.SheetNames[0]];cloudC=XLSX.utils.sheet_to_json(ws2);}
-      }
-    }catch(e){console.error(e);}
-    var allCloud=cloudA.concat(cloudC);
+    var cloud=[];
+    try{cloud=await loadEnsayos();}catch(e){console.error(e);}
     var pendingA=getPending().map(function(r){return Object.assign({},r,{_src:'local'});});
     var pendingC=getPendingCuarzo().map(function(r){return Object.assign({},r,{_src:'local'});});
-    var ids=new Set(allCloud.map(function(r){return r.ID;}));
-    var merged=allCloud.concat(pendingA.filter(function(r){return !ids.has(r.id);}))
-                       .concat(pendingC.filter(function(r){return !ids.has(r.id);}));
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pendingA.filter(function(r){return !ids.has(r.id);}))
+                    .concat(pendingC.filter(function(r){return !ids.has(r.id);}));
     merged.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
     setRecords(merged);setLoading(false);
   }
@@ -1893,11 +1886,17 @@ function DashboardScreen({account,onBack}){
 
   function computeStats(row){
     var sieves=SIEVE_CONFIG[prod]||[];
-    var pf=parseDecimal(row.PesoFinal);
+    var pf=parseDecimal(row.PesoFinal||row.pesoFinal);
     if(!pf||pf<=0)return null;
     var acum=0,stats={};
-    sieves.forEach(function(s){
-      var peso=parseDecimal(row[s.us+'_'+s.mm+'g'])||0;
+    sieves.forEach(function(s,i){
+      // Priorizar granu array (Supabase), fallback a columnas planas (legacy)
+      var peso;
+      if(row.granu&&Array.isArray(row.granu)&&row.granu[i]!=null){
+        peso=parseDecimal(row.granu[i])||0;
+      }else{
+        peso=parseDecimal(row[s.us+'_'+s.mm+'g'])||0;
+      }
       var pctP=(peso/pf)*100;
       acum+=pctP;
       stats[s.us]={pctP:pctP,pctA:acum,pctPas:100-acum};
@@ -1918,6 +1917,11 @@ function DashboardScreen({account,onBack}){
     stats._plusG40=_pg.reduce(function(s,us){return s+(stats[us]?stats[us].pctP:0);},0);
     return stats;
   }
+
+  // Memoizar computeStats UNA sola vez para todos los useMemos downstream (fix H-10)
+  var filteredStats=useMemo(function(){
+    return filtered.map(computeStats);
+  },[filtered,prod]);
 
   var granuControls=useMemo(function(){
     return getDashboardControles(prod);
@@ -1947,9 +1951,9 @@ function DashboardScreen({account,onBack}){
 
   var ctrlStats=useMemo(function(){
     return allCtrls.map(function(ctrl){
-      var valsRaw=filtered.map(function(r){
+      var valsRaw=filtered.map(function(r,i){
         if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
-        var st=computeStats(r);if(!st)return null;
+        var st=filteredStats[i];if(!st)return null;
         if(ctrl.field)return st[ctrl.key]?st[ctrl.key][ctrl.field]:null;
         return st[ctrl.key]!=null?st[ctrl.key]:null;
       });
@@ -1971,13 +1975,13 @@ function DashboardScreen({account,onBack}){
         perVar:last!=null&&perAvg!=null?last-perAvg:null,
       });
     });
-  },[filtered,prod,allCtrls]);
+  },[filteredStats,filtered,prod,allCtrls]);
 
   var granuCurveData=useMemo(function(){
     var sieves=SIEVE_CONFIG[prod]||[];
     if(!sieves.length)return{labels:[],lastPar:[],lastPas:[],avgPar:[],avgPas:[]};
-    var lastSt=filtered.length?computeStats(filtered[filtered.length-1]):null;
-    var allSts=filtered.map(computeStats).filter(Boolean);
+    var lastSt=filteredStats.length?filteredStats[filteredStats.length-1]:null;
+    var allSts=filteredStats.filter(Boolean);
     return{
       labels:sieves.map(function(s){return s.us;}),
       lastPar:sieves.map(function(s){return lastSt&&lastSt[s.us]?+lastSt[s.us].pctP.toFixed(2):null;}),
@@ -1991,13 +1995,13 @@ function DashboardScreen({account,onBack}){
         return vs.length?+(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(2):null;
       }),
     };
-  },[filtered,prod]);
+  },[filteredStats,filtered,prod]);
 
   var granuTableData=useMemo(function(){
     var sieves=SIEVE_CONFIG[prod]||[];
     var ps=getSpecs(prod),gs=ps?ps.granulometria:{};
-    var lastSt=filtered.length?computeStats(filtered[filtered.length-1]):null;
-    var allSts=filtered.map(computeStats).filter(Boolean);
+    var lastSt=filteredStats.length?filteredStats[filteredStats.length-1]:null;
+    var allSts=filteredStats.filter(Boolean);
     return sieves.map(function(s){
       var ls=lastSt?lastSt[s.us]:null;
       var vd=allSts.filter(function(st){return st[s.us];});
@@ -2012,7 +2016,7 @@ function DashboardScreen({account,onBack}){
         semA:g&&(g.retMax!=null||g.retMin!=null)?calcSemaforo(ls?ls.pctA:null,g.retMin,g.retMax):'info',
         semP:g&&(g.pasMax!=null||g.pasMin!=null)?calcSemaforo(ls?ls.pctPas:null,g.pasMin,g.pasMax):'info'};
     });
-  },[filtered,prod]);
+  },[filteredStats,filtered,prod]);
 
   // === CHART: Granulometric Curves ===
   useEffect(function(){
@@ -2045,7 +2049,7 @@ function DashboardScreen({account,onBack}){
       if(iParRef.current){iParRef.current.destroy();iParRef.current=null;}
       if(iPasRef.current){iPasRef.current.destroy();iPasRef.current=null;}
     };
-  },[tab,granuCurveData,prod]);
+  },[tab,granuCurveData,prod,filteredStats]);
 
   // === CHART: Trend Charts ===
   useEffect(function(){
@@ -2055,9 +2059,9 @@ function DashboardScreen({account,onBack}){
     var tLbls=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
     allCtrls.forEach(function(ctrl,i){
       if(i>=6||!trList[i]||!trList[i].current)return;
-      var vals=filtered.map(function(r){
+      var vals=filtered.map(function(r,ri){
         if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
-        var st=computeStats(r);if(!st)return null;
+        var st=filteredStats[ri];if(!st)return null;
         if(ctrl.field)return st[ctrl.key]?+(st[ctrl.key][ctrl.field]||0).toFixed(2):null;
         return st[ctrl.key]!=null?+st[ctrl.key].toFixed(3):null;
       });
@@ -2257,7 +2261,7 @@ function DashboardScreen({account,onBack}){
           <label>Analista</label>
           <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}}>
             <option value="">Todos</option>
-            {ANALISTAS.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
+            {ANALISTAS_DEFAULT.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
           </select>
         </div>
         {prod==='A36'&&(
@@ -2608,6 +2612,8 @@ function HistoryScreen({account,onBack}){
   var[expandedId,setExpandedId]=useState(null);
   var[resendSt,setResendSt]=useState({});
   var[reportView,setReportView]=useState(null);
+  var[page,setPage]=useState(0);
+  var PAGE_SIZE=50;
 
   useEffect(function(){load();},[]);
 
@@ -2617,21 +2623,11 @@ function HistoryScreen({account,onBack}){
   }
 
   async function load(){
-    setLoading(true);
+    setLoading(true);setPage(0);
+    var cloud=[];
+    try{cloud=await loadEnsayos();}catch(e){console.error('History',e);}
     var pendA=getPending().map(function(r){return Object.assign({},r,{status:'pending'});});
     var pendC=getPendingCuarzo().map(function(r){return Object.assign({},r,{status:'pending'});});
-    var cloud=[];
-    try{
-      var token=await getToken();
-      if(token){
-        var wbA=await dlXlsx(token,OD_FILE);
-        if(wbA){var wsA=wbA.Sheets[wbA.SheetNames[0]];
-          cloud=cloud.concat(XLSX.utils.sheet_to_json(wsA).map(function(r){return Object.assign({},r,{status:'sent'});}));}
-        var wbC=await dlXlsx(token,OD_FILE_CUARZO);
-        if(wbC){var wsC=wbC.Sheets[wbC.SheetNames[0]];
-          cloud=cloud.concat(XLSX.utils.sheet_to_json(wsC).map(function(r){return Object.assign({},r,{status:'sent'});}));}
-      }
-    }catch(e){console.error('History',e);}
     var cids=new Set(cloud.map(function(r){return r.ID;}));
     var merged=cloud
       .concat(pendA.filter(function(r){return !cids.has(r.id);}))
@@ -2689,30 +2685,39 @@ function HistoryScreen({account,onBack}){
     var rid=r.ID||r.id;
     setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:true,error:null,ok:false}});});
     var isCuarzo=getPlanta(r)==='Cuarzo';
-    var targetFile=isCuarzo?OD_FILE_CUARZO:OD_FILE;
     try{
-      await sendToOD(r,account,targetFile);
+      await sendToSupabase(r,account);
       if(isCuarzo)delPendingCuarzo(rid);
       else delPending(rid);
       setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:false,error:null,ok:true}});});
       load();
     }catch(e){
       console.error(e);
-      setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:false,error:buildOdError(e),ok:false}});});
+      setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:false,error:buildDbError(e),ok:false}});});
     }
   }
 
   function exportCSV(){
+    // Escapar valores para prevenir CSV injection (H-16)
+    function esc(v){
+      if(v==null)return'';
+      var s=String(v);
+      // Sanitizar fórmulas: prefijos =, +, -, @ son peligrosos en Excel
+      if(s.match(/^[=+\-@]/))s="'"+s;
+      // Escapar comillas dobles
+      if(s.includes('"')||s.includes(','))s='"'+s.replace(/"/g,'""')+'"';
+      return s;
+    }
     var hdr=['ID','Fecha','Hora','Turno','Analista','Planta','Producto','PesoInicial','PesoFinal','Estado'];
     var rows=records.map(function(r){
       return[r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
         r.Analista||r.analista,getPlanta(r),r.Producto||r.productoLabel,
         r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
-        r.status==='sent'?'Enviado':'Pendiente'];
+        r.status==='sent'?'Enviado':'Pendiente'].map(esc);
     });
-    var csv=[hdr].concat(rows).map(function(row){return row.join(',');}).join('\n');
+    var csv=[hdr.map(esc)].concat(rows).map(function(row){return row.join(',');}).join('\n');
     var a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
     a.download='historial_calidad.csv';a.click();
   }
 
@@ -2728,7 +2733,7 @@ function HistoryScreen({account,onBack}){
   return(
     <div>
       {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
-      {showPass&&<PassModal onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
+      {showPass&&<PassModal currentUser={account} onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <h2>Historial — Calidad</h2>
@@ -2742,7 +2747,7 @@ function HistoryScreen({account,onBack}){
       {loading
         ?<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>
         :<div className="sec-card">
-          <div className="sec-card-hdr">Registros ({records.length})</div>
+          <div className="sec-card-hdr">Registros ({records.length}){records.length>PAGE_SIZE&&' — pág '+(page+1)+'/'+Math.ceil(records.length/PAGE_SIZE)}</div>
           <div style={{overflowX:'auto'}}>
             <table className="htbl">
               <thead><tr>
@@ -2755,7 +2760,7 @@ function HistoryScreen({account,onBack}){
                     No hay registros
                   </td></tr>
                 )}
-                {records.map(function(r,i){
+                {records.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE).map(function(r,i){
                   var rid=r.ID||r.id||i;
                   var isOpen=expandedId===rid;
                   var rst=resendSt[rid]||{};
@@ -2897,7 +2902,7 @@ function HistoryScreen({account,onBack}){
                                   <button className="btn btn-primary" style={{padding:'7px 14px',fontSize:'.84rem'}}
                                     disabled={rst.loading}
                                     onClick={function(e){e.stopPropagation();resend(r);}}>
-                                    {rst.loading?'Enviando...':'Reenviar a OneDrive'}
+                                    {rst.loading?'Enviando...':'&#8679; Sincronizar'}
                                   </button>
                                 )}
                                 {rst.ok&&(
@@ -2907,20 +2912,26 @@ function HistoryScreen({account,onBack}){
                                 )}
                                 {rst.error&&(
                                   <span style={{color:'var(--error)',fontWeight:600,fontSize:'.83rem'}}>
-                                    {rst.error.type==='locked'?'⚠ Archivo abierto':
-                                     rst.error.type==='forbidden'?'⛔ Sin permisos':
+                                    {rst.error.type==='forbidden'?'⛔ Sin permisos':
                                      rst.error.type==='auth'?'🔐 Sesion expirada':
                                      '📵 Sin conexion'}
                                     {' — '+rst.error.msg}
                                   </span>
                                 )}
-                                {isAdmin&&r.status==='pending'&&(
+                                {isAdmin&&(
                                   <button className="btn btn-danger" style={{padding:'7px 14px',fontSize:'.84rem',marginLeft:'auto'}}
-                                    onClick={function(e){
+                                    onClick={async function(e){
                                       e.stopPropagation();
                                       var eid=r.id||r.ID;
-                                      if(getPlanta(r)==='Cuarzo')delPendingCuarzo(eid);
-                                      else delPending(eid);
+                                      if(!confirm('Eliminar este registro permanentemente?'))return;
+                                      if(r.status==='sent'){
+                                        try{await deleteEnsayo(eid,account);}
+                                        catch(err){setToast({msg:'Error al eliminar: '+(err.message||err),type:'error'});return;}
+                                      }else{
+                                        if(getPlanta(r)==='Cuarzo')delPendingCuarzo(eid);
+                                        else delPending(eid);
+                                      }
+                                      setToast({msg:'Registro eliminado',type:'success'});
                                       load();
                                     }}>
                                     &#128465; Eliminar
@@ -2938,6 +2949,21 @@ function HistoryScreen({account,onBack}){
               </tbody>
             </table>
           </div>
+          {records.length>PAGE_SIZE&&(
+            <div style={{display:'flex',gap:8,justifyContent:'center',padding:'12px 0',borderTop:'1px solid var(--border)'}}>
+              <button className="btn btn-secondary" disabled={page===0}
+                onClick={function(){setPage(function(p){return p-1;});window.scrollTo({top:0});}}>
+                &#8592; Anterior
+              </button>
+              <span style={{padding:'8px 12px',fontSize:'.85rem',color:'var(--text-secondary)'}}>
+                {page+1} / {Math.ceil(records.length/PAGE_SIZE)}
+              </span>
+              <button className="btn btn-secondary" disabled={(page+1)*PAGE_SIZE>=records.length}
+                onClick={function(){setPage(function(p){return p+1;});window.scrollTo({top:0});}}>
+                Siguiente &#8594;
+              </button>
+            </div>
+          )}
         </div>
       }
     </div>
@@ -2948,61 +2974,138 @@ function HistoryScreen({account,onBack}){
 function SettingsScreen({account,onBack,onLogout}){
   var[isAdmin,setIsAdmin]=useState(false);
   var[showPass,setShowPass]=useState(false);
-  var[pending,setPending]=useState(getPending());
+  var[pendA,setPendA]=useState(getPending());
+  var[pendC,setPendC]=useState(getPendingCuarzo());
   var[toast,setToast]=useState(null);
-  function refresh(){setPending(getPending());}
+  var[analistas,setAnalistas]=useState([]);
+  var[newAnalista,setNewAnalista]=useState('');
+  var[loadingAn,setLoadingAn]=useState(false);
+
+  function refresh(){setPendA(getPending());setPendC(getPendingCuarzo());}
+
+  function fetchAnalistas(){
+    setLoadingAn(true);
+    supabase.from('analistas').select('*').order('nombre')
+      .then(function(res){setLoadingAn(false);if(!res.error)setAnalistas(res.data||[]);});
+  }
+
+  useEffect(function(){if(isAdmin)fetchAnalistas();},[isAdmin]);
+
+  async function addAnalista(){
+    var n=newAnalista.trim();if(!n)return;
+    var res=await supabase.from('analistas').insert([{nombre:n}]);
+    if(res.error){setToast({msg:'Error: '+res.error.message,type:'error'});}
+    else{setNewAnalista('');setToast({msg:'Analista agregado',type:'success'});fetchAnalistas();}
+  }
+
+  async function toggleAnalista(id,activo){
+    await supabase.from('analistas').update({activo:!activo}).eq('id',id);
+    fetchAnalistas();
+  }
+
+  var totalPending=pendA.length+pendC.length;
+
   return(
     <div>
       {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
-      {showPass&&<PassModal onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
+      {showPass&&<PassModal currentUser={account} onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <h2>Ajustes</h2>
       </div>
-      <SecCard title="Sesion Microsoft" icon="&#128272;">
+
+      <SecCard title="Sesion" icon="&#128272;">
         {account
           ?<div>
-            <p style={{marginBottom:12}}>Conectado como: <strong>{account.username}</strong></p>
+            <p style={{marginBottom:12}}>Conectado como: <strong>{account.email}</strong></p>
             <button className="btn btn-danger" onClick={onLogout}>Cerrar sesion</button>
           </div>
           :<p>No hay sesion activa.</p>
         }
       </SecCard>
+
+      <SecCard title={'Pendientes locales ('+totalPending+')'} icon="&#128229;">
+        <p style={{marginBottom:12,color:'var(--text-secondary)',fontSize:'.88rem'}}>
+          Registros guardados localmente sin sincronizar con la base de datos.
+        </p>
+        {totalPending===0&&<p style={{color:'var(--success)',fontWeight:600}}>&#10003; Sin pendientes</p>}
+        {pendA.length>0&&(
+          <div style={{marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:'.82rem',marginBottom:8}}>Arenas ({pendA.length})</div>
+            <div style={{overflowX:'auto'}}>
+              <table className="htbl">
+                <thead><tr><th>Fecha</th><th>Producto</th><th></th></tr></thead>
+                <tbody>{pendA.map(function(r){return(
+                  <tr key={r.id}>
+                    <td>{r.fecha}</td><td>{r.productoLabel}</td>
+                    <td><button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                      onClick={function(){delPending(r.id);refresh();}}>Eliminar</button></td>
+                  </tr>
+                );})}</tbody>
+              </table>
+            </div>
+            <button className="btn btn-danger" style={{marginTop:8}} onClick={function(){
+              if(confirm('Eliminar todos los pendientes de Arenas?')){localStorage.removeItem(LS);refresh();
+              setToast({msg:'Pendientes Arenas eliminados',type:'success'});}
+            }}>Eliminar todos Arenas</button>
+          </div>
+        )}
+        {pendC.length>0&&(
+          <div>
+            <div style={{fontWeight:700,fontSize:'.82rem',marginBottom:8}}>Cuarzo ({pendC.length})</div>
+            <div style={{overflowX:'auto'}}>
+              <table className="htbl">
+                <thead><tr><th>Fecha</th><th>Producto</th><th></th></tr></thead>
+                <tbody>{pendC.map(function(r){return(
+                  <tr key={r.id}>
+                    <td>{r.fecha}</td><td>{r.productoLabel}</td>
+                    <td><button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                      onClick={function(){delPendingCuarzo(r.id);refresh();}}>Eliminar</button></td>
+                  </tr>
+                );})}</tbody>
+              </table>
+            </div>
+            <button className="btn btn-danger" style={{marginTop:8}} onClick={function(){
+              if(confirm('Eliminar todos los pendientes de Cuarzo?')){localStorage.removeItem(LS_CUARZO);refresh();
+              setToast({msg:'Pendientes Cuarzo eliminados',type:'success'});}
+            }}>Eliminar todos Cuarzo</button>
+          </div>
+        )}
+      </SecCard>
+
       <SecCard title="Administracion" icon="&#9881;&#65039;">
         {!isAdmin
           ?<button className="btn btn-secondary" onClick={function(){setShowPass(true);}}>Acceder como Admin</button>
           :<div>
-            <div style={{marginBottom:14,padding:'8px 12px',background:'var(--success-bg)',borderRadius:'var(--radius-sm)',color:'var(--success)',fontWeight:600}}>Admin activo</div>
-            <p style={{marginBottom:12,color:'var(--text-secondary)',fontSize:'.88rem'}}>
-              Registros pendientes locales: <strong>{pending.length}</strong>
-            </p>
-            {pending.length>0&&(
-              <div>
+            <div style={{marginBottom:14,padding:'8px 12px',background:'var(--success-bg)',borderRadius:'var(--radius-sm)',color:'var(--success)',fontWeight:600}}>
+              &#10003; Admin activo
+            </div>
+            <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Gestión de Analistas</div>
+            {loadingAn?<div className="spinner"/>:(
+              <>
                 <div style={{overflowX:'auto',marginBottom:12}}>
                   <table className="htbl">
-                    <thead><tr><th>ID</th><th>Fecha</th><th>Producto</th><th>Accion</th></tr></thead>
-                    <tbody>{pending.map(function(r){
-                      return(
-                        <tr key={r.id}>
-                          <td style={{fontSize:'.72rem',color:'var(--text-muted)'}}>{r.id}</td>
-                          <td>{r.fecha}</td>
-                          <td>{r.productoLabel}</td>
-                          <td>
-                            <button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
-                              onClick={function(){delPending(r.id);refresh();}}>Eliminar</button>
-                          </td>
-                        </tr>
-                      );
-                    })}</tbody>
+                    <thead><tr><th>Nombre</th><th>Estado</th><th></th></tr></thead>
+                    <tbody>{analistas.map(function(a){return(
+                      <tr key={a.id}>
+                        <td>{a.nombre}</td>
+                        <td><span className={'badge '+(a.activo?'badge-s':'badge-w')} style={{fontSize:'.75rem'}}>{a.activo?'Activo':'Inactivo'}</span></td>
+                        <td><button className="btn btn-secondary" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                          onClick={function(){toggleAnalista(a.id,a.activo);}}>
+                          {a.activo?'Desactivar':'Activar'}
+                        </button></td>
+                      </tr>
+                    );})}</tbody>
                   </table>
                 </div>
-                <button className="btn btn-danger" onClick={function(){
-                  if(confirm('Eliminar todos los registros pendientes?')){
-                    localStorage.removeItem(LS);refresh();
-                    setToast({msg:'Registros locales eliminados',type:'success'});
-                  }
-                }}>Eliminar todos los pendientes</button>
-              </div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <input type="text" value={newAnalista}
+                    onChange={function(e){setNewAnalista(e.target.value);}}
+                    onKeyDown={function(e){if(e.key==='Enter')addAnalista();}}
+                    placeholder="Nombre del nuevo analista" style={{flex:1,padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}/>
+                  <button className="btn btn-primary" onClick={addAnalista}>Agregar</button>
+                </div>
+              </>
             )}
           </div>
         }
@@ -3047,17 +3150,42 @@ function HomeScreen({onSelect}){
 }
 
 /* ── AUTH SCREEN ── */
-function AuthScreen({onLogin,loading}){
+function AuthScreen({onLogin}){
+  var[email,setEmail]=useState('');
+  var[pw,setPw]=useState('');
+  var[loading,setLoading]=useState(false);
+  var[err,setErr]=useState('');
+
+  async function submit(e){
+    e.preventDefault();
+    if(!email||!pw){setErr('Ingresa tu email y contraseña.');return;}
+    setLoading(true);setErr('');
+    var res=await supabase.auth.signInWithPassword({email:email.trim(),password:pw});
+    setLoading(false);
+    if(res.error){setErr(res.error.message==='Invalid login credentials'?'Email o contraseña incorrectos.':res.error.message);}
+    else{onLogin(res.data.user);}
+  }
+
   return(
     <div className="auth-screen">
       <div className="auth-title">Control de Calidad — MIGRIN S.A.</div>
-      <div className="auth-sub">Inicie sesion con su cuenta Microsoft para acceder al sistema.</div>
-      {loading
-        ?<div className="spinner"/>
-        :<button className="btn btn-primary" onClick={onLogin} style={{minWidth:220}}>
-          Iniciar sesion con Microsoft
+      <div className="auth-sub">Ingresa tus credenciales para acceder al sistema.</div>
+      <form onSubmit={submit} style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:12,marginTop:8}}>
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={email} onChange={function(e){setEmail(e.target.value);}}
+            placeholder="usuario@migrin.cl" autoComplete="email" autoFocus/>
+        </div>
+        <div className="field">
+          <label>Contraseña</label>
+          <input type="password" value={pw} onChange={function(e){setPw(e.target.value);}}
+            placeholder="••••••••" autoComplete="current-password"/>
+        </div>
+        {err&&<p style={{color:'var(--error)',fontSize:'.85rem',margin:0}}>{err}</p>}
+        <button type="submit" className="btn btn-primary" disabled={loading} style={{minWidth:220}}>
+          {loading?<span className="spinner" style={{width:18,height:18,borderWidth:2,display:'inline-block'}}/>:'Ingresar'}
         </button>
-      }
+      </form>
     </div>
   );
 }
@@ -3070,34 +3198,22 @@ function App(){
   var[toast,setToast]=useState(null);
 
   useEffect(function(){
-    if(!msalApp){setAuthLoading(false);return;}
-    msalApp.handleRedirectPromise()
-      .then(function(resp){
-        if(resp&&resp.account){msalApp.setActiveAccount(resp.account);setAccount(resp.account);}
-        else{
-          var accs=msalApp.getAllAccounts();
-          if(accs.length)setAccount(accs[0]);
-        }
-        setAuthLoading(false);
-      })
-      .catch(function(e){setAuthLoading(false);console.error(e);});
+    // Recuperar sesion activa al cargar
+    supabase.auth.getSession().then(function(res){
+      if(res.data&&res.data.session)setAccount(res.data.session.user);
+      setAuthLoading(false);
+    });
+    // Escuchar cambios de sesion
+    var sub=supabase.auth.onAuthStateChange(function(_event,session){
+      setAccount(session?session.user:null);
+    });
+    return function(){sub.data&&sub.data.subscription&&sub.data.subscription.unsubscribe();};
   },[]);
 
-  async function login(){
-    if(!msalApp)return;
-    setAuthLoading(true);
-    try{
-      if(window.innerWidth<=768){
-        await msalApp.loginRedirect({scopes:SCOPES});
-      }else{
-        var r=await msalApp.loginPopup({scopes:SCOPES});
-        setAccount(r.account);setAuthLoading(false);
-      }
-    }catch(e){setAuthLoading(false);console.error(e);}
-  }
+  function login(user){setAccount(user);}
 
-  function logout(){
-    if(msalApp)msalApp.logout();
+  async function logout(){
+    await supabase.auth.signOut();
     setAccount(null);setScreen('home');
   }
 
@@ -3148,7 +3264,7 @@ function App(){
     return(
       <>
         {header}
-        <div className="main"><AuthScreen onLogin={login} loading={authLoading}/></div>
+        <div className="main"><AuthScreen onLogin={login}/></div>
       </>
     );
   }
