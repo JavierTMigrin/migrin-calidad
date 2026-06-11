@@ -236,8 +236,16 @@ const MSAL_CFG={
   },
   cache:{cacheLocation:'localStorage',storeAuthStateInCookie:false},
 };
-const SCOPES=['User.Read','Files.ReadWrite'];
-const OD_FOLDER='Consolidado.Calidad.2026';
+const SCOPES=['User.Read','Files.ReadWrite','Sites.ReadWrite.All'];
+
+/* ── SHAREPOINT CONFIG ── */
+const SP_DOMAIN  ='inversioneselalto.sharepoint.com';
+const SP_SITE    ='CALIDAD_MIGRIN_2026';
+const SP_SITE_ID ='SITE_ID_AQUI'; // reemplazar con valor del Paso 1
+const SP_FOLDER  ='Consolidado.Calidad.2026';
+const SP_BASE_URL='https://graph.microsoft.com/v1.0/sites/'+SP_SITE_ID+'/drive/root:/'+SP_FOLDER+'/';
+const SP_LIST_URL='https://graph.microsoft.com/v1.0/sites/'+SP_SITE_ID+'/lists/RegistrosCalidad/items';
+
 const OD_FILE='calidad_arenas.xlsx';
 const ADMIN_PW='ADMIN';
 
@@ -352,7 +360,8 @@ async function getToken(){
   }
 }
 async function dlXlsx(token,file){
-  var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
+  var url=SP_BASE_URL+file+':/content';
+  console.log('dlXlsx URL:', url);
   var r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
   if(r.status===404)return null;
   if(!r.ok)throw new Error('GET '+file+': '+r.status);
@@ -361,8 +370,8 @@ async function dlXlsx(token,file){
 async function ulXlsx(token,file,wb){
   var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
-  console.log('=== DEBUG ONEDRIVE PUT ===');
+  var url=SP_BASE_URL+file+':/content';
+  console.log('=== DEBUG SHAREPOINT PUT ===');
   console.log('Token:', token?'obtenido ('+token.length+' chars)':'NULO');
   console.log('URL:', url);
   console.log('Blob size:', blob.size, 'bytes');
@@ -426,14 +435,42 @@ async function sendToOD(data,account){
     rows.push(row);
     wb.Sheets[wb.SheetNames[0]]=XLSX.utils.json_to_sheet(rows);
   }
+  var usedToken=token;
   try{
     await ulXlsx(token,OD_FILE,wb);
   }catch(err){
     if(err.odCode===401){
       var newToken=await getToken();
       if(!newToken)return;
+      usedToken=newToken;
       await ulXlsx(newToken,OD_FILE,wb);
     }else{throw err;}
+  }
+  // Respaldo en SharePoint List (no bloquea si falla)
+  if(SP_SITE_ID!=='SITE_ID_AQUI'){
+    fetch(SP_LIST_URL,{
+      method:'POST',
+      headers:{Authorization:'Bearer '+usedToken,'Content-Type':'application/json'},
+      body:JSON.stringify({fields:{
+        Title:      data.id,
+        Fecha:      data.fecha,
+        Turno:      data.turno||'',
+        Analista:   data.analista||'',
+        Producto:   data.productoLabel||data.producto||'',
+        PesoInicial:String(data.pesoInicial||''),
+        PesoFinal:  String(data.pesoFinal||''),
+        Humedad:    String(data.pctHumedad||''),
+        SiO2:       String((data.quimica&&data.quimica.sio2)||''),
+        Al2O3:      String((data.quimica&&data.quimica.al2o3)||''),
+        Fe2O3:      String((data.quimica&&data.quimica.fe2o3)||''),
+        FechaEnvio: data.fechaEnvio||'',
+        EnviadoPor: account?account.username:'',
+        Planta:     'Arenas',
+      }}),
+    }).then(function(res){
+      if(res.ok)console.log('SP List: respaldo guardado OK');
+      else res.text().then(function(t){console.warn('SP List respaldo falló:',res.status,t);});
+    }).catch(function(e){console.warn('SP List respaldo error:',e.message);});
   }
 }
 
