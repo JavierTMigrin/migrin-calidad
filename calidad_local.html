@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Control de Calidad — MIGRIN S.A.</title>
+<title>Control de Calidad — MIGRIN (LOCAL)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -232,7 +232,7 @@ const MSAL_CFG={
   auth:{
     clientId:'1acc4905-4dc2-4bb0-b17c-1738c87f17b1',
     authority:'https://login.microsoftonline.com/b82f992b-02a3-48f7-92c0-5c5bc836cde2',
-    redirectUri:'https://javierTmigrin.github.io/migrin-calidad/calidad.html',
+    redirectUri:window.location.origin+window.location.pathname,
   },
   cache:{cacheLocation:'localStorage',storeAuthStateInCookie:false},
 };
@@ -240,6 +240,8 @@ const SCOPES=['User.Read','Files.ReadWrite'];
 const OD_FOLDER='Consolidado.Calidad.2026';
 const OD_FILE='calidad_arenas.xlsx';
 const ADMIN_PW='ADMIN';
+const IS_LOCAL=true;
+const LOCAL_ACCOUNT={username:'local@migrin.cl',name:'Usuario Local'};
 
 let msalApp=null;
 try{msalApp=new msal.PublicClientApplication(MSAL_CFG);}catch(e){console.error('MSAL',e);}
@@ -337,17 +339,13 @@ function delPending(id){savePending(getPending().filter(function(r){return r.id!
 async function getToken(){
   if(!msalApp)throw new Error('MSAL no inicializado');
   var accs=msalApp.getAllAccounts();
-  console.log('getToken: cuentas MSAL:', accs.length, accs.map(function(a){return a.username;}));
   if(!accs.length)throw new Error('Sin sesion activa');
   try{
     var r=await msalApp.acquireTokenSilent({scopes:SCOPES,account:accs[0]});
-    console.log('getToken: silent OK, expires:', r.expiresOn);
     return r.accessToken;
-  }catch(silentErr){
-    console.warn('getToken: silent falló, intentando popup/redirect:', silentErr.message);
+  }catch{
     if(window.innerWidth<=768){await msalApp.acquireTokenRedirect({scopes:SCOPES});return null;}
     var r2=await msalApp.acquireTokenPopup({scopes:SCOPES});
-    console.log('getToken: popup OK');
     return r2.accessToken;
   }
 }
@@ -362,16 +360,8 @@ async function ulXlsx(token,file,wb){
   var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   var url='https://graph.microsoft.com/v1.0/me/drive/root:/'+OD_FOLDER+'/'+file+':/content';
-  var r;
-  try{
-    r=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':blob.type},body:blob});
-  }catch(netErr){
-    var e=new Error('NETWORK');e.odCode='NETWORK';throw e;
-  }
-  if(r.status===401){var e401=new Error('UNAUTHORIZED');e401.odCode=401;throw e401;}
-  if(r.status===423){var e423=new Error('LOCKED');e423.odCode=423;throw e423;}
-  if(r.status===403){var e403=new Error('FORBIDDEN');e403.odCode=403;throw e403;}
-  if(!r.ok){var eg=new Error('HTTP_'+r.status);eg.odCode=r.status;throw eg;}
+  var r=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':blob.type},body:blob});
+  if(!r.ok)throw new Error('PUT '+file+': '+r.status);
 }
 
 function buildRow(d,account){
@@ -413,15 +403,7 @@ async function sendToOD(data,account){
     rows.push(row);
     wb.Sheets[wb.SheetNames[0]]=XLSX.utils.json_to_sheet(rows);
   }
-  try{
-    await ulXlsx(token,OD_FILE,wb);
-  }catch(err){
-    if(err.odCode===401){
-      var newToken=await getToken();
-      if(!newToken)return;
-      await ulXlsx(newToken,OD_FILE,wb);
-    }else{throw err;}
-  }
+  await ulXlsx(token,OD_FILE,wb);
 }
 
 function calcGranu(producto,gv,pesoFinalRaw){
@@ -642,7 +624,7 @@ function ReviewScreen({data,gc,onConfirm,onBack,sending}){
 }
 
 /* ── REPORT MODAL ── */
-function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
+function ReportModal({data,gc,onClose}){
   var chartRef=useRef(null);
   var instRef=useRef(null);
   var pendingDlRef=useRef(null);
@@ -789,72 +771,6 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
           <button className="btn btn-secondary" style={{padding:'5px 14px'}} onClick={onClose}>X Cerrar</button>
         </div>
 
-        {/* ── BANNER DE ERROR OD ── */}
-        {sendError&&(
-          <div style={{
-            margin:'0',padding:'14px 20px',
-            background: sendError.type==='locked'?'#fffff0':sendError.type==='forbidden'?'#fff5f5':'#fff5f5',
-            borderBottom:'3px solid '+(sendError.type==='locked'?'#b7791f':sendError.type==='forbidden'?'#c53030':'#c53030'),
-            display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10,
-          }}>
-            <div style={{flex:1,minWidth:200}}>
-              <div style={{fontWeight:700,fontSize:'.9rem',
-                color:sendError.type==='locked'?'#b7791f':'#c53030',marginBottom:3}}>
-                {sendError.type==='locked'&&'⚠ Archivo bloqueado'}
-                {sendError.type==='forbidden'&&'⛔ Sin permisos'}
-                {sendError.type==='auth'&&'🔐 Sesion expirada'}
-                {sendError.type==='network'&&'📵 Sin conexion'}
-              </div>
-              <div style={{fontSize:'.84rem',color:'#555'}}>{sendError.msg}</div>
-              {sendError.type!=='locked'&&(
-                <div style={{fontSize:'.78rem',color:'var(--success)',marginTop:4,fontWeight:600}}>
-                  ✓ Copia guardada localmente como Pendiente
-                </div>
-              )}
-            </div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {sendError.type==='locked'&&(
-                <>
-                  <button className="btn btn-primary" disabled={retrying}
-                    onClick={onRetry}
-                    style={{padding:'8px 16px',fontSize:'.85rem'}}>
-                    {retrying?'Reintentando...':'↻ Reintentar'}
-                  </button>
-                  <button className="btn btn-secondary"
-                    onClick={onClose}
-                    style={{padding:'8px 16px',fontSize:'.85rem'}}>
-                    Guardar local y cerrar
-                  </button>
-                </>
-              )}
-              {sendError.type!=='locked'&&(
-                <button className="btn btn-secondary"
-                  onClick={onRetry}
-                  style={{padding:'8px 16px',fontSize:'.85rem'}}
-                  disabled={retrying}>
-                  {retrying?'Reintentando...':'↻ Reintentar'}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── BANNER ÉXITO ── */}
-        {!sendError&&!retrying&&!hideBanner&&(
-          <div style={{margin:'0',padding:'10px 20px',background:'var(--success-bg)',
-            borderBottom:'2px solid #9ae6b4',color:'var(--success)',fontSize:'.88rem',fontWeight:600}}>
-            ✓ Registro enviado exitosamente a OneDrive
-          </div>
-        )}
-        {retrying&&(
-          <div style={{margin:'0',padding:'10px 20px',background:'var(--primary-xlight)',
-            borderBottom:'2px solid var(--primary-light)',color:'var(--primary)',fontSize:'.88rem',fontWeight:600,
-            display:'flex',alignItems:'center',gap:8}}>
-            <div className="spinner" style={{width:18,height:18,borderWidth:2}}/>
-            Enviando a OneDrive...
-          </div>
-        )}
-
         <div id="report-card">
           <div className="rc-hdr">
             {logoSrc&&<img src={logoSrc} style={{height:60,width:'auto',objectFit:'contain'}} alt=""/>}
@@ -981,20 +897,6 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
   );
 }
 
-/* ── HELPERS OD ERROR ── */
-function buildOdError(err){
-  var c=err.odCode;
-  if(c===423||err.message==='LOCKED')
-    return{type:'locked',msg:'El archivo Excel esta abierto en otro equipo. Cierralo y presiona Reintentar.'};
-  if(c===403||err.message==='FORBIDDEN')
-    return{type:'forbidden',msg:'Sin permisos para escribir en OneDrive. Contacta al administrador.'};
-  if(c===401||err.message==='UNAUTHORIZED'||err.message==='Sin sesion activa'||err.message==='MSAL no inicializado')
-    return{type:'auth',msg:'Sesion expirada o sin acceso. Recarga la pagina e inicia sesion nuevamente.'};
-  if(c==='NETWORK')
-    return{type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'};
-  return{type:'network',msg:'Error al conectar con OneDrive. Registro guardado localmente.'};
-}
-
 /* ── ARENAS FORM ── */
 function ArenasForm({account,onBack,onSuccess}){
   var[view,setView]=useState('form');
@@ -1054,9 +956,6 @@ function ArenasForm({account,onBack,onSuccess}){
     setErrors({});setView('review');
   }
 
-  var[sendError,setSendError]=useState(null);
-  var[retrying,setRetrying]=useState(false);
-
   async function handleConfirm(){
     setSending(true);
     var prodObj=PRODUCTS.find(function(p){return p.value===producto;});
@@ -1067,35 +966,18 @@ function ArenasForm({account,onBack,onSuccess}){
       pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
       pctHumedad:pctHumedad,quimica:quimica,observaciones:obs,
     };
-    addPending(data);
-    setSendError(null);
+    var msg='';
     try{
       await sendToOD(data,account);
-      delPending(data.id);
-      setSending(false);
-      setReportModal({data:data,gc:gc,msg:'Registro enviado exitosamente a OneDrive.'});
+      msg='Registro enviado exitosamente a OneDrive.';
     }catch(err){
       console.error(err);
-      setSending(false);
-      setSendError(buildOdError(err));
-      setReportModal({data:data,gc:gc,msg:''});
+      data.status='pending';
+      addPending(data);
+      msg='Sin conexion a OneDrive. Registro guardado localmente como pendiente.';
     }
-  }
-
-  async function handleRetry(){
-    if(!reportModal)return;
-    setRetrying(true);
-    setSendError(null);
-    try{
-      await sendToOD(reportModal.data,account);
-      delPending(reportModal.data.id);
-      setRetrying(false);
-      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro enviado exitosamente a OneDrive.'});});
-    }catch(err){
-      console.error(err);
-      setRetrying(false);
-      setSendError(buildOdError(err));
-    }
+    setSending(false);
+    setReportModal({data:data,gc:gc,msg:msg});
   }
 
   if(reportModal){
@@ -1103,13 +985,7 @@ function ArenasForm({account,onBack,onSuccess}){
       <ReportModal
         data={reportModal.data}
         gc={reportModal.gc}
-        sendError={sendError}
-        retrying={retrying}
-        onRetry={handleRetry}
-        onClose={function(){
-          setReportModal(null);setSendError(null);
-          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
-        }}/>
+        onClose={function(){setReportModal(null);onSuccess(reportModal.msg);}}/>
     );
   }
 
@@ -1565,9 +1441,6 @@ function HistoryScreen({account,onBack}){
   var[isAdmin,setIsAdmin]=useState(false);
   var[showPass,setShowPass]=useState(false);
   var[toast,setToast]=useState(null);
-  var[expandedId,setExpandedId]=useState(null);
-  var[resendSt,setResendSt]=useState({});
-  var[reportView,setReportView]=useState(null);
 
   useEffect(function(){load();},[]);
 
@@ -1592,60 +1465,13 @@ function HistoryScreen({account,onBack}){
     setLoading(false);
   }
 
-  function reconstruirRegistro(r){
-    var prodLabel=r.Producto||r.productoLabel||'';
-    var prod='A36';
-    if(r.producto){prod=r.producto;}
-    else if(prodLabel.includes('A38')||prodLabel.includes('Fierrillo'))prod='A38';
-    else if(prodLabel.includes('Alim')||prodLabel.includes('ALIM'))prod='ALIM';
-    var sieves=SIEVE_CONFIG[prod]||[];
-    var gv;
-    if(r.granu&&Array.isArray(r.granu)){
-      gv=r.granu;
-    }else{
-      gv=sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
-    }
-    var pesoFinal=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
-    var gc=calcGranu(prod,gv,pesoFinal);
-    var quimica;
-    if(r.quimica&&typeof r.quimica==='object'){
-      quimica=r.quimica;
-    }else{
-      quimica={
-        sio2:String(r.SiO2||0),al2o3:String(r.Al2O3||0),fe2o3:String(r.Fe2O3||0),
-        cao:String(r.CaO||0),mgo:String(r.MgO||0),k2o:String(r.K2O||0),
-        na2o:String(r.Na2O||0),tio2:String(r.TiO2||0),
-      };
-    }
-    var data={
-      id:r.ID||r.id,
-      fecha:r.FechaMuestreo||r.fecha||'',
-      fechaEnvio:r.FechaEnvio||r.fechaEnvio||'',
-      horaEnvio:r.HoraEnvio||r.horaEnvio||'',
-      turno:r.Turno||r.turno||'',
-      analista:r.Analista||r.analista||'',
-      producto:prod,productoLabel:prodLabel,
-      pesoInicial:String(r.PesoInicial!==undefined?r.PesoInicial:r.pesoInicial!==undefined?r.pesoInicial:0),
-      pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
-      pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:0),
-      quimica:quimica,
-      observaciones:r.Observaciones||r.observaciones||'',
-    };
-    return{data:data,gc:gc};
-  }
-
   async function resend(r){
-    var rid=r.ID||r.id;
-    setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:true,error:null,ok:false}});});
     try{
       await sendToOD(r,account);
-      delPending(rid);
-      setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:false,error:null,ok:true}});});
+      delPending(r.id);
+      setToast({msg:'Registro reenviado exitosamente',type:'success'});
       load();
-    }catch(e){
-      console.error(e);
-      setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:false,error:buildOdError(e),ok:false}});});
-    }
+    }catch(e){setToast({msg:'Error al reenviar: '+e.message,type:'error'});}
   }
 
   function exportCSV(){
@@ -1656,19 +1482,11 @@ function HistoryScreen({account,onBack}){
         r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
         r.status==='sent'?'Enviado':'Pendiente'];
     });
-    var csv=[hdr].concat(rows).map(function(row){return row.join(',');}).join('\n');
+    var csv=[hdr].concat(rows).map(function(r){return r.join(',');}).join('\n');
     var a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    a.download='historial_arenas.csv';a.click();
-  }
-
-  if(reportView){
-    return(
-      <ReportModal
-        data={reportView.data} gc={reportView.gc}
-        hideBanner={true}
-        onClose={function(){setReportView(null);}}/>
-    );
+    a.download='historial_arenas.csv';
+    a.click();
   }
 
   return(
@@ -1692,161 +1510,38 @@ function HistoryScreen({account,onBack}){
           <div style={{overflowX:'auto'}}>
             <table className="htbl">
               <thead><tr>
-                <th>Fecha</th><th>Producto</th><th>Analista</th><th>Turno</th><th>Estado</th>
-                <th style={{width:36,textAlign:'center'}}/>
+                <th>Fecha</th><th>Hora</th><th>Producto</th>
+                <th>P. Inicial</th><th>P. Final</th><th>Analista</th><th>Estado</th>
+                {isAdmin&&<th>Acciones</th>}
               </tr></thead>
               <tbody>
                 {records.length===0&&(
-                  <tr><td colSpan={6} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
+                  <tr><td colSpan={isAdmin?8:7} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
                     No hay registros
                   </td></tr>
                 )}
                 {records.map(function(r,i){
-                  var rid=r.ID||r.id||i;
-                  var isOpen=expandedId===rid;
-                  var rst=resendSt[rid]||{};
-                  var rec=isOpen?reconstruirRegistro(r):null;
                   return(
-                    <React.Fragment key={rid}>
-                      <tr style={{cursor:'pointer',background:isOpen?'var(--primary-xlight)':''}}
-                        onClick={function(){setExpandedId(isOpen?null:rid);}}>
-                        <td>{r.FechaMuestreo||r.fecha}</td>
-                        <td>{r.Producto||r.productoLabel}</td>
-                        <td>{r.Analista||r.analista}</td>
-                        <td>{r.Turno||r.turno||'—'}</td>
-                        <td>
-                          {r.status==='sent'
-                            ?<span className="badge badge-s">Enviado</span>
-                            :<span className="badge badge-w">Pendiente</span>}
-                        </td>
-                        <td style={{textAlign:'center',fontSize:'1rem',color:'var(--primary)',fontWeight:700}}>
-                          {isOpen?'▲':'▼'}
-                        </td>
-                      </tr>
-                      {isOpen&&rec&&(
-                        <tr>
-                          <td colSpan={6} style={{padding:0,background:'#f8fafc',borderBottom:'2px solid var(--primary-xlight)'}}>
-                            <div style={{padding:'16px 20px'}}>
-
-                              {/* INFO GENERAL */}
-                              <div style={{fontWeight:700,fontSize:'.78rem',color:'var(--primary)',
-                                textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>
-                                Detalle del Ensayo
-                              </div>
-                              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',
-                                gap:'6px 20px',fontSize:'.83rem',marginBottom:14}}>
-                                <div><b>Fecha:</b> {rec.data.fecha}</div>
-                                <div><b>Hora envio:</b> {rec.data.horaEnvio||'—'}</div>
-                                <div><b>Analista:</b> {rec.data.analista||'—'}</div>
-                                <div><b>Turno:</b> {rec.data.turno?'Turno '+rec.data.turno:'—'}</div>
-                                <div><b>Producto:</b> {rec.data.productoLabel}</div>
-                                <div><b>Peso Inicial:</b> {rec.data.pesoInicial} g</div>
-                                <div><b>Peso Final:</b> {rec.data.pesoFinal} g</div>
-                              </div>
-
-                              {/* GRANULOMETRIA */}
-                              <div style={{height:1,background:'var(--border)',margin:'12px 0'}}/>
-                              <div style={{fontWeight:700,fontSize:'.78rem',color:'var(--text-secondary)',
-                                textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>
-                                Granulometria
-                              </div>
-                              <div style={{overflowX:'auto',marginBottom:14}}>
-                                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.78rem',minWidth:380}}>
-                                  <thead>
-                                    <tr style={{background:'var(--primary)',color:'#fff'}}>
-                                      <th style={{padding:'5px 9px',textAlign:'left'}}>Tamiz</th>
-                                      <th style={{padding:'5px 9px',textAlign:'right'}}>Peso Ret. (g)</th>
-                                      <th style={{padding:'5px 9px',textAlign:'right'}}>% Parc.</th>
-                                      <th style={{padding:'5px 9px',textAlign:'right'}}>% Acum.</th>
-                                      <th style={{padding:'5px 9px',textAlign:'right'}}>% Pas.</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {rec.gc.rows.map(function(row,gi){
-                                      return(
-                                        <tr key={gi} style={{background:gi%2===0?'#fff':'#f5f7fa',
-                                          borderBottom:'1px solid var(--border)',fontWeight:row.isFondo?700:''}}>
-                                          <td style={{padding:'4px 9px'}}>{row.us}</td>
-                                          <td style={{padding:'4px 9px',textAlign:'right'}}>{fmt(row.peso)}</td>
-                                          <td style={{padding:'4px 9px',textAlign:'right'}}>{fmt(row.pctP)}</td>
-                                          <td style={{padding:'4px 9px',textAlign:'right'}}>{fmt(row.pctA)}</td>
-                                          <td style={{padding:'4px 9px',textAlign:'right'}}>{fmt(row.pctPas)}</td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-
-                              {/* HUMEDAD Y QUIMICA */}
-                              <div style={{height:1,background:'var(--border)',margin:'12px 0'}}/>
-                              <div style={{fontWeight:700,fontSize:'.78rem',color:'var(--text-secondary)',
-                                textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>
-                                Humedad y Quimica
-                              </div>
-                              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',
-                                gap:'5px 18px',fontSize:'.82rem',marginBottom:12}}>
-                                <div><b>Humedad:</b> {fmt(parseDecimal(rec.data.pctHumedad))}%</div>
-                                <div><b>SiO&#8322;:</b> {rec.data.quimica.sio2||'—'}%</div>
-                                <div><b>Al&#8322;O&#8323;:</b> {rec.data.quimica.al2o3||'—'}%</div>
-                                <div><b>Fe&#8322;O&#8323;:</b> {rec.data.quimica.fe2o3||'—'}%</div>
-                                <div><b>CaO:</b> {rec.data.quimica.cao||'—'}%</div>
-                                <div><b>MgO:</b> {rec.data.quimica.mgo||'—'}%</div>
-                                <div><b>K&#8322;O:</b> {rec.data.quimica.k2o||'—'}%</div>
-                                <div><b>Na&#8322;O:</b> {rec.data.quimica.na2o||'—'}%</div>
-                                <div><b>TiO&#8322;:</b> {rec.data.quimica.tio2||'—'}%</div>
-                                <div><b>K&#8322;O+Na&#8322;O:</b> {fmt((parseDecimal(rec.data.quimica.k2o)||0)+(parseDecimal(rec.data.quimica.na2o)||0))}%</div>
-                              </div>
-
-                              {rec.data.observaciones&&(
-                                <div style={{fontSize:'.82rem',marginBottom:12}}>
-                                  <b>Observaciones:</b> {rec.data.observaciones}
-                                </div>
-                              )}
-
-                              {/* ACCIONES */}
-                              <div style={{height:1,background:'var(--border)',margin:'12px 0'}}/>
-                              <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                                {r.status==='sent'&&(
-                                  <button className="btn btn-secondary" style={{padding:'7px 14px',fontSize:'.84rem'}}
-                                    onClick={function(e){e.stopPropagation();setReportView(reconstruirRegistro(r));}}>
-                                    &#11015; Ver informe / Descargar PNG
-                                  </button>
-                                )}
-                                {r.status==='pending'&&(
-                                  <button className="btn btn-primary" style={{padding:'7px 14px',fontSize:'.84rem'}}
-                                    disabled={rst.loading}
-                                    onClick={function(e){e.stopPropagation();resend(r);}}>
-                                    {rst.loading?'Enviando...':'Reenviar a OneDrive'}
-                                  </button>
-                                )}
-                                {rst.ok&&(
-                                  <span style={{color:'var(--success)',fontWeight:700,fontSize:'.84rem'}}>
-                                    &#10003; Enviado correctamente
-                                  </span>
-                                )}
-                                {rst.error&&(
-                                  <span style={{color:'var(--error)',fontWeight:600,fontSize:'.83rem'}}>
-                                    {rst.error.type==='locked'?'⚠ Archivo abierto':
-                                     rst.error.type==='forbidden'?'⛔ Sin permisos':
-                                     rst.error.type==='auth'?'🔐 Sesion expirada':
-                                     '📵 Sin conexion'}
-                                    {' — '+rst.error.msg}
-                                  </span>
-                                )}
-                                {isAdmin&&r.status==='pending'&&(
-                                  <button className="btn btn-danger" style={{padding:'7px 14px',fontSize:'.84rem',marginLeft:'auto'}}
-                                    onClick={function(e){e.stopPropagation();delPending(r.id||r.ID);load();}}>
-                                    &#128465; Eliminar
-                                  </button>
-                                )}
-                              </div>
-
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                    <tr key={i}>
+                      <td>{r.FechaMuestreo||r.fecha}</td>
+                      <td>{r.HoraEnvio||r.horaEnvio}</td>
+                      <td>{r.Producto||r.productoLabel}</td>
+                      <td>{r.PesoInicial||r.pesoInicial}</td>
+                      <td>{r.PesoFinal||r.pesoFinal}</td>
+                      <td>{r.Analista||r.analista}</td>
+                      <td>{r.status==='sent'
+                        ?<span className="badge badge-s">Enviado</span>
+                        :<span className="badge badge-w">Pendiente</span>}
+                      </td>
+                      {isAdmin&&<td>
+                        {r.status==='pending'&&<>
+                          <button className="btn btn-success" style={{padding:'3px 9px',fontSize:'.78rem',marginRight:4}}
+                            onClick={function(){resend(r);}}>Reenviar</button>
+                          <button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                            onClick={function(){delPending(r.id||r.ID);load();}}>Eliminar</button>
+                        </>}
+                      </td>}
+                    </tr>
                   );
                 })}
               </tbody>
@@ -1978,12 +1673,13 @@ function AuthScreen({onLogin,loading}){
 
 /* ── APP ROOT ── */
 function App(){
-  var[account,setAccount]=useState(null);
-  var[authLoading,setAuthLoading]=useState(true);
+  var[account,setAccount]=useState(IS_LOCAL?LOCAL_ACCOUNT:null);
+  var[authLoading,setAuthLoading]=useState(false);
   var[screen,setScreen]=useState('home');
   var[toast,setToast]=useState(null);
 
   useEffect(function(){
+    if(IS_LOCAL)return;
     if(!msalApp){setAuthLoading(false);return;}
     msalApp.handleRedirectPromise()
       .then(function(resp){
@@ -1998,6 +1694,7 @@ function App(){
   },[]);
 
   async function login(){
+    if(IS_LOCAL){setAccount(LOCAL_ACCOUNT);return;}
     if(!msalApp)return;
     setAuthLoading(true);
     try{
@@ -2011,8 +1708,8 @@ function App(){
   }
 
   function logout(){
-    if(msalApp)msalApp.logout();
-    setAccount(null);setScreen('home');
+    if(!IS_LOCAL&&msalApp)msalApp.logout();
+    setAccount(IS_LOCAL?LOCAL_ACCOUNT:null);setScreen('home');
   }
 
   function handleSuccess(msg){
