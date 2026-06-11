@@ -223,6 +223,58 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .sem-info{color:var(--text-muted);font-size:.72rem;font-weight:700}
 .ma-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:.82rem;font-weight:600;color:var(--text-secondary)}
 .ma-bar select{font-family:'Inter',sans-serif;font-size:.82rem;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff}
+/* ── DASHBOARD v2 ── */
+.db-filter-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;
+  background:var(--card);padding:12px 16px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:8px}
+.dff{display:flex;flex-direction:column;gap:3px;min-width:100px}
+.dff label{font-size:.72rem;font-weight:600;color:var(--text-secondary);white-space:nowrap}
+.dff select,.dff input[type=date]{font-family:'Inter',sans-serif;font-size:.82rem;padding:5px 8px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;min-height:34px}
+.db-badge-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;align-items:center}
+.db-badge{display:inline-block;background:var(--primary-xlight);color:var(--primary-dark);
+  padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600}
+.kpi4-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+@media(min-width:700px){.kpi4-grid{grid-template-columns:repeat(4,1fr)}}
+.kpi4-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:14px 16px;border-left:4px solid #e0e0e0}
+.kpi4-card.bd-ok{border-left-color:var(--success)}.kpi4-card.bd-warn{border-left-color:var(--warning)}.kpi4-card.bd-err{border-left-color:var(--error)}
+.kpi4-name{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:4px}
+.kpi4-val{font-size:1.2rem;font-weight:800;margin-bottom:2px}
+.kpi4-lim{font-size:.67rem;color:var(--text-muted);margin-bottom:3px}
+.kpi4-sem{font-size:.7rem;font-weight:700}
+.granu-curves{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.gcurve-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px}
+.gcurve-title{font-size:.76rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.trend-row{display:grid;grid-template-columns:1fr 170px 1fr;gap:10px;margin-bottom:10px;align-items:start}
+@media(max-width:760px){.trend-row{grid-template-columns:1fr}}
+.trend-chart-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px}
+.trend-chart-title{font-size:.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;margin-bottom:8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trend-kpi-panel{background:#f8fafc;border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:12px 10px;border:.5px solid var(--border)}
+.tkp-name{font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--text-secondary);margin-bottom:2px}
+.tkp-val{font-size:1.1rem;font-weight:800;margin-bottom:3px;line-height:1.2}
+.tkp-vars{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px}
+.tkp-vb{font-size:.67rem;font-weight:700;padding:1px 5px;border-radius:10px}
+.tkp-vb.pos{background:#f0fff4;color:var(--success)}.tkp-vb.neg{background:#fff5f5;color:var(--error)}
+.tkp-vb.neu{background:#f5f5f5;color:var(--text-muted)}
+.tkp-div{height:1px;background:var(--border);margin:8px 0}
+.data-tbl-wrap{overflow-x:auto;margin-bottom:14px}
+.dtbl{width:100%;border-collapse:collapse;font-size:.76rem;min-width:640px}
+.dtbl th{background:var(--primary);color:#fff;padding:6px 9px;text-align:center;font-weight:600;white-space:nowrap;font-size:.7rem}
+.dtbl td{padding:4px 7px;text-align:center;border-bottom:1px solid var(--border)}
+.dtbl td:first-child{text-align:left;font-weight:500;white-space:nowrap}
+.stbl{width:100%;border-collapse:collapse;font-size:.76rem}
+.stbl th{background:#f0f4f8;color:var(--text-secondary);padding:6px 10px;text-align:center;
+  font-weight:700;border-bottom:2px solid var(--border);font-size:.7rem}
+.stbl td{padding:5px 9px;text-align:center;border-bottom:1px solid var(--border)}
+.stbl td:first-child{text-align:left;font-weight:600;color:var(--text-secondary)}
+.oob{background:#fff5f5!important}
+.out-b{display:inline-block;padding:1px 7px;border-radius:20px;font-size:.71rem;font-weight:700}
+.out-b.bad{background:#fff5f5;color:var(--error)}.out-b.good{background:#f0fff4;color:var(--success)}
+.exp-hdr{display:flex;align-items:center;gap:14px;padding:12px 16px;margin-bottom:10px;
+  background:#fff;border-bottom:2px solid var(--border);border-radius:var(--radius) var(--radius) 0 0}
 </style>
 </head>
 <body>
@@ -1436,26 +1488,43 @@ function CuarzoForm({account,onBack,onSuccess}){
 var ACOPIO_OPTS=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia'];
 var PROD_LABEL_MAP={'A36':'A36 TLH','A38':'A38 Fierrillo','ALIM':'Alimentacion'};
 
+const MESES_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MN=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
 /* ── DASHBOARD SCREEN ── */
 function DashboardScreen({account,onBack}){
   var[records,setRecords]=useState([]);
   var[loading,setLoading]=useState(true);
   var[tab,setTab]=useState('granu');
   var[prod,setProd]=useState('A36');
-  var[period,setPeriod]=useState(30);
+  var[periodType,setPeriodType]=useState('month');
+  var[selWeek,setSelWeek]=useState(function(){
+    var d=new Date(),dc=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    var dn=dc.getUTCDay()||7;dc.setUTCDate(dc.getUTCDate()+4-dn);
+    var ys=new Date(Date.UTC(dc.getUTCFullYear(),0,1));
+    return Math.ceil((((dc-ys)/86400000)+1)/7);
+  });
+  var[selMonth,setSelMonth]=useState(function(){return new Date().getMonth();});
+  var[selYear,setSelYear]=useState(function(){return new Date().getFullYear();});
+  var[custFrom,setCustFrom]=useState('');
+  var[custTo,setCustTo]=useState('');
   var[filterTurno,setFilterTurno]=useState('');
   var[filterAnalista,setFilterAnalista]=useState('');
   var[maWin,setMaWin]=useState(5);
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
   var[filterNumAcopio,setFilterNumAcopio]=useState(ACOPIO_OPTS.slice());
-  var chartGRef=useRef(null);
-  var chartQRef=useRef(null);
-  var instG=useRef(null);
-  var instQ=useRef(null);
+  // chart refs — granu curves
+  var cParRef=useRef(null);var cPasRef=useRef(null);
+  var iParRef=useRef(null);var iPasRef=useRef(null);
+  // 6 trend chart slots (3 rows × 2)
+  var tr0=useRef(null);var tr1=useRef(null);var tr2=useRef(null);
+  var tr3=useRef(null);var tr4=useRef(null);var tr5=useRef(null);
+  var tInsts=useRef([null,null,null,null,null,null]);
+  // chemistry chart
+  var cQRef=useRef(null);var iQRef=useRef(null);
   var logoSrc=useMemo(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'';},[]);
 
   useEffect(function(){loadData();},[]);
-
   useEffect(function(){
     setFilterTipoMuestra(['Puntual','Acopio']);
     setFilterNumAcopio(ACOPIO_OPTS.slice());
@@ -1479,20 +1548,86 @@ function DashboardScreen({account,onBack}){
     var ids=new Set(allCloud.map(function(r){return r.ID;}));
     var merged=allCloud.concat(pendingA.filter(function(r){return !ids.has(r.id);}))
                        .concat(pendingC.filter(function(r){return !ids.has(r.id);}));
-    merged.sort(function(a,b){
-      return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');
+    merged.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    setRecords(merged);setLoading(false);
+  }
+
+  function getDateRange(){
+    if(periodType==='week'){
+      var jan4=new Date(selYear,0,4);
+      var d1=jan4.getDay()||7;
+      var w1Mon=new Date(jan4.getTime()-(d1-1)*86400000);
+      var wStart=new Date(w1Mon.getTime()+(selWeek-1)*7*86400000);
+      var wEnd=new Date(wStart.getTime()+6*86400000);
+      return{from:wStart.toISOString().slice(0,10),to:wEnd.toISOString().slice(0,10)};
+    }
+    if(periodType==='month'){
+      return{from:new Date(selYear,selMonth,1).toISOString().slice(0,10),
+             to:new Date(selYear,selMonth+1,0).toISOString().slice(0,10)};
+    }
+    if(periodType==='year')return{from:selYear+'-01-01',to:selYear+'-12-31'};
+    return{from:custFrom||'1900-01-01',to:custTo||'2099-12-31'};
+  }
+
+  function getPeriodoLabel(){
+    if(periodType==='week')return 'Sem'+selWeek+'-'+selYear;
+    if(periodType==='month')return MN[selMonth]+'-'+selYear;
+    if(periodType==='year')return String(selYear);
+    return (custFrom||'?')+'/'+( custTo||'?');
+  }
+
+  function fmtXDate(s){
+    if(!s)return'';
+    var d=new Date(s+'T12:00:00');
+    return d.getDate()+'/'+(d.getMonth()+1<10?'0':'')+(d.getMonth()+1)+' '+MN[d.getMonth()];
+  }
+
+  function movAvg(arr,w){
+    return arr.map(function(v,i){
+      var sl=arr.slice(Math.max(0,i-w+1),i+1).filter(function(x){return x!==null&&!isNaN(x);});
+      return sl.length?sl.reduce(function(a,b){return a+b;},0)/sl.length:null;
     });
-    setRecords(merged);
-    setLoading(false);
+  }
+
+  function getFilename(suffix){
+    var now=new Date();
+    var dd=String(now.getDate()).padStart(2,'0'),mm2=String(now.getMonth()+1).padStart(2,'0');
+    var tipoLbl='';
+    if(prod==='A36'){
+      var hP=filterTipoMuestra.includes('Puntual'),hA=filterTipoMuestra.includes('Acopio');
+      if(!hP&&hA){
+        if(filterNumAcopio.length===ACOPIO_OPTS.length)tipoLbl='_TodosAcopios';
+        else if(filterNumAcopio.length===1)tipoLbl='_'+filterNumAcopio[0].replace(' ','');
+        else tipoLbl='_'+filterNumAcopio.map(function(a){return a.replace('Acopio ','A').replace('Emergencia','Emg');}).join('-');
+      }else if(hP&&!hA)tipoLbl='_Puntual';
+    }
+    return 'Reporte_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+tipoLbl+'_'+getPeriodoLabel()+'_'+suffix+'_'+dd+'-'+mm2+'-'+now.getFullYear()+'.png';
+  }
+
+  async function exportarReporte(){
+    var opts={scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200};
+    try{
+      var p1=document.getElementById('export-page1');
+      if(p1){
+        var c1=await window.html2canvas(p1,opts);
+        var a1=document.createElement('a');a1.download=getFilename('Gran');a1.href=c1.toDataURL('image/png');a1.click();
+      }
+      await new Promise(function(res){setTimeout(res,500);});
+      var p2=document.getElementById('export-page2');
+      if(p2){
+        var c2=await window.html2canvas(p2,opts);
+        var a2=document.createElement('a');a2.download=getFilename('Tend');a2.href=c2.toDataURL('image/png');a2.click();
+      }
+    }catch(e){console.error('Export',e);}
   }
 
   var filtered=useMemo(function(){
-    var cutoff=new Date(Date.now()-period*86400000).toISOString().slice(0,10);
+    var dr=getDateRange();
     return records.filter(function(r){
       var fecha=r.FechaMuestreo||r.fecha||'';
-      if(fecha<cutoff)return false;
+      if(fecha<dr.from||fecha>dr.to)return false;
       var rProdKey=r.ProductoKey||r.producto||'';
-      var rProdLabel=r.Producto||r.productoLabel||'';
+      var rProdLabel=r.Produto||r.Producto||r.productoLabel||'';
       if(rProdKey){if(rProdKey!==prod)return false;}
       else{var legacyKey={A36:'A36',A38:'A38',ALIM:'Alim'}[prod]||prod;if(!rProdLabel.includes(legacyKey))return false;}
       if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return false;
@@ -1507,101 +1642,33 @@ function DashboardScreen({account,onBack}){
       }
       return true;
     });
-  },[records,prod,period,filterTurno,filterAnalista,filterTipoMuestra,filterNumAcopio]);
-
-  function fmtXDate(s){
-    if(!s)return'';
-    var d=new Date(s+'T12:00:00');
-    var mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-    return(d.getDate())+'/'+(d.getMonth()+1<10?'0':'')+(d.getMonth()+1)+' '+mn[d.getMonth()];
-  }
-
-  function movAvg(arr,w){
-    return arr.map(function(v,i){
-      var sl=arr.slice(Math.max(0,i-w+1),i+1).filter(function(x){return x!==null&&!isNaN(x);});
-      return sl.length?sl.reduce(function(a,b){return a+b;},0)/sl.length:null;
-    });
-  }
-
-  function getPeriodoLabel(){
-    var mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-    var now=new Date();
-    if(period===30)return 'Mes-'+mn[now.getMonth()]+now.getFullYear();
-    return 'Ult'+period+'d';
-  }
-
-  function getFilename(){
-    var prodFn={'A36':'A36-TLH','A38':'A38-Fierrillo','ALIM':'Alim'};
-    var now=new Date();
-    var mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-    var periodoLbl=period===30?'Mes-'+mn[now.getMonth()]+now.getFullYear():'Ult'+period+'d';
-    var dd=String(now.getDate()).padStart(2,'0');
-    var mm2=String(now.getMonth()+1).padStart(2,'0');
-    var fechaLbl=dd+'-'+mm2+'-'+now.getFullYear();
-    var tipoLbl='';
-    if(prod==='A36'){
-      var hasPuntual=filterTipoMuestra.includes('Puntual');
-      var hasAcopio=filterTipoMuestra.includes('Acopio');
-      if(hasPuntual&&hasAcopio){
-        tipoLbl=filterNumAcopio.length===ACOPIO_OPTS.length?'TodosTipos':'TodosTipos';
-      }else if(hasAcopio){
-        if(filterNumAcopio.length===ACOPIO_OPTS.length){tipoLbl='TodosAcopios';}
-        else if(filterNumAcopio.length===1){tipoLbl=filterNumAcopio[0].replace(' ','');}
-        else{tipoLbl=filterNumAcopio.map(function(a){return a.replace('Acopio ','A').replace('Emergencia','Emg');}).join('-');}
-      }else{tipoLbl='Puntual';}
-    }
-    var parts=[prodFn[prod]||prod];
-    if(tipoLbl)parts.push(tipoLbl);
-    parts.push(periodoLbl,fechaLbl);
-    return 'Reporte_'+parts.join('_')+'.png';
-  }
-
-  async function exportarReporte(){
-    var hdr=document.getElementById('reporte-header-export');
-    if(hdr)hdr.style.display='block';
-    try{
-      var el=document.getElementById('reportes-section');
-      var canvas=await window.html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200});
-      var link=document.createElement('a');
-      link.download=getFilename();
-      link.href=canvas.toDataURL('image/png');
-      link.click();
-    }finally{
-      if(hdr)hdr.style.display='none';
-    }
-  }
+  },[records,prod,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno,filterAnalista,filterTipoMuestra,filterNumAcopio]);
 
   function computeStats(row){
     var sieves=SIEVE_CONFIG[prod]||[];
     var pf=parseDecimal(row.PesoFinal);
     if(!pf||pf<=0)return null;
-    var acum=0;
-    var stats={};
+    var acum=0,stats={};
     sieves.forEach(function(s){
-      var key=s.us+'_'+s.mm+'g';
-      var peso=parseDecimal(row[key])||0;
+      var peso=parseDecimal(row[s.us+'_'+s.mm+'g'])||0;
       var pctP=(peso/pf)*100;
       acum+=pctP;
       stats[s.us]={pctP:pctP,pctA:acum,pctPas:100-acum};
     });
-    function interp2(thr){
+    function interp(thr){
       for(var i=0;i<sieves.length-1;i++){
         var s1=stats[sieves[i].us],s2=stats[sieves[i+1].us];
         if(!s1||!s2)continue;
         if(s1.pctPas>=thr&&s2.pctPas<thr){
           var m1=parseFloat(sieves[i].mm.replace(',','.')),m2=parseFloat(sieves[i+1].mm.replace(',','.'));
-          var p1=s1.pctPas,p2=s2.pctPas;
-          return p1===p2?m1:m1+(m2-m1)*(p1-thr)/(p1-p2);
+          return s1.pctPas===s2.pctPas?m1:m1+(m2-m1)*(s1.pctPas-thr)/(s1.pctPas-s2.pctPas);
         }
       }
       return null;
     }
-    stats._d50=interp2(50);
-    stats._p80=interp2(80);
+    stats._d50=interp(50);stats._p80=interp(80);
     return stats;
   }
-
-  var labels=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
 
   var granuControls=useMemo(function(){
     var ps=getSpecs(prod);
@@ -1627,287 +1694,659 @@ function DashboardScreen({account,onBack}){
   var chemControls=useMemo(function(){
     var ps=getSpecs(prod);
     if(!ps||!ps.quimica)return[
-      {key:'SiO2',label:'SiO2 (%)',color:'#1a5276'},
-      {key:'Al2O3',label:'Al2O3 (%)',color:'#c53030'},
-      {key:'Fe2O3',label:'Fe2O3 (%)',color:'#b7791f'},
+      {key:'SiO2',label:'SiO₂ (%)',color:'#1a5276',limMin:null,limMax:null},
+      {key:'Al2O3',label:'Al₂O₃ (%)',color:'#c53030',limMin:null,limMax:null},
+      {key:'Fe2O3',label:'Fe₂O₃ (%)',color:'#b7791f',limMin:null,limMax:null},
     ];
     var cols=['#1a5276','#c53030','#b7791f','#276749','#8e44ad','#555'];
     var pairs=[['SiO2','SiO₂'],['Al2O3','Al₂O₃'],['Fe2O3','Fe₂O₃'],['CaO','CaO'],['MgO','MgO'],['K2O','K₂O'],['Na2O','Na₂O'],['TiO2','TiO₂']];
     return pairs.filter(function(p){var s=ps.quimica[p[0]];return s&&(s.min!==null||s.max!==null);})
-      .map(function(p,i){return{key:p[0],label:p[1]+' (%)',color:cols[i%cols.length]};});
+      .map(function(p,i){var s=ps.quimica[p[0]];return{key:p[0],label:p[1]+' (%)',color:cols[i%cols.length],limMin:s.min,limMax:s.max};});
   },[prod]);
 
+  var allCtrls=useMemo(function(){
+    var ps=getSpecs(prod);
+    var hmax=ps&&ps.humedad?ps.humedad.max:null;
+    var cfg=PRODUCT_CONFIG[prod]||{};
+    var list=granuControls.slice();
+    if(cfg.humedad)list.push({key:'_humedad',field:null,label:'Humedad (%)',color:'#8e44ad',limMin:null,limMax:hmax});
+    return list;
+  },[prod,granuControls]);
+
+  var ctrlStats=useMemo(function(){
+    return allCtrls.map(function(ctrl){
+      var valsRaw=filtered.map(function(r){
+        if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
+        var st=computeStats(r);if(!st)return null;
+        if(ctrl.field)return st[ctrl.key]?st[ctrl.key][ctrl.field]:null;
+        return st[ctrl.key]!=null?st[ctrl.key]:null;
+      });
+      var vals=valsRaw.filter(function(v){return v!==null&&!isNaN(v);});
+      var n=vals.length;
+      var last=n?vals[n-1]:null,prev=n>1?vals[n-2]:null;
+      var last5=vals.slice(-5);
+      var avg5=last5.length?last5.reduce(function(a,b){return a+b;},0)/last5.length:null;
+      var perAvg=n?vals.reduce(function(a,b){return a+b;},0)/n:null;
+      var sigma=n>1?Math.sqrt(vals.reduce(function(s,v){return s+(v-perAvg)*(v-perAvg);},0)/(n-1)):null;
+      var minV=n?Math.min.apply(null,vals):null,maxV=n?Math.max.apply(null,vals):null;
+      var outSpec=vals.filter(function(v){return calcSemaforo(v,ctrl.limMin,ctrl.limMax)==='error';}).length;
+      return Object.assign({},ctrl,{
+        valsRaw:valsRaw,vals:vals,n:n,last:last,prev:prev,avg5:avg5,perAvg:perAvg,
+        sigma:sigma,minV:minV,maxV:maxV,outSpec:outSpec,sem:calcSemaforo(last,ctrl.limMin,ctrl.limMax),
+        antVar:last!=null&&prev!=null?last-prev:null,
+        ult5Var:last!=null&&avg5!=null?last-avg5:null,
+        perVar:last!=null&&perAvg!=null?last-perAvg:null,
+      });
+    });
+  },[filtered,prod,allCtrls]);
+
+  var granuCurveData=useMemo(function(){
+    var sieves=SIEVE_CONFIG[prod]||[];
+    if(!sieves.length)return{labels:[],lastPar:[],lastPas:[],avgPar:[],avgPas:[]};
+    var lastSt=filtered.length?computeStats(filtered[filtered.length-1]):null;
+    var allSts=filtered.map(computeStats).filter(Boolean);
+    return{
+      labels:sieves.map(function(s){return s.us;}),
+      lastPar:sieves.map(function(s){return lastSt&&lastSt[s.us]?+lastSt[s.us].pctP.toFixed(2):null;}),
+      lastPas:sieves.map(function(s){return lastSt&&lastSt[s.us]?+lastSt[s.us].pctPas.toFixed(2):null;}),
+      avgPar:sieves.map(function(s){
+        var vs=allSts.map(function(st){return st[s.us]?st[s.us].pctP:null;}).filter(function(v){return v!=null;});
+        return vs.length?+(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(2):null;
+      }),
+      avgPas:sieves.map(function(s){
+        var vs=allSts.map(function(st){return st[s.us]?st[s.us].pctPas:null;}).filter(function(v){return v!=null;});
+        return vs.length?+(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(2):null;
+      }),
+    };
+  },[filtered,prod]);
+
+  var granuTableData=useMemo(function(){
+    var sieves=SIEVE_CONFIG[prod]||[];
+    var ps=getSpecs(prod),gs=ps?ps.granulometria:{};
+    var lastSt=filtered.length?computeStats(filtered[filtered.length-1]):null;
+    var allSts=filtered.map(computeStats).filter(Boolean);
+    return sieves.map(function(s){
+      var ls=lastSt?lastSt[s.us]:null;
+      var vd=allSts.filter(function(st){return st[s.us];});
+      function avg(fn){return vd.length?+(vd.reduce(function(a,b){return a+fn(b[s.us]);},0)/vd.length).toFixed(2):null;}
+      var g=gs[s.us];
+      var limMax=g?(g.retMax!=null?g.retMax:g.pasMax!=null?g.pasMax:null):null;
+      var limMin=g?(g.retMin!=null?g.retMin:g.pasMin!=null?g.pasMin:null):null;
+      return{us:s.us,mm:s.mm,
+        lastPar:ls?+ls.pctP.toFixed(2):null,lastAcum:ls?+ls.pctA.toFixed(2):null,lastPas:ls?+ls.pctPas.toFixed(2):null,
+        avgPar:avg(function(v){return v.pctP;}),avgAcum:avg(function(v){return v.pctA;}),avgPas:avg(function(v){return v.pctPas;}),
+        limMax:limMax,limMin:limMin,
+        semA:g&&(g.retMax!=null||g.retMin!=null)?calcSemaforo(ls?ls.pctA:null,g.retMin,g.retMax):'info',
+        semP:g&&(g.pasMax!=null||g.pasMin!=null)?calcSemaforo(ls?ls.pctPas:null,g.pasMin,g.pasMax):'info'};
+    });
+  },[filtered,prod]);
+
+  // === CHART: Granulometric Curves ===
   useEffect(function(){
-    if(tab!=='granu'||!chartGRef.current||!window.Chart)return;
-    if(instG.current){instG.current.destroy();instG.current=null;}
-    var datasets=granuControls.map(function(ctrl){
-      var data=filtered.map(function(r){
-        var st=computeStats(r);
-        if(!st)return null;
+    if(tab!=='granu'||!window.Chart)return;
+    var ps=getSpecs(prod),sieves=SIEVE_CONFIG[prod]||[],granuSpec=ps?ps.granulometria:{};
+    function mkC(ref,instRef,ds){
+      if(!ref.current)return;
+      if(instRef.current){instRef.current.destroy();instRef.current=null;}
+      instRef.current=new window.Chart(ref.current,{type:'line',data:{labels:granuCurveData.labels,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'top',labels:{font:{size:9,family:'Inter'},boxWidth:12}}},
+          scales:{x:{ticks:{font:{size:8,family:'Inter'},maxRotation:45}},y:{min:0,max:100,ticks:{font:{size:9,family:'Inter'}}}}}});
+    }
+    var dsPar=[
+      {label:'Último ensayo',data:granuCurveData.lastPar,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
+      {label:'Prom.período',data:granuCurveData.avgPar,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]},
+    ];
+    var dsPas=[
+      {label:'Último ensayo',data:granuCurveData.lastPas,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
+      {label:'Prom.período',data:granuCurveData.avgPas,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]},
+    ];
+    var hasRetMax=sieves.some(function(s){var g=granuSpec[s.us];return g&&g.retMax!=null;});
+    var hasPasMin=sieves.some(function(s){var g=granuSpec[s.us];return g&&g.pasMin!=null;});
+    var hasPasMax=sieves.some(function(s){var g=granuSpec[s.us];return g&&g.pasMax!=null;});
+    if(hasRetMax)dsPar.push({label:'Lím.Máx',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.retMax!=null?g.retMax:null;}),borderColor:'rgba(197,48,48,.65)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
+    if(hasPasMin)dsPas.push({label:'Lím.Mín',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.pasMin!=null?g.pasMin:null;}),borderColor:'rgba(39,103,73,.7)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
+    if(hasPasMax)dsPas.push({label:'Lím.Máx',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.pasMax!=null?g.pasMax:null;}),borderColor:'rgba(197,48,48,.65)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
+    mkC(cParRef,iParRef,dsPar);mkC(cPasRef,iPasRef,dsPas);
+    return function(){
+      if(iParRef.current){iParRef.current.destroy();iParRef.current=null;}
+      if(iPasRef.current){iPasRef.current.destroy();iPasRef.current=null;}
+    };
+  },[tab,granuCurveData,prod]);
+
+  // === CHART: Trend Charts ===
+  useEffect(function(){
+    if(tab!=='granu'||!window.Chart)return;
+    var trList=[tr0,tr1,tr2,tr3,tr4,tr5];
+    tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});
+    var tLbls=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
+    allCtrls.forEach(function(ctrl,i){
+      if(i>=6||!trList[i]||!trList[i].current)return;
+      var vals=filtered.map(function(r){
+        if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
+        var st=computeStats(r);if(!st)return null;
         if(ctrl.field)return st[ctrl.key]?+(st[ctrl.key][ctrl.field]||0).toFixed(2):null;
         return st[ctrl.key]!=null?+st[ctrl.key].toFixed(3):null;
       });
-      return{
-        label:ctrl.label,data:data,borderColor:ctrl.color,
-        backgroundColor:ctrl.color+'22',borderWidth:2,
-        pointRadius:3,tension:.3,spanGaps:true,
-      };
+      var ma=movAvg(vals,maWin);
+      var vld=vals.filter(function(v){return v!=null&&!isNaN(v);});
+      var pAvg=vld.length?vld.reduce(function(a,b){return a+b;},0)/vld.length:null;
+      var semC=vals.map(function(v){return SEM_COLOR[calcSemaforo(v,ctrl.limMin,ctrl.limMax)]||'#888';});
+      var ds=[
+        {label:ctrl.label,data:vals,borderColor:ctrl.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,pointBackgroundColor:semC,tension:.3,spanGaps:true},
+        {label:'MA'+maWin,data:ma,borderColor:'#e67e22',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]},
+        {label:'Prom.',data:vals.map(function(){return pAvg;}),borderColor:'#aaa',backgroundColor:'transparent',borderWidth:1,pointRadius:0,spanGaps:true,borderDash:[3,3]},
+      ];
+      if(ctrl.limMax!=null)ds.push({label:'Lím',data:vals.map(function(){return ctrl.limMax;}),borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1,pointRadius:0,borderDash:[6,3],spanGaps:true});
+      if(ctrl.limMin!=null)ds.push({label:'Lím',data:vals.map(function(){return ctrl.limMin;}),borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1,pointRadius:0,borderDash:[6,3],spanGaps:true});
+      tInsts.current[i]=new window.Chart(trList[i].current,{type:'line',
+        data:{labels:tLbls,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8,family:'Inter'}}}}}});
     });
-    instG.current=new window.Chart(chartGRef.current,{
-      type:'line',
-      data:{labels:labels,datasets:datasets},
-      options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{position:'top',labels:{font:{size:10,family:'Inter'}}}},
-        scales:{
-          x:{ticks:{font:{size:9,family:'Inter'},maxRotation:45}},
-          y:{ticks:{font:{size:9,family:'Inter'}}},
-        },
-      },
-    });
-    return function(){if(instG.current){instG.current.destroy();instG.current=null;}};
-  },[tab,filtered,prod,granuControls]);
+    return function(){tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});};
+  },[tab,filtered,prod,maWin,allCtrls]);
 
+  // === CHART: Chemistry ===
   useEffect(function(){
-    if(tab!=='quim'||!chartQRef.current||!window.Chart)return;
-    if(instQ.current){instQ.current.destroy();instQ.current=null;}
-    var datasets=[];
+    if(tab!=='quim'||!cQRef.current||!window.Chart)return;
+    if(iQRef.current){iQRef.current.destroy();iQRef.current=null;}
+    var lbs=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
+    var ds=[];
     chemControls.forEach(function(ctrl){
-      var raw=filtered.map(function(r){
-        var v=parseDecimal(r[ctrl.key]);
-        return isNaN(v)?null:+v.toFixed(3);
-      });
+      var raw=filtered.map(function(r){var v=parseDecimal(r[ctrl.key]);return isNaN(v)?null:+v.toFixed(3);});
       var ma=movAvg(raw,maWin);
-      datasets.push({
-        label:ctrl.label,data:raw,borderColor:ctrl.color,
-        backgroundColor:'transparent',borderWidth:1.5,
-        pointRadius:3,tension:.3,spanGaps:true,borderDash:[],
-      });
-      datasets.push({
-        label:ctrl.label+' MA'+maWin,data:ma,borderColor:ctrl.color,
-        backgroundColor:ctrl.color+'33',borderWidth:2.5,
-        pointRadius:0,tension:.4,spanGaps:true,fill:false,
-        borderDash:[4,2],
-      });
+      ds.push({label:ctrl.label,data:raw,borderColor:ctrl.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,tension:.3,spanGaps:true});
+      ds.push({label:ctrl.label+' MA'+maWin,data:ma,borderColor:ctrl.color,backgroundColor:ctrl.color+'33',borderWidth:2.5,pointRadius:0,tension:.4,spanGaps:true,fill:false,borderDash:[4,2]});
     });
-    instQ.current=new window.Chart(chartQRef.current,{
-      type:'line',
-      data:{labels:labels,datasets:datasets},
-      options:{
-        responsive:true,maintainAspectRatio:false,
+    iQRef.current=new window.Chart(cQRef.current,{type:'line',
+      data:{labels:lbs,datasets:ds},
+      options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
         plugins:{legend:{position:'top',labels:{font:{size:10,family:'Inter'}}}},
-        scales:{
-          x:{ticks:{font:{size:9,family:'Inter'},maxRotation:45}},
-          y:{ticks:{font:{size:9,family:'Inter'}}},
-        },
-      },
-    });
-    return function(){if(instQ.current){instQ.current.destroy();instQ.current=null;}};
+        scales:{x:{ticks:{font:{size:9,family:'Inter'},maxRotation:45}},y:{ticks:{font:{size:9,family:'Inter'}}}}}});
+    return function(){if(iQRef.current){iQRef.current.destroy();iQRef.current=null;}};
   },[tab,filtered,maWin,prod,chemControls]);
 
-  var kpiStats=useMemo(function(){
-    return granuControls.map(function(ctrl){
-      var vals=filtered.map(function(r){
-        var st=computeStats(r);
-        if(!st)return null;
-        if(ctrl.field)return st[ctrl.key]?st[ctrl.key][ctrl.field]:null;
-        return st[ctrl.key]!=null?st[ctrl.key]:null;
-      }).filter(function(v){return v!==null&&!isNaN(v);});
-      if(!vals.length)return Object.assign({},ctrl,{avg:null,last:null,sem:'info'});
-      var avg=vals.reduce(function(a,b){return a+b;},0)/vals.length;
-      var last=vals[vals.length-1];
-      var sem=calcSemaforo(last,ctrl.limMin,ctrl.limMax);
-      return Object.assign({},ctrl,{avg:avg,last:last,sem:sem});
+  // === RENDER HELPERS ===
+  function getTRef(i){return [tr0,tr1,tr2,tr3,tr4,tr5][i]||null;}
+
+  function varBadge(v,label,isLow){
+    if(v===null||v===undefined||isNaN(v))return null;
+    var isPos=isLow?v<0:v>0;
+    var cls=v===0?'neu':isPos?'pos':'neg';
+    return <span className={'tkp-vb '+cls}>{label} {(v>0?'+':'')+fmt(v,2)}</span>;
+  }
+
+  function kpiPanelRow(stat){
+    if(!stat)return null;
+    var semC=SEM_COLOR[stat.sem]||'#999';
+    var isLow=stat.limMax!=null&&stat.limMin===null;
+    var dp=stat.key==='_d50'||stat.key==='_p80'?3:2;
+    return(
+      <div>
+        <div className="tkp-name">{stat.label}</div>
+        <div className="tkp-val" style={{color:semC}}>
+          {stat.last!=null?fmt(stat.last,dp):'-'}
+          {stat.limMax!=null&&<span style={{fontSize:'.61rem',color:'#bbb',fontWeight:400,marginLeft:3}}>/ ≤{stat.limMax}</span>}
+          {stat.limMin!=null&&stat.limMax===null&&<span style={{fontSize:'.61rem',color:'#bbb',fontWeight:400,marginLeft:3}}>/ ≥{stat.limMin}</span>}
+        </div>
+        <div className="tkp-vars">
+          {varBadge(stat.antVar,'ant',isLow)}
+          {varBadge(stat.ult5Var,'ult5',isLow)}
+          {varBadge(stat.perVar,'per',isLow)}
+        </div>
+      </div>
+    );
+  }
+
+  function expHdr(){
+    return(
+      <div className="exp-hdr">
+        {logoSrc&&<img src={logoSrc} style={{height:42,objectFit:'contain'}} alt="MIGRIN"/>}
+        <div>
+          <div style={{fontSize:'.95rem',fontWeight:800,color:'var(--primary)'}}>Reporte de Calidad — MIGRIN</div>
+          <div style={{fontSize:'.76rem',color:'var(--text-secondary)',marginTop:2}}>
+            <strong>{GRANU_TITLE[prod]||prod}</strong>
+            {' · '}{getPeriodoLabel()}
+            {filterTurno?' · Turno '+filterTurno:' · Todos turnos'}
+            {filterAnalista?' · '+filterAnalista:' · Todos analistas'}
+            {prod==='A36'&&filterTipoMuestra.length<2&&(' · '+filterTipoMuestra.join(', '))}
+            {' · '}<strong>{filtered.length} registros</strong>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Trend rows: pair allCtrls 0-1, 2-3, 4-5
+  var trendRows=[];
+  for(var tri=0;tri<Math.min(allCtrls.length,6);tri+=2){
+    trendRows.push({
+      left:allCtrls[tri],right:allCtrls[tri+1]||null,
+      lStat:ctrlStats[tri],rStat:ctrlStats[tri+1]||null,
+      lRef:getTRef(tri),rRef:getTRef(tri+1),
     });
-  },[filtered,prod,granuControls]);
+  }
+
+  // Period selector content
+  var wks=[];for(var wi=1;wi<=52;wi++)wks.push(wi);
+  var periodSel=(function(){
+    if(periodType==='week')return(
+      <div className="dff">
+        <label>Semana</label>
+        <select value={selWeek} onChange={function(e){setSelWeek(parseInt(e.target.value));}}>
+          {wks.map(function(w){return <option key={w} value={w}>Sem {w}</option>;})}
+        </select>
+      </div>
+    );
+    if(periodType==='month')return(
+      <div className="dff">
+        <label>Mes</label>
+        <select value={selMonth} onChange={function(e){setSelMonth(parseInt(e.target.value));}}>
+          {MESES_FULL.map(function(m,i){return <option key={i} value={i}>{m}</option>;})}
+        </select>
+      </div>
+    );
+    if(periodType==='custom')return(
+      <>
+        <div className="dff"><label>Desde</label>
+          <input type="date" value={custFrom} onChange={function(e){setCustFrom(e.target.value);}}/>
+        </div>
+        <div className="dff"><label>Hasta</label>
+          <input type="date" value={custTo} onChange={function(e){setCustTo(e.target.value);}}/>
+        </div>
+      </>
+    );
+    return null;
+  })();
+
+  // Badge summary
+  var badges=[GRANU_TITLE[prod]||prod,getPeriodoLabel()];
+  if(filterTurno)badges.push('Turno '+filterTurno);
+  if(filterAnalista)badges.push(filterAnalista.split(' ')[0]);
+  if(prod==='A36'&&filterTipoMuestra.length<2)badges.push(filterTipoMuestra.join('+')||'—');
+  badges.push(filtered.length+' registros');
 
   return(
     <div>
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
-        <h2>Reportes — Planta Arenas</h2>
+        <h2>Reportes — Calidad</h2>
       </div>
 
-      <div className="dash-filter-bar">
-        <div className="field" style={{minWidth:120}}>
-          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Producto</label>
-          <select value={prod} onChange={function(e){setProd(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
+      {/* ── BARRA DE FILTROS ── */}
+      <div className="db-filter-row">
+        <div className="dff">
+          <label>Producto</label>
+          <select value={prod} onChange={function(e){setProd(e.target.value);}}>
             <optgroup label="Arenas">
-              <option value="A36">A36 TLH</option>
-              <option value="A38">A38 Fierrillo</option>
-              <option value="ALIM">Alimentacion</option>
-              <option value="VERALTA">Veralia Alta</option>
+              <option value="A36">A36 TLH</option><option value="A38">A38 Fierrillo</option>
+              <option value="ALIM">Alimentacion</option><option value="VERALTA">Veralia Alta</option>
               <option value="VERBAJA">Veralia Baja</option>
             </optgroup>
             <optgroup label="Cuarzo">
-              <option value="CTLH">TLH Cuarzo</option>
-              <option value="CDLK">DLK</option>
+              <option value="CTLH">TLH Cuarzo</option><option value="CDLK">DLK</option>
             </optgroup>
           </select>
         </div>
-        <div className="field" style={{minWidth:120}}>
-          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Periodo</label>
-          <select value={period} onChange={function(e){setPeriod(parseInt(e.target.value));}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
-            <option value="7">Ultimos 7 dias</option>
-            <option value="14">Ultimos 14 dias</option>
-            <option value="30">Ultimos 30 dias</option>
-            <option value="90">Ultimos 90 dias</option>
+        <div className="dff">
+          <label>Tipo período</label>
+          <select value={periodType} onChange={function(e){setPeriodType(e.target.value);}}>
+            <option value="week">Semana del año</option>
+            <option value="month">Mes del año</option>
+            <option value="year">Año completo</option>
+            <option value="custom">Personalizado</option>
           </select>
         </div>
-        <div className="field" style={{minWidth:110}}>
-          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Turno</label>
-          <select value={filterTurno} onChange={function(e){setFilterTurno(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
-            <option value="">Todos</option>
-            <option value="A">Turno A</option>
-            <option value="B">Turno B</option>
+        {periodType==='year'
+          ?<div className="dff"><label>Año</label>
+            <select value={selYear} onChange={function(e){setSelYear(parseInt(e.target.value));}}>
+              {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+            </select>
+          </div>
+          :periodSel
+        }
+        <div className="dff">
+          <label>Turno</label>
+          <select value={filterTurno} onChange={function(e){setFilterTurno(e.target.value);}}>
+            <option value="">Todos</option><option value="A">Turno A</option><option value="B">Turno B</option>
           </select>
         </div>
-        <div className="field" style={{minWidth:160}}>
-          <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)'}}>Analista</label>
-          <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}} style={{fontFamily:'Inter',fontSize:'.85rem',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}>
+        <div className="dff">
+          <label>Analista</label>
+          <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}}>
             <option value="">Todos</option>
             {ANALISTAS.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
           </select>
         </div>
-        <div style={{display:'flex',gap:8,alignSelf:'flex-end',flexWrap:'wrap'}}>
-          <button className="btn btn-secondary" onClick={loadData} style={{padding:'7px 14px',minHeight:36}}>
-            &#8635; Actualizar
-          </button>
-          <button className="btn btn-primary" onClick={exportarReporte} style={{padding:'7px 14px',minHeight:36}}>
-            &#11015; Exportar Reporte
-          </button>
-        </div>
         {prod==='A36'&&(
-          <div style={{flexBasis:'100%',paddingTop:12,borderTop:'1px solid var(--border)',display:'flex',gap:20,flexWrap:'wrap'}}>
-            <div className="field" style={{minWidth:'auto',flex:'none'}}>
-              <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)',display:'block',marginBottom:6}}>Tipo de Muestra</label>
-              <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          <>
+            <div className="dff">
+              <label>Tipo muestra</label>
+              <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34,flexWrap:'wrap'}}>
                 {['Puntual','Acopio'].map(function(t){
-                  var checked=filterTipoMuestra.includes(t);
+                  var chk=filterTipoMuestra.includes(t);
                   return(
-                    <label key={t} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
-                      <input type="checkbox" checked={checked}
-                        onChange={function(){setFilterTipoMuestra(function(p){return checked?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
-                      {t==='Puntual'?'Muestra Puntual':'Acopio'}
+                    <label key={t} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:'.8rem',userSelect:'none',whiteSpace:'nowrap'}}>
+                      <input type="checkbox" checked={chk}
+                        onChange={function(){setFilterTipoMuestra(function(p){return chk?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
+                      {t}
                     </label>
                   );
                 })}
               </div>
             </div>
             {filterTipoMuestra.includes('Acopio')&&(
-              <div className="field" style={{minWidth:'auto',flex:'none'}}>
-                <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)',display:'block',marginBottom:6}}>
+              <div className="dff">
+                <label style={{display:'flex',alignItems:'center',gap:5}}>
                   N° Acopio
                   {filterNumAcopio.length<ACOPIO_OPTS.length&&(
                     <button onClick={function(){setFilterNumAcopio(ACOPIO_OPTS.slice());}}
-                      style={{marginLeft:8,fontSize:'.72rem',color:'var(--primary)',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>
-                      (seleccionar todos)
-                    </button>
+                      style={{fontSize:'.67rem',color:'var(--primary)',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>(todos)</button>
                   )}
                 </label>
-                <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <div style={{display:'flex',gap:5,flexWrap:'wrap',minHeight:34,alignItems:'center'}}>
                   {ACOPIO_OPTS.map(function(a){
-                    var checked=filterNumAcopio.includes(a);
+                    var chk=filterNumAcopio.includes(a);
                     return(
-                      <label key={a} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
-                        <input type="checkbox" checked={checked}
-                          onChange={function(){setFilterNumAcopio(function(p){return checked?p.filter(function(x){return x!==a;}):p.concat(a);});}}/>
-                        {a}
+                      <label key={a} style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',fontSize:'.76rem',userSelect:'none',whiteSpace:'nowrap'}}>
+                        <input type="checkbox" checked={chk}
+                          onChange={function(){setFilterNumAcopio(function(p){return chk?p.filter(function(x){return x!==a;}):p.concat(a);});}}/>
+                        {a.replace('Acopio ','A')}
                       </label>
                     );
                   })}
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
+        <div className="dff" style={{marginLeft:'auto'}}>
+          <label>Prom. móvil</label>
+          <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34}}>
+            {[5,7].map(function(w){return(
+              <label key={w} style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
+                <input type="radio" name="maWin" checked={maWin===w} onChange={function(){setMaWin(w);}}/>{w}
+              </label>
+            );})}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:6,alignSelf:'flex-end'}}>
+          <button className="btn btn-secondary" onClick={loadData} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#8635; Actualizar</button>
+          <button className="btn btn-primary" onClick={exportarReporte} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#11015; Exportar</button>
+        </div>
+      </div>
+
+      {/* ── BADGES ── */}
+      <div className="db-badge-bar">
+        {badges.map(function(b,i){return <span key={i} className="db-badge">{b}</span>;})}
       </div>
 
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+      {!loading&&filtered.length===0&&(
+        <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+          Sin registros para los filtros seleccionados
+        </div>
+      )}
 
-      {!loading&&(
-        <div id="reportes-section">
-          <div id="reporte-header-export" style={{display:'none',padding:'16px 20px 14px',marginBottom:16,background:'#fff',borderBottom:'2px solid var(--border)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:10}}>
-              {logoSrc&&<img src={logoSrc} style={{height:44,width:'auto',objectFit:'contain'}} alt="MIGRIN"/>}
-              <div>
-                <div style={{fontSize:'1.1rem',fontWeight:800,color:'var(--primary)'}}>Reporte de Calidad</div>
-                <div style={{fontSize:'.8rem',color:'var(--text-secondary)'}}>MIGRIN — Control de Calidad Planta Arenas</div>
-              </div>
-            </div>
-            <div style={{fontSize:'.82rem',color:'var(--text-secondary)',lineHeight:1.8,borderLeft:'3px solid var(--primary)',paddingLeft:10}}>
-              <strong>Planta:</strong> Arenas &nbsp;|&nbsp;
-              <strong>Producto:</strong> {PROD_LABEL_MAP[prod]||prod} &nbsp;|&nbsp;
-              <strong>Periodo:</strong> {getPeriodoLabel()} &nbsp;|&nbsp;
-              <strong>Turno:</strong> {filterTurno||'Todos'} &nbsp;|&nbsp;
-              <strong>Analista:</strong> {filterAnalista||'Todas'}
-              {prod==='A36'&&<span>
-                &nbsp;|&nbsp;<strong>Tipo:</strong> {filterTipoMuestra.length===2?'Puntual + Acopio':filterTipoMuestra.join(', ')||'—'}
-                &nbsp;|&nbsp;<strong>N° Acopio:</strong> {filterNumAcopio.length===ACOPIO_OPTS.length?'Todos':filterNumAcopio.join(', ')}
-              </span>}
-              <br/><strong>Muestras:</strong> {filtered.length} registros
-            </div>
-          </div>
+      {!loading&&filtered.length>0&&(
+        <>
           <div className="dash-tabs">
             <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
             <button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>
           </div>
 
-          {filtered.length===0&&(
-            <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
-              Sin registros para los filtros seleccionados
-            </div>
-          )}
+          {tab==='granu'&&(
+            <>
+              {/* ══ PÁGINA 1 ══ */}
+              <div id="export-page1" style={{background:'#fff',paddingBottom:6}}>
+                {expHdr()}
 
-          {filtered.length>0&&tab==='granu'&&(
-            <div className="dash-layout">
-              <div className="dash-chart-card">
-                <div className="dash-chart-title">Controles Granulometricos — {filtered.length} registros</div>
-                <div style={{position:'relative',height:320}}>
-                  <canvas ref={chartGRef}/>
+                {/* KPIs 4 tarjetas */}
+                <div className="kpi4-grid">
+                  {ctrlStats.slice(0,4).map(function(k,i){
+                    var bd=k.sem==='ok'?'bd-ok':k.sem==='warning'?'bd-warn':k.sem==='error'?'bd-err':'';
+                    var sc=SEM_COLOR[k.sem]||'#999';
+                    var dp=k.key==='_d50'||k.key==='_p80'?3:2;
+                    return(
+                      <div key={i} className={'kpi4-card '+bd}>
+                        <div className="kpi4-name">{k.label}</div>
+                        <div className="kpi4-val" style={{color:sc}}>{k.last!=null?fmt(k.last,dp):'-'}</div>
+                        <div className="kpi4-lim">{k.limMax!=null?'máx '+k.limMax:k.limMin!=null?'mín '+k.limMin:'informativo'}</div>
+                        <div className="kpi4-sem" style={{color:sc}}>{SEM_ICON[k.sem]} {SEM_LABEL[k.sem]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Curvas granulométricas */}
+                <div className="granu-curves">
+                  <div className="gcurve-card">
+                    <div className="gcurve-title">Retenido Parcial (%)</div>
+                    <div style={{position:'relative',height:220}}><canvas ref={cParRef}/></div>
+                  </div>
+                  <div className="gcurve-card">
+                    <div className="gcurve-title">Pasante Acumulado (%)</div>
+                    <div style={{position:'relative',height:220}}><canvas ref={cPasRef}/></div>
+                  </div>
+                </div>
+
+                {/* Tabla granulométrica */}
+                <div className="sec-card" style={{marginBottom:0}}>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Granulométrica — último ensayo vs promedio período</div>
+                  <div style={{padding:'10px 14px',overflowX:'auto'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.74rem',minWidth:540}}>
+                      <thead>
+                        <tr style={{background:'var(--primary)',color:'#fff'}}>
+                          <th style={{padding:'5px 9px',textAlign:'left'}}>Tamiz</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>mm</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>%Par.Últ</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>%Ac.Últ</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>%Pas.Últ</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>%Par.Prom</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>%Ac.Prom</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>%Pas.Prom</th>
+                          <th style={{padding:'5px 9px',textAlign:'center'}}>Lím.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {granuTableData.map(function(row,i){
+                          var cA=row.semA==='error'?'c-err':row.semA==='warning'?'c-warn':row.semA==='ok'?'c-ok':'';
+                          var cP=row.semP==='error'?'c-err':row.semP==='warning'?'c-warn':row.semP==='ok'?'c-ok':'';
+                          return(
+                            <tr key={i} style={{background:i%2===0?'#fff':'#f8f9fa',borderBottom:'1px solid var(--border)'}}>
+                              <td style={{padding:'3px 9px',fontWeight:600}}>{row.us}</td>
+                              <td style={{padding:'3px 9px',textAlign:'center',color:'var(--text-muted)'}}>{row.mm}</td>
+                              <td style={{padding:'3px 9px',textAlign:'center'}}>{row.lastPar!=null?fmt(row.lastPar):'-'}</td>
+                              <td className={cA} style={{padding:'3px 9px',textAlign:'center'}}>{row.lastAcum!=null?fmt(row.lastAcum):'-'}</td>
+                              <td className={cP} style={{padding:'3px 9px',textAlign:'center'}}>{row.lastPas!=null?fmt(row.lastPas):'-'}</td>
+                              <td style={{padding:'3px 9px',textAlign:'center',color:'var(--text-secondary)'}}>{row.avgPar!=null?fmt(row.avgPar):'-'}</td>
+                              <td style={{padding:'3px 9px',textAlign:'center',color:'var(--text-secondary)'}}>{row.avgAcum!=null?fmt(row.avgAcum):'-'}</td>
+                              <td style={{padding:'3px 9px',textAlign:'center',color:'var(--text-secondary)'}}>{row.avgPas!=null?fmt(row.avgPas):'-'}</td>
+                              <td style={{padding:'3px 9px',textAlign:'center',fontSize:'.7rem',color:'var(--text-muted)'}}>
+                                {row.limMax!=null?'≤'+row.limMax:row.limMin!=null?'≥'+row.limMin:'—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-              <div className="dash-kpi-card">
-                <div style={{fontSize:'.8rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:12,textTransform:'uppercase',letterSpacing:'.04em'}}>KPIs — Ultimo registro</div>
-                {kpiStats.map(function(k,i){
-                  var semCls=k.sem==='ok'?'sem-ok':k.sem==='warning'?'sem-warn':k.sem==='error'?'sem-err':'sem-info';
-                  var semTxt=k.sem==='ok'?'CUMPLE':k.sem==='warning'?'ADVERTENCIA':k.sem==='error'?'DESVIADO':'INFO';
-                  return(
-                    <div key={i} className="dash-kpi-item">
-                      <div className="dash-kpi-name">{k.label}</div>
-                      <div className="dash-kpi-row">
-                        <span className="dash-kpi-val">{k.last!=null?fmt(k.last,3):'-'}</span>
-                        <span className="dash-kpi-lim">
-                          {k.limMax!=null?'max '+k.limMax:k.limMin!=null?'min '+k.limMin:''}
-                        </span>
-                      </div>
-                      <div className={'dash-kpi-stat '+semCls}>{semTxt}</div>
-                    </div>
-                  );
-                })}
+
+              {/* ══ PÁGINA 2 ══ */}
+              <div id="export-page2" style={{background:'#fff',paddingTop:16,paddingBottom:8}}>
+                {expHdr()}
+
+                {/* Tendencias EETT */}
+                <div className="sec-card" style={{marginBottom:14}}>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                    Tendencias EETT
+                    <span style={{fontSize:'.73rem',fontWeight:400,opacity:.8}}>
+                      MA{maWin} naranja · promedio período gris · límite rojo punteado
+                    </span>
+                  </div>
+                  <div style={{padding:'12px 14px'}}>
+                    {trendRows.map(function(row,ri){
+                      return(
+                        <div key={ri} className="trend-row" style={{marginBottom:ri<trendRows.length-1?12:0}}>
+                          <div className="trend-chart-card">
+                            <div className="trend-chart-title">{row.left.label}</div>
+                            <div style={{position:'relative',height:160}}><canvas ref={row.lRef}/></div>
+                          </div>
+                          <div className="trend-kpi-panel">
+                            {kpiPanelRow(row.lStat)}
+                            {row.rStat&&<><div className="tkp-div"/>{kpiPanelRow(row.rStat)}</>}
+                          </div>
+                          {row.right
+                            ?<div className="trend-chart-card">
+                              <div className="trend-chart-title">{row.right.label}</div>
+                              <div style={{position:'relative',height:160}}><canvas ref={row.rRef}/></div>
+                            </div>
+                            :<div/>
+                          }
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tabla resumen datos */}
+                <div className="sec-card" style={{marginBottom:14}}>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Resumen de Datos — últimos {Math.min(filtered.length,20)} registros</div>
+                  <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                    <table className="dtbl">
+                      <thead><tr>
+                        <th>Fecha</th><th>Tn</th><th>Analista</th>
+                        {allCtrls.map(function(c,i){return <th key={i}>{c.label.replace(' (%)','').replace('Ret.Acum ','Ac').replace('Pasante ','Pas').replace('Humedad','Hum')}</th>;})}
+                        <th>Var ant</th><th>Var ult5</th><th>Var per</th>
+                      </tr></thead>
+                      <tbody>
+                        {(function(){
+                          var shown=filtered.slice(-20);
+                          var offset=filtered.length-shown.length;
+                          var pri0VR=ctrlStats.length?ctrlStats[0].valsRaw:[];
+                          var pri0Avg=ctrlStats.length?ctrlStats[0].perAvg:null;
+                          var isLow0=ctrlStats.length&&ctrlStats[0].limMax!=null&&ctrlStats[0].limMin===null;
+                          function varBg(v,isLow){if(v===null)return'';return((isLow?v<0:v>0))?'#f0fff4':'#fff5f5';}
+                          function varFg(v,isLow){if(v===null)return'';return((isLow?v<0:v>0))?'#276749':'#c53030';}
+                          return shown.map(function(r,di){
+                            var ai=offset+di;
+                            var st=computeStats(r);
+                            var cVals=allCtrls.map(function(ctrl){
+                              if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
+                              if(!st)return null;
+                              if(ctrl.field)return st[ctrl.key]?st[ctrl.key][ctrl.field]:null;
+                              return st[ctrl.key]!=null?st[ctrl.key]:null;
+                            });
+                            var pV=pri0VR[ai];
+                            var pPrev=ai>0?pri0VR[ai-1]:null;
+                            var pL5=pri0VR.slice(Math.max(0,ai-4),ai).filter(function(v){return v!=null&&!isNaN(v);});
+                            var pA5=pL5.length?pL5.reduce(function(a,b){return a+b;},0)/pL5.length:null;
+                            var antV=pV!=null&&pPrev!=null?+(pV-pPrev).toFixed(2):null;
+                            var u5V=pV!=null&&pA5!=null?+(pV-pA5).toFixed(2):null;
+                            var perV=pV!=null&&pri0Avg!=null?+(pV-pri0Avg).toFixed(2):null;
+                            return(
+                              <tr key={di} style={{background:di%2===0?'#fff':'#f8f9fa'}}>
+                                <td>{r.FechaMuestreo||r.fecha}</td>
+                                <td>{r.Turno||r.turno||'—'}</td>
+                                <td style={{fontSize:'.71rem'}}>{(r.Analista||r.analista||'').split(' ')[0]}</td>
+                                {cVals.map(function(v,ci){
+                                  var ctrl=allCtrls[ci];
+                                  var sem=calcSemaforo(v,ctrl.limMin,ctrl.limMax);
+                                  var dp=ctrl.key==='_d50'||ctrl.key==='_p80'?3:2;
+                                  return <td key={ci} style={{background:sem==='error'?'#fff5f5':sem==='warning'?'#fffff0':sem==='ok'?'#f0fff4':'',
+                                    color:SEM_COLOR[sem]||'var(--text)',fontWeight:sem!=='info'?600:''}}>
+                                    {v!=null?fmt(v,dp):'-'}
+                                  </td>;
+                                })}
+                                <td style={{background:varBg(antV,isLow0),color:varFg(antV,isLow0),fontWeight:600}}>{antV!=null?(antV>0?'+':'')+antV:'-'}</td>
+                                <td style={{background:varBg(u5V,isLow0),color:varFg(u5V,isLow0),fontWeight:600}}>{u5V!=null?(u5V>0?'+':'')+u5V:'-'}</td>
+                                <td style={{background:varBg(perV,isLow0),color:varFg(perV,isLow0),fontWeight:600}}>{perV!=null?(perV>0?'+':'')+perV:'-'}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Tabla estadísticas */}
+                <div className="sec-card" style={{marginBottom:0}}>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Estadisticas del Periodo</div>
+                  <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                    <table className="stbl">
+                      <thead><tr>
+                        <th style={{textAlign:'left'}}>Indicador</th>
+                        <th>Min</th><th>Max</th><th>Promedio</th><th>σ</th>
+                        <th>Ultimo</th><th>Lim.Espec.</th><th>Fuera</th>
+                      </tr></thead>
+                      <tbody>
+                        {ctrlStats.map(function(k,i){
+                          var dp=k.key==='_d50'||k.key==='_p80'?3:2;
+                          var minOob=k.minV!=null&&k.limMin!=null&&k.minV<k.limMin;
+                          var maxOob=k.maxV!=null&&k.limMax!=null&&k.maxV>k.limMax;
+                          var avgOob=k.perAvg!=null&&calcSemaforo(k.perAvg,k.limMin,k.limMax)==='error';
+                          return(
+                            <tr key={i}>
+                              <td>{k.label}</td>
+                              <td className={minOob?'oob':''}>{k.minV!=null?fmt(k.minV,dp):'-'}</td>
+                              <td className={maxOob?'oob':''}>{k.maxV!=null?fmt(k.maxV,dp):'-'}</td>
+                              <td className={avgOob?'oob':''}>{k.perAvg!=null?fmt(k.perAvg,dp):'-'}</td>
+                              <td>{k.sigma!=null?fmt(k.sigma,3):'-'}</td>
+                              <td style={{color:SEM_COLOR[k.sem]||'#999',fontWeight:600}}>{k.last!=null?fmt(k.last,dp):'-'}</td>
+                              <td style={{fontSize:'.73rem',color:'var(--text-muted)'}}>{k.limMax!=null?'≤'+k.limMax:k.limMin!=null?'≥'+k.limMin:'—'}</td>
+                              <td><span className={'out-b '+(k.outSpec>0?'bad':'good')}>{k.n>0?k.outSpec+'/'+k.n:'—'}</span></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
-          {filtered.length>0&&tab==='quim'&&(
+          {tab==='quim'&&(
             <div>
               <div className="ma-bar">
                 <span>Promedio movil:</span>
                 <select value={maWin} onChange={function(e){setMaWin(parseInt(e.target.value));}}>
-                  <option value="5">5 periodos</option>
-                  <option value="7">7 periodos</option>
+                  <option value="5">5 periodos</option><option value="7">7 periodos</option>
                 </select>
                 <span style={{color:'var(--text-muted)',fontWeight:400}}>({filtered.length} registros)</span>
               </div>
+              <div className="kpi4-grid" style={{marginBottom:16}}>
+                {chemControls.map(function(c,i){
+                  var vals=filtered.map(function(r){var v=parseDecimal(r[c.key]);return isNaN(v)?null:v;}).filter(function(v){return v!=null;});
+                  var last=vals.length?vals[vals.length-1]:null;
+                  var sem=calcSemaforo(last,c.limMin,c.limMax);
+                  var sc=SEM_COLOR[sem]||'#999';
+                  var bd=sem==='ok'?'bd-ok':sem==='warning'?'bd-warn':sem==='error'?'bd-err':'';
+                  return(
+                    <div key={i} className={'kpi4-card '+bd}>
+                      <div className="kpi4-name">{c.label}</div>
+                      <div className="kpi4-val" style={{color:sc}}>{last!=null?fmt(last,3):'-'}</div>
+                      <div className="kpi4-lim">
+                        {c.limMax!=null&&c.limMin!=null?c.limMin+' – '+c.limMax:
+                         c.limMax!=null?'máx '+c.limMax:c.limMin!=null?'mín '+c.limMin:'informativo'}
+                      </div>
+                      <div className="kpi4-sem" style={{color:sc}}>{SEM_ICON[sem]} {SEM_LABEL[sem]}</div>
+                    </div>
+                  );
+                })}
+              </div>
               <div className="dash-chart-card">
-                <div className="dash-chart-title">Tendencias Quimicas</div>
-                <div style={{position:'relative',height:360}}>
-                  <canvas ref={chartQRef}/>
-                </div>
+                <div className="dash-chart-title">Tendencias Químicas — {filtered.length} registros</div>
+                <div style={{position:'relative',height:360}}><canvas ref={cQRef}/></div>
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
