@@ -1036,7 +1036,10 @@ function ReportModal({data,gc,onClose}){
 
   var fechaLocal=data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):data.fecha;
   var footer='Generado por Sistema de Calidad MIGRIN S.A. · '+fechaLocal+' '+( data.horaEnvio||'');
-  var showSpecCols=(isA36&&specKey)||!!prodSpecs;
+  var showSpecCols=(isA36&&specKey)||!!(prodSpecs&&prodSpecs.granulometria);
+  var hasModalSpecs=isA36||!!(prodSpecs&&prodSpecs.granulometria);
+  var plantaName=CUARZO_PRODUCTS.some(function(p){return p.value===data.producto;})?'Cuarzo':'Arenas';
+  var showChem=!!(PRODUCT_CONFIG[data.producto]&&PRODUCT_CONFIG[data.producto].quimica);
 
   return(
     <div className="rmodal-ov" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
@@ -1070,11 +1073,13 @@ function ReportModal({data,gc,onClose}){
           </div>
           <div className="rc-div"/>
           <div className="rc-meta">
-            <div className="rc-meta-row"><span className="rc-meta-k">Planta:</span><span>Arenas</span></div>
+            <div className="rc-meta-row"><span className="rc-meta-k">Planta:</span><span>{plantaName}</span></div>
             <div className="rc-meta-row"><span className="rc-meta-k">Producto:</span><span>{data.productoLabel||data.producto}</span></div>
             {showSpecCols&&<div className="rc-meta-row" style={{gridColumn:'1/-1'}}>
               <span className="rc-meta-k">Especificacion:</span>
-              <span style={{fontWeight:700,color:'#1a5276'}}>{SPECS_A36[specKey].nombre}</span>
+              <span style={{fontWeight:700,color:'#1a5276'}}>
+                {isA36?(SPECS_A36[specKey]?SPECS_A36[specKey].nombre:'—'):(prodSpecs&&prodSpecs.nombre?prodSpecs.nombre:data.productoLabel||data.producto)}
+              </span>
             </div>}
             <div className="rc-meta-row"><span className="rc-meta-k">Fecha muestreo:</span><span>{data.fecha}</span></div>
             <div className="rc-meta-row"><span className="rc-meta-k">Turno:</span><span>{data.turno?'Turno '+data.turno:'—'}</span></div>
@@ -1123,6 +1128,8 @@ function ReportModal({data,gc,onClose}){
           </div>
           <div className="rc-div"/>
 
+          {hasModalSpecs&&(
+          <>
           <div className="rc-sec">2 — Control de Calidad</div>
           <div className="rc-kpi-grid">
             {getKpis().map(function(k,i){
@@ -1140,7 +1147,10 @@ function ReportModal({data,gc,onClose}){
             })}
           </div>
           <div className="rc-div"/>
-
+          </>
+          )}
+          {showChem&&(
+          <>
           <div className="rc-sec">3 — Analisis Quimico</div>
           <table className="rc-chem-tbl">
             <thead><tr>
@@ -1169,6 +1179,8 @@ function ReportModal({data,gc,onClose}){
             </tbody>
           </table>
           <div className="rc-div"/>
+          </>
+          )}
           <div className="rc-foot">{footer}</div>
         </div>
 
@@ -1672,13 +1684,15 @@ function DashboardScreen({account,onBack}){
 
   var granuControls=useMemo(function(){
     var ps=getSpecs(prod);
-    if(prod==='A36'||!ps||!ps.granulometria)return[
+    var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
+    if(prod==='A36')return[
       {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:null,limMax:2},
       {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:86,limMax:null},
       {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:95,limMax:null},
       {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:0.290},
       {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
     ];
+    if(!ps||!ps.granulometria)return[];
     var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
     var ci=0;
     var ctrls=[];
@@ -1928,6 +1942,8 @@ function DashboardScreen({account,onBack}){
       lRef:getTRef(tri),rRef:getTRef(tri+1),
     });
   }
+  var hasChem=!!(PRODUCT_CONFIG[prod]&&PRODUCT_CONFIG[prod].quimica);
+  var hasSpecs=ctrlStats.length>0;
 
   // Period selector content
   var wks=[];for(var wi=1;wi<=52;wi++)wks.push(wi);
@@ -2094,7 +2110,7 @@ function DashboardScreen({account,onBack}){
         <>
           <div className="dash-tabs">
             <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
-            <button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>
+            {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           </div>
 
           {tab==='granu'&&(
@@ -2104,6 +2120,7 @@ function DashboardScreen({account,onBack}){
                 {expHdr()}
 
                 {/* KPIs 4 tarjetas */}
+                {hasSpecs&&(
                 <div className="kpi4-grid">
                   {ctrlStats.slice(0,4).map(function(k,i){
                     var bd=k.sem==='ok'?'bd-ok':k.sem==='warning'?'bd-warn':k.sem==='error'?'bd-err':'';
@@ -2119,6 +2136,7 @@ function DashboardScreen({account,onBack}){
                     );
                   })}
                 </div>
+                )}
 
                 {/* Curvas granulométricas */}
                 <div className="granu-curves">
@@ -2181,6 +2199,7 @@ function DashboardScreen({account,onBack}){
                 {expHdr()}
 
                 {/* Tendencias EETT */}
+                {hasSpecs&&(
                 <div className="sec-card" style={{marginBottom:14}}>
                   <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                     Tendencias EETT
@@ -2212,6 +2231,7 @@ function DashboardScreen({account,onBack}){
                     })}
                   </div>
                 </div>
+                )}
 
                 {/* Tabla resumen datos */}
                 <div className="sec-card" style={{marginBottom:14}}>
@@ -2275,6 +2295,7 @@ function DashboardScreen({account,onBack}){
                 </div>
 
                 {/* Tabla estadísticas */}
+                {hasSpecs&&(
                 <div className="sec-card" style={{marginBottom:0}}>
                   <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Estadisticas del Periodo</div>
                   <div style={{padding:'8px 14px',overflowX:'auto'}}>
@@ -2307,6 +2328,7 @@ function DashboardScreen({account,onBack}){
                     </table>
                   </div>
                 </div>
+                )}
               </div>
             </>
           )}
@@ -2362,31 +2384,44 @@ function HistoryScreen({account,onBack}){
 
   useEffect(function(){load();},[]);
 
+  function getPlanta(r){
+    var pk=r.ProductoKey||r.producto||'';
+    return CUARZO_PRODUCTS.some(function(p){return p.value===pk;})?'Cuarzo':'Arenas';
+  }
+
   async function load(){
     setLoading(true);
-    var pending=getPending().map(function(r){return Object.assign({},r,{status:'pending'});});
+    var pendA=getPending().map(function(r){return Object.assign({},r,{status:'pending'});});
+    var pendC=getPendingCuarzo().map(function(r){return Object.assign({},r,{status:'pending'});});
     var cloud=[];
     try{
       var token=await getToken();
       if(token){
-        var wb=await dlXlsx(token,OD_FILE);
-        if(wb){
-          var ws=wb.Sheets[wb.SheetNames[0]];
-          cloud=XLSX.utils.sheet_to_json(ws).map(function(r){return Object.assign({},r,{status:'sent'});});
-        }
+        var wbA=await dlXlsx(token,OD_FILE);
+        if(wbA){var wsA=wbA.Sheets[wbA.SheetNames[0]];
+          cloud=cloud.concat(XLSX.utils.sheet_to_json(wsA).map(function(r){return Object.assign({},r,{status:'sent'});}));}
+        var wbC=await dlXlsx(token,OD_FILE_CUARZO);
+        if(wbC){var wsC=wbC.Sheets[wbC.SheetNames[0]];
+          cloud=cloud.concat(XLSX.utils.sheet_to_json(wsC).map(function(r){return Object.assign({},r,{status:'sent'});}));}
       }
     }catch(e){console.error('History',e);}
     var cids=new Set(cloud.map(function(r){return r.ID;}));
-    var merged=cloud.concat(pending.filter(function(r){return !cids.has(r.id);}));
+    var merged=cloud
+      .concat(pendA.filter(function(r){return !cids.has(r.id);}))
+      .concat(pendC.filter(function(r){return !cids.has(r.id);}));
     merged.sort(function(a,b){return(b.FechaMuestreo||b.fecha||'').localeCompare(a.FechaMuestreo||a.fecha||'');});
-    setRecords(merged);
-    setLoading(false);
+    setRecords(merged);setLoading(false);
   }
 
   async function resend(r){
+    var rid=r.id||r.ID;
+    var isCuarzo=getPlanta(r)==='Cuarzo';
+    var targetFile=isCuarzo?OD_FILE_CUARZO:OD_FILE;
     try{
-      await sendToOD(r,account);
-      delPending(r.id);
+      var token=await getToken();
+      await sendToOD(r,account,targetFile);
+      if(isCuarzo)delPendingCuarzo(rid);
+      else delPending(rid);
       setToast({msg:'Registro reenviado exitosamente',type:'success'});
       load();
     }catch(e){setToast({msg:'Error al reenviar: '+e.message,type:'error'});}
@@ -2413,7 +2448,7 @@ function HistoryScreen({account,onBack}){
       {showPass&&<PassModal onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
-        <h2>Historial — Planta Arenas</h2>
+        <h2>Historial — Calidad</h2>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
         <button className="btn btn-secondary" onClick={exportCSV}>Exportar CSV</button>
@@ -2428,7 +2463,7 @@ function HistoryScreen({account,onBack}){
           <div style={{overflowX:'auto'}}>
             <table className="htbl">
               <thead><tr>
-                <th>Fecha</th><th>Hora</th><th>Producto</th>
+                <th>Fecha</th><th>Planta</th><th>Producto</th>
                 <th>P. Inicial</th><th>P. Final</th><th>Analista</th><th>Estado</th>
                 {isAdmin&&<th>Acciones</th>}
               </tr></thead>
@@ -2439,12 +2474,13 @@ function HistoryScreen({account,onBack}){
                   </td></tr>
                 )}
                 {records.map(function(r,i){
+                  var planta=getPlanta(r);
                   return(
                     <tr key={i}>
                       <td>{r.FechaMuestreo||r.fecha}</td>
-                      <td>{r.HoraEnvio||r.horaEnvio}</td>
+                      <td style={{fontSize:'.76rem',fontWeight:600,color:planta==='Cuarzo'?'#276749':'#1a5276'}}>{planta}</td>
                       <td>
-                          {r.Producto||r.productoLabel}
+                          {r.Produto||r.Producto||r.productoLabel}
                           {(function(){
                             var tm=r.TipoMuestra||r.tipoMuestra;
                             var na=r.NumAcopio||r.numAcopio;
@@ -2469,7 +2505,11 @@ function HistoryScreen({account,onBack}){
                           <button className="btn btn-success" style={{padding:'3px 9px',fontSize:'.78rem',marginRight:4}}
                             onClick={function(){resend(r);}}>Reenviar</button>
                           <button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
-                            onClick={function(){delPending(r.id||r.ID);load();}}>Eliminar</button>
+                            onClick={function(){
+                              if(getPlanta(r)==='Cuarzo')delPendingCuarzo(r.id||r.ID);
+                              else delPending(r.id||r.ID);
+                              load();
+                            }}>Eliminar</button>
                         </>}
                       </td>}
                     </tr>

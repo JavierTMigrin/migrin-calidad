@@ -1073,7 +1073,10 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
 
   var fechaLocal=data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):data.fecha;
   var footer='Generado por Sistema de Calidad MIGRIN S.A. · '+fechaLocal+' '+( data.horaEnvio||'');
-  var showSpecCols=(isA36&&specKey)||!!prodSpecs;
+  var showSpecCols=(isA36&&specKey)||!!(prodSpecs&&prodSpecs.granulometria);
+  var hasModalSpecs=isA36||!!(prodSpecs&&prodSpecs.granulometria);
+  var plantaName=CUARZO_PRODUCTS.some(function(p){return p.value===data.producto;})?'Cuarzo':'Arenas';
+  var showChem=!!(PRODUCT_CONFIG[data.producto]&&PRODUCT_CONFIG[data.producto].quimica);
 
   return(
     <div className="rmodal-ov" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
@@ -1173,11 +1176,13 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
           </div>
           <div className="rc-div"/>
           <div className="rc-meta">
-            <div className="rc-meta-row"><span className="rc-meta-k">Planta:</span><span>Arenas</span></div>
+            <div className="rc-meta-row"><span className="rc-meta-k">Planta:</span><span>{plantaName}</span></div>
             <div className="rc-meta-row"><span className="rc-meta-k">Producto:</span><span>{data.productoLabel||data.producto}</span></div>
             {showSpecCols&&<div className="rc-meta-row" style={{gridColumn:'1/-1'}}>
               <span className="rc-meta-k">Especificacion:</span>
-              <span style={{fontWeight:700,color:'#1a5276'}}>{SPECS_A36[specKey].nombre}</span>
+              <span style={{fontWeight:700,color:'#1a5276'}}>
+                {isA36?(SPECS_A36[specKey]?SPECS_A36[specKey].nombre:'—'):(prodSpecs&&prodSpecs.nombre?prodSpecs.nombre:data.productoLabel||data.producto)}
+              </span>
             </div>}
             <div className="rc-meta-row"><span className="rc-meta-k">Fecha muestreo:</span><span>{data.fecha}</span></div>
             <div className="rc-meta-row"><span className="rc-meta-k">Turno:</span><span>{data.turno?'Turno '+data.turno:'—'}</span></div>
@@ -1226,6 +1231,8 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
           </div>
           <div className="rc-div"/>
 
+          {hasModalSpecs&&(
+          <>
           <div className="rc-sec">2 — Control de Calidad</div>
           <div className="rc-kpi-grid">
             {getKpis().map(function(k,i){
@@ -1243,7 +1250,11 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
             })}
           </div>
           <div className="rc-div"/>
+          </>
+          )}
 
+          {showChem&&(
+          <>
           <div className="rc-sec">3 — Analisis Quimico</div>
           <table className="rc-chem-tbl">
             <thead><tr>
@@ -1272,6 +1283,8 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner}){
             </tbody>
           </table>
           <div className="rc-div"/>
+          </>
+          )}
           <div className="rc-foot">{footer}</div>
         </div>
 
@@ -1817,14 +1830,15 @@ function DashboardScreen({account,onBack}){
 
   var granuControls=useMemo(function(){
     var ps=getSpecs(prod);
-    if(prod==='A36'||!ps||!ps.granulometria)return[
+    var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
+    if(prod==='A36')return[
       {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:null,limMax:2},
       {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:86,limMax:null},
       {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:95,limMax:null},
       {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:0.290},
       {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
     ];
-    var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
+    if(!ps||!ps.granulometria)return[];
     var ci=0;
     var ctrls=[];
     Object.entries(ps.granulometria).forEach(function(e){
@@ -2073,6 +2087,8 @@ function DashboardScreen({account,onBack}){
       lRef:getTRef(tri),rRef:getTRef(tri+1),
     });
   }
+  var hasChem=!!(PRODUCT_CONFIG[prod]&&PRODUCT_CONFIG[prod].quimica);
+  var hasSpecs=ctrlStats.length>0;
 
   // Period selector content
   var wks=[];for(var wi=1;wi<=52;wi++)wks.push(wi);
@@ -2239,7 +2255,7 @@ function DashboardScreen({account,onBack}){
         <>
           <div className="dash-tabs">
             <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
-            <button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>
+            {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           </div>
 
           {tab==='granu'&&(
@@ -2249,6 +2265,7 @@ function DashboardScreen({account,onBack}){
                 {expHdr()}
 
                 {/* KPIs 4 tarjetas */}
+                {hasSpecs&&(
                 <div className="kpi4-grid">
                   {ctrlStats.slice(0,4).map(function(k,i){
                     var bd=k.sem==='ok'?'bd-ok':k.sem==='warning'?'bd-warn':k.sem==='error'?'bd-err':'';
@@ -2264,6 +2281,7 @@ function DashboardScreen({account,onBack}){
                     );
                   })}
                 </div>
+                )}
 
                 {/* Curvas granulométricas */}
                 <div className="granu-curves">
@@ -2326,6 +2344,7 @@ function DashboardScreen({account,onBack}){
                 {expHdr()}
 
                 {/* Tendencias EETT */}
+                {hasSpecs&&(
                 <div className="sec-card" style={{marginBottom:14}}>
                   <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                     Tendencias EETT
@@ -2357,6 +2376,7 @@ function DashboardScreen({account,onBack}){
                     })}
                   </div>
                 </div>
+                )}
 
                 {/* Tabla resumen datos */}
                 <div className="sec-card" style={{marginBottom:14}}>
@@ -2420,6 +2440,7 @@ function DashboardScreen({account,onBack}){
                 </div>
 
                 {/* Tabla estadísticas */}
+                {hasSpecs&&(
                 <div className="sec-card" style={{marginBottom:0}}>
                   <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Estadisticas del Periodo</div>
                   <div style={{padding:'8px 14px',overflowX:'auto'}}>
@@ -2452,6 +2473,7 @@ function DashboardScreen({account,onBack}){
                     </table>
                   </div>
                 </div>
+                )}
               </div>
             </>
           )}
@@ -2510,22 +2532,31 @@ function HistoryScreen({account,onBack}){
 
   useEffect(function(){load();},[]);
 
+  function getPlanta(r){
+    var pk=r.ProductoKey||r.producto||'';
+    return CUARZO_PRODUCTS.some(function(p){return p.value===pk;})?'Cuarzo':'Arenas';
+  }
+
   async function load(){
     setLoading(true);
-    var pending=getPending().map(function(r){return Object.assign({},r,{status:'pending'});});
+    var pendA=getPending().map(function(r){return Object.assign({},r,{status:'pending'});});
+    var pendC=getPendingCuarzo().map(function(r){return Object.assign({},r,{status:'pending'});});
     var cloud=[];
     try{
       var token=await getToken();
       if(token){
-        var wb=await dlXlsx(token,OD_FILE);
-        if(wb){
-          var ws=wb.Sheets[wb.SheetNames[0]];
-          cloud=XLSX.utils.sheet_to_json(ws).map(function(r){return Object.assign({},r,{status:'sent'});});
-        }
+        var wbA=await dlXlsx(token,OD_FILE);
+        if(wbA){var wsA=wbA.Sheets[wbA.SheetNames[0]];
+          cloud=cloud.concat(XLSX.utils.sheet_to_json(wsA).map(function(r){return Object.assign({},r,{status:'sent'});}));}
+        var wbC=await dlXlsx(token,OD_FILE_CUARZO);
+        if(wbC){var wsC=wbC.Sheets[wbC.SheetNames[0]];
+          cloud=cloud.concat(XLSX.utils.sheet_to_json(wsC).map(function(r){return Object.assign({},r,{status:'sent'});}));}
       }
     }catch(e){console.error('History',e);}
     var cids=new Set(cloud.map(function(r){return r.ID;}));
-    var merged=cloud.concat(pending.filter(function(r){return !cids.has(r.id);}));
+    var merged=cloud
+      .concat(pendA.filter(function(r){return !cids.has(r.id);}))
+      .concat(pendC.filter(function(r){return !cids.has(r.id);}));
     merged.sort(function(a,b){return(b.FechaMuestreo||b.fecha||'').localeCompare(a.FechaMuestreo||a.fecha||'');});
     setRecords(merged);
     setLoading(false);
@@ -2578,9 +2609,12 @@ function HistoryScreen({account,onBack}){
   async function resend(r){
     var rid=r.ID||r.id;
     setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:true,error:null,ok:false}});});
+    var isCuarzo=getPlanta(r)==='Cuarzo';
+    var targetFile=isCuarzo?OD_FILE_CUARZO:OD_FILE;
     try{
-      await sendToOD(r,account);
-      delPending(rid);
+      await sendToOD(r,account,targetFile);
+      if(isCuarzo)delPendingCuarzo(rid);
+      else delPending(rid);
       setResendSt(function(p){return Object.assign({},p,{[rid]:{loading:false,error:null,ok:true}});});
       load();
     }catch(e){
@@ -2590,17 +2624,17 @@ function HistoryScreen({account,onBack}){
   }
 
   function exportCSV(){
-    var hdr=['ID','Fecha','Hora','Turno','Analista','Producto','PesoInicial','PesoFinal','Estado'];
+    var hdr=['ID','Fecha','Hora','Turno','Analista','Planta','Producto','PesoInicial','PesoFinal','Estado'];
     var rows=records.map(function(r){
       return[r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
-        r.Analista||r.analista,r.Producto||r.productoLabel,
+        r.Analista||r.analista,getPlanta(r),r.Producto||r.productoLabel,
         r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
         r.status==='sent'?'Enviado':'Pendiente'];
     });
     var csv=[hdr].concat(rows).map(function(row){return row.join(',');}).join('\n');
     var a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    a.download='historial_arenas.csv';a.click();
+    a.download='historial_calidad.csv';a.click();
   }
 
   if(reportView){
@@ -2618,7 +2652,7 @@ function HistoryScreen({account,onBack}){
       {showPass&&<PassModal onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
-        <h2>Historial — Planta Arenas</h2>
+        <h2>Historial — Calidad</h2>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
         <button className="btn btn-secondary" onClick={exportCSV}>Exportar CSV</button>
@@ -2633,12 +2667,12 @@ function HistoryScreen({account,onBack}){
           <div style={{overflowX:'auto'}}>
             <table className="htbl">
               <thead><tr>
-                <th>Fecha</th><th>Producto</th><th>Analista</th><th>Turno</th><th>Estado</th>
+                <th>Fecha</th><th>Planta</th><th>Producto</th><th>Analista</th><th>Turno</th><th>Estado</th>
                 <th style={{width:36,textAlign:'center'}}/>
               </tr></thead>
               <tbody>
                 {records.length===0&&(
-                  <tr><td colSpan={6} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
+                  <tr><td colSpan={7} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
                     No hay registros
                   </td></tr>
                 )}
@@ -2647,11 +2681,13 @@ function HistoryScreen({account,onBack}){
                   var isOpen=expandedId===rid;
                   var rst=resendSt[rid]||{};
                   var rec=isOpen?reconstruirRegistro(r):null;
+                  var planta=getPlanta(r);
                   return(
                     <React.Fragment key={rid}>
                       <tr style={{cursor:'pointer',background:isOpen?'var(--primary-xlight)':''}}
                         onClick={function(){setExpandedId(isOpen?null:rid);}}>
                         <td>{r.FechaMuestreo||r.fecha}</td>
+                        <td style={{fontSize:'.76rem',fontWeight:600,color:planta==='Cuarzo'?'#276749':'#1a5276'}}>{planta}</td>
                         <td>
                           {r.Producto||r.productoLabel}
                           {(function(){
@@ -2679,7 +2715,7 @@ function HistoryScreen({account,onBack}){
                       </tr>
                       {isOpen&&rec&&(
                         <tr>
-                          <td colSpan={6} style={{padding:0,background:'#f8fafc',borderBottom:'2px solid var(--primary-xlight)'}}>
+                          <td colSpan={7} style={{padding:0,background:'#f8fafc',borderBottom:'2px solid var(--primary-xlight)'}}>
                             <div style={{padding:'16px 20px'}}>
 
                               {/* INFO GENERAL */}
@@ -2693,6 +2729,7 @@ function HistoryScreen({account,onBack}){
                                 <div><b>Hora envio:</b> {rec.data.horaEnvio||'—'}</div>
                                 <div><b>Analista:</b> {rec.data.analista||'—'}</div>
                                 <div><b>Turno:</b> {rec.data.turno?'Turno '+rec.data.turno:'—'}</div>
+                                <div><b>Planta:</b> {planta}</div>
                                 <div><b>Producto:</b> {rec.data.productoLabel}</div>
                                 <div><b>Peso Inicial:</b> {rec.data.pesoInicial} g</div>
                                 <div><b>Peso Final:</b> {rec.data.pesoFinal} g</div>
@@ -2732,25 +2769,35 @@ function HistoryScreen({account,onBack}){
                                 </table>
                               </div>
 
-                              {/* HUMEDAD Y QUIMICA */}
-                              <div style={{height:1,background:'var(--border)',margin:'12px 0'}}/>
-                              <div style={{fontWeight:700,fontSize:'.78rem',color:'var(--text-secondary)',
-                                textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>
-                                Humedad y Quimica
-                              </div>
-                              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',
-                                gap:'5px 18px',fontSize:'.82rem',marginBottom:12}}>
-                                <div><b>Humedad:</b> {fmt(parseDecimal(rec.data.pctHumedad))}%</div>
-                                <div><b>SiO&#8322;:</b> {rec.data.quimica.sio2||'—'}%</div>
-                                <div><b>Al&#8322;O&#8323;:</b> {rec.data.quimica.al2o3||'—'}%</div>
-                                <div><b>Fe&#8322;O&#8323;:</b> {rec.data.quimica.fe2o3||'—'}%</div>
-                                <div><b>CaO:</b> {rec.data.quimica.cao||'—'}%</div>
-                                <div><b>MgO:</b> {rec.data.quimica.mgo||'—'}%</div>
-                                <div><b>K&#8322;O:</b> {rec.data.quimica.k2o||'—'}%</div>
-                                <div><b>Na&#8322;O:</b> {rec.data.quimica.na2o||'—'}%</div>
-                                <div><b>TiO&#8322;:</b> {rec.data.quimica.tio2||'—'}%</div>
-                                <div><b>K&#8322;O+Na&#8322;O:</b> {fmt((parseDecimal(rec.data.quimica.k2o)||0)+(parseDecimal(rec.data.quimica.na2o)||0))}%</div>
-                              </div>
+                              {/* HUMEDAD Y QUIMICA — condicional */}
+                              {(function(){
+                                var pcfg=PRODUCT_CONFIG[rec.data.producto]||{};
+                                if(!pcfg.humedad&&!pcfg.quimica)return null;
+                                return(
+                                  <>
+                                    <div style={{height:1,background:'var(--border)',margin:'12px 0'}}/>
+                                    <div style={{fontWeight:700,fontSize:'.78rem',color:'var(--text-secondary)',
+                                      textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>
+                                      {pcfg.humedad&&!pcfg.quimica?'Humedad':pcfg.quimica?'Humedad y Quimica':''}
+                                    </div>
+                                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',
+                                      gap:'5px 18px',fontSize:'.82rem',marginBottom:12}}>
+                                      {pcfg.humedad&&<div><b>Humedad:</b> {fmt(parseDecimal(rec.data.pctHumedad))}%</div>}
+                                      {pcfg.quimica&&<>
+                                        <div><b>SiO&#8322;:</b> {rec.data.quimica.sio2||'—'}%</div>
+                                        <div><b>Al&#8322;O&#8323;:</b> {rec.data.quimica.al2o3||'—'}%</div>
+                                        <div><b>Fe&#8322;O&#8323;:</b> {rec.data.quimica.fe2o3||'—'}%</div>
+                                        <div><b>CaO:</b> {rec.data.quimica.cao||'—'}%</div>
+                                        <div><b>MgO:</b> {rec.data.quimica.mgo||'—'}%</div>
+                                        <div><b>K&#8322;O:</b> {rec.data.quimica.k2o||'—'}%</div>
+                                        <div><b>Na&#8322;O:</b> {rec.data.quimica.na2o||'—'}%</div>
+                                        <div><b>TiO&#8322;:</b> {rec.data.quimica.tio2||'—'}%</div>
+                                        <div><b>K&#8322;O+Na&#8322;O:</b> {fmt((parseDecimal(rec.data.quimica.k2o)||0)+(parseDecimal(rec.data.quimica.na2o)||0))}%</div>
+                                      </>}
+                                    </div>
+                                  </>
+                                );
+                              })()}
 
                               {rec.data.observaciones&&(
                                 <div style={{fontSize:'.82rem',marginBottom:12}}>
@@ -2790,7 +2837,13 @@ function HistoryScreen({account,onBack}){
                                 )}
                                 {isAdmin&&r.status==='pending'&&(
                                   <button className="btn btn-danger" style={{padding:'7px 14px',fontSize:'.84rem',marginLeft:'auto'}}
-                                    onClick={function(e){e.stopPropagation();delPending(r.id||r.ID);load();}}>
+                                    onClick={function(e){
+                                      e.stopPropagation();
+                                      var eid=r.id||r.ID;
+                                      if(getPlanta(r)==='Cuarzo')delPendingCuarzo(eid);
+                                      else delPending(eid);
+                                      load();
+                                    }}>
                                     &#128465; Eliminar
                                   </button>
                                 )}
