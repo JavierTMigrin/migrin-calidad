@@ -3124,27 +3124,29 @@ const MODULES=[
   {id:'cuarzo',label:'Cuarzo',active:true},
 ];
 
-function HomeScreen({onSelect}){
+function HomeScreen({onSelect,isViewer}){
   return(
     <div>
       <div className="home-intro">
         <h2>Modulos de Control</h2>
-        <p>Seleccione un modulo para iniciar el registro de calidad</p>
+        <p>{isViewer?'Tienes acceso de solo lectura — Historial y Reportes.':'Seleccione un modulo para iniciar el registro de calidad'}</p>
       </div>
-      <div className="modules-grid">
-        {MODULES.map(function(m){
-          return(
-            <div key={m.id} className={'mod-card '+(m.active?'active':'disabled')}
-              onClick={function(){if(m.active)onSelect(m.id);}}
-              role={m.active?'button':undefined}
-              tabIndex={m.active?0:undefined}
-              onKeyDown={m.active?function(e){if(e.key==='Enter')onSelect(m.id);}:undefined}>
-              {!m.active&&<span className="badge-soon">Proximamente</span>}
-              <div className="mod-label">{m.label}</div>
-            </div>
-          );
-        })}
-      </div>
+      {!isViewer&&(
+        <div className="modules-grid">
+          {MODULES.map(function(m){
+            return(
+              <div key={m.id} className={'mod-card '+(m.active?'active':'disabled')}
+                onClick={function(){if(m.active)onSelect(m.id);}}
+                role={m.active?'button':undefined}
+                tabIndex={m.active?0:undefined}
+                onKeyDown={m.active?function(e){if(e.key==='Enter')onSelect(m.id);}:undefined}>
+                {!m.active&&<span className="badge-soon">Proximamente</span>}
+                <div className="mod-label">{m.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -3196,6 +3198,8 @@ function App(){
   var[authLoading,setAuthLoading]=useState(true);
   var[screen,setScreen]=useState('home');
   var[toast,setToast]=useState(null);
+
+  var isViewer=account&&account.user_metadata&&account.user_metadata.is_viewer===true&&account.user_metadata.is_admin!==true;
 
   useEffect(function(){
     // Recuperar sesion activa al cargar
@@ -3252,9 +3256,11 @@ function App(){
           <button className="btn-hdr" onClick={function(){setScreen('history');}}>
             <span className="lbl">Historial </span>&#128202;
           </button>
-          <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
-            <span className="lbl">Ajustes </span>&#9881;&#65039;
-          </button>
+          {!isViewer&&(
+            <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
+              <span className="lbl">Ajustes </span>&#9881;&#65039;
+            </button>
+          )}
         </div>
       )}
     </header>
@@ -3274,15 +3280,16 @@ function App(){
       {header}
       <div className="main">
         {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
-        {screen==='home'&&<HomeScreen onSelect={function(id){
+        {screen==='home'&&<HomeScreen isViewer={isViewer} onSelect={function(id){
+          if(isViewer)return;
           if(id==='arenas')setScreen('arenas');
           else if(id==='cuarzo')setScreen('cuarzo');
         }}/>}
-        {screen==='arenas'&&<ArenasForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
-        {screen==='cuarzo'&&<CuarzoForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
+        {!isViewer&&screen==='arenas'&&<ArenasForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
+        {!isViewer&&screen==='cuarzo'&&<CuarzoForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
-        {screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
+        {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
     </>
   );
