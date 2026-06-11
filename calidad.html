@@ -2223,12 +2223,10 @@ function DashboardScreen({account,onBack}){
           <label>Producto</label>
           <select value={prod} onChange={function(e){setProd(e.target.value);}}>
             <optgroup label="Arenas">
-              <option value="A36">A36 TLH</option><option value="A38">A38 Fierrillo</option>
-              <option value="ALIM">Alimentacion</option><option value="VERALTA">Veralia Alta</option>
-              <option value="VERBAJA">Veralia Baja</option>
+              {ARENA_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
             </optgroup>
             <optgroup label="Cuarzo">
-              <option value="CTLH">TLH Cuarzo</option><option value="CDLK">DLK</option>
+              {CUARZO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
             </optgroup>
           </select>
         </div>
