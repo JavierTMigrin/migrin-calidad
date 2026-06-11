@@ -1435,6 +1435,9 @@ function CuarzoForm({account,onBack,onSuccess}){
     odFile={OD_FILE_CUARZO} lsGet={getPendingCuarzo} lsAdd={addPendingCuarzo} lsDel={delPendingCuarzo}/>;
 }
 
+var ACOPIO_OPTS=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia'];
+var PROD_LABEL_MAP={'A36':'A36 TLH','A38':'A38 Fierrillo','ALIM':'Alimentacion'};
+
 /* ── DASHBOARD SCREEN ── */
 function DashboardScreen({account,onBack}){
   var[records,setRecords]=useState([]);
@@ -1445,12 +1448,20 @@ function DashboardScreen({account,onBack}){
   var[filterTurno,setFilterTurno]=useState('');
   var[filterAnalista,setFilterAnalista]=useState('');
   var[maWin,setMaWin]=useState(5);
+  var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
+  var[filterNumAcopio,setFilterNumAcopio]=useState(ACOPIO_OPTS.slice());
   var chartGRef=useRef(null);
   var chartQRef=useRef(null);
   var instG=useRef(null);
   var instQ=useRef(null);
+  var logoSrc=useMemo(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'';},[]);
 
   useEffect(function(){loadData();},[]);
+
+  useEffect(function(){
+    setFilterTipoMuestra(['Puntual','Acopio']);
+    setFilterNumAcopio(ACOPIO_OPTS.slice());
+  },[prod]);
 
   async function loadData(){
     setLoading(true);
@@ -1485,9 +1496,17 @@ function DashboardScreen({account,onBack}){
       if(!rProd.includes(prodKey))return false;
       if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return false;
       if(filterAnalista&&(r.Analista||r.analista)!==filterAnalista)return false;
+      if(prod==='A36'){
+        var tm=r.TipoMuestra||r.tipoMuestra||'';
+        if(tm&&!filterTipoMuestra.includes(tm))return false;
+        if(tm==='Acopio'&&filterTipoMuestra.includes('Acopio')){
+          var na=r.NumAcopio||r.numAcopio||'';
+          if(na&&!filterNumAcopio.includes(na))return false;
+        }
+      }
       return true;
     });
-  },[records,prod,period,filterTurno,filterAnalista]);
+  },[records,prod,period,filterTurno,filterAnalista,filterTipoMuestra,filterNumAcopio]);
 
   function fmtXDate(s){
     if(!s)return'';
@@ -1501,6 +1520,54 @@ function DashboardScreen({account,onBack}){
       var sl=arr.slice(Math.max(0,i-w+1),i+1).filter(function(x){return x!==null&&!isNaN(x);});
       return sl.length?sl.reduce(function(a,b){return a+b;},0)/sl.length:null;
     });
+  }
+
+  function getPeriodoLabel(){
+    var mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    var now=new Date();
+    if(period===30)return 'Mes-'+mn[now.getMonth()]+now.getFullYear();
+    return 'Ult'+period+'d';
+  }
+
+  function getFilename(){
+    var prodFn={'A36':'A36-TLH','A38':'A38-Fierrillo','ALIM':'Alim'};
+    var now=new Date();
+    var mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    var periodoLbl=period===30?'Mes-'+mn[now.getMonth()]+now.getFullYear():'Ult'+period+'d';
+    var dd=String(now.getDate()).padStart(2,'0');
+    var mm2=String(now.getMonth()+1).padStart(2,'0');
+    var fechaLbl=dd+'-'+mm2+'-'+now.getFullYear();
+    var tipoLbl='';
+    if(prod==='A36'){
+      var hasPuntual=filterTipoMuestra.includes('Puntual');
+      var hasAcopio=filterTipoMuestra.includes('Acopio');
+      if(hasPuntual&&hasAcopio){
+        tipoLbl=filterNumAcopio.length===ACOPIO_OPTS.length?'TodosTipos':'TodosTipos';
+      }else if(hasAcopio){
+        if(filterNumAcopio.length===ACOPIO_OPTS.length){tipoLbl='TodosAcopios';}
+        else if(filterNumAcopio.length===1){tipoLbl=filterNumAcopio[0].replace(' ','');}
+        else{tipoLbl=filterNumAcopio.map(function(a){return a.replace('Acopio ','A').replace('Emergencia','Emg');}).join('-');}
+      }else{tipoLbl='Puntual';}
+    }
+    var parts=[prodFn[prod]||prod];
+    if(tipoLbl)parts.push(tipoLbl);
+    parts.push(periodoLbl,fechaLbl);
+    return 'Reporte_'+parts.join('_')+'.png';
+  }
+
+  async function exportarReporte(){
+    var hdr=document.getElementById('reporte-header-export');
+    if(hdr)hdr.style.display='block';
+    try{
+      var el=document.getElementById('reportes-section');
+      var canvas=await window.html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200});
+      var link=document.createElement('a');
+      link.download=getFilename();
+      link.href=canvas.toDataURL('image/png');
+      link.click();
+    }finally{
+      if(hdr)hdr.style.display='none';
+    }
   }
 
   function computeStats(row){
@@ -1673,15 +1740,85 @@ function DashboardScreen({account,onBack}){
             {ANALISTAS.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
           </select>
         </div>
-        <button className="btn btn-secondary" onClick={loadData} style={{padding:'7px 14px',alignSelf:'flex-end',minHeight:36}}>
-          &#8635; Actualizar
-        </button>
+        <div style={{display:'flex',gap:8,alignSelf:'flex-end',flexWrap:'wrap'}}>
+          <button className="btn btn-secondary" onClick={loadData} style={{padding:'7px 14px',minHeight:36}}>
+            &#8635; Actualizar
+          </button>
+          <button className="btn btn-primary" onClick={exportarReporte} style={{padding:'7px 14px',minHeight:36}}>
+            &#11015; Exportar Reporte
+          </button>
+        </div>
+        {prod==='A36'&&(
+          <div style={{flexBasis:'100%',paddingTop:12,borderTop:'1px solid var(--border)',display:'flex',gap:20,flexWrap:'wrap'}}>
+            <div className="field" style={{minWidth:'auto',flex:'none'}}>
+              <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)',display:'block',marginBottom:6}}>Tipo de Muestra</label>
+              <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                {['Puntual','Acopio'].map(function(t){
+                  var checked=filterTipoMuestra.includes(t);
+                  return(
+                    <label key={t} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
+                      <input type="checkbox" checked={checked}
+                        onChange={function(){setFilterTipoMuestra(function(p){return checked?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
+                      {t==='Puntual'?'Muestra Puntual':'Acopio'}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            {filterTipoMuestra.includes('Acopio')&&(
+              <div className="field" style={{minWidth:'auto',flex:'none'}}>
+                <label style={{fontSize:'.78rem',fontWeight:600,color:'var(--text-secondary)',display:'block',marginBottom:6}}>
+                  N° Acopio
+                  {filterNumAcopio.length<ACOPIO_OPTS.length&&(
+                    <button onClick={function(){setFilterNumAcopio(ACOPIO_OPTS.slice());}}
+                      style={{marginLeft:8,fontSize:'.72rem',color:'var(--primary)',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>
+                      (seleccionar todos)
+                    </button>
+                  )}
+                </label>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                  {ACOPIO_OPTS.map(function(a){
+                    var checked=filterNumAcopio.includes(a);
+                    return(
+                      <label key={a} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
+                        <input type="checkbox" checked={checked}
+                          onChange={function(){setFilterNumAcopio(function(p){return checked?p.filter(function(x){return x!==a;}):p.concat(a);});}}/>
+                        {a}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
 
       {!loading&&(
-        <div>
+        <div id="reportes-section">
+          <div id="reporte-header-export" style={{display:'none',padding:'16px 20px 14px',marginBottom:16,background:'#fff',borderBottom:'2px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:10}}>
+              {logoSrc&&<img src={logoSrc} style={{height:44,width:'auto',objectFit:'contain'}} alt="MIGRIN"/>}
+              <div>
+                <div style={{fontSize:'1.1rem',fontWeight:800,color:'var(--primary)'}}>Reporte de Calidad</div>
+                <div style={{fontSize:'.8rem',color:'var(--text-secondary)'}}>MIGRIN — Control de Calidad Planta Arenas</div>
+              </div>
+            </div>
+            <div style={{fontSize:'.82rem',color:'var(--text-secondary)',lineHeight:1.8,borderLeft:'3px solid var(--primary)',paddingLeft:10}}>
+              <strong>Planta:</strong> Arenas &nbsp;|&nbsp;
+              <strong>Producto:</strong> {PROD_LABEL_MAP[prod]||prod} &nbsp;|&nbsp;
+              <strong>Periodo:</strong> {getPeriodoLabel()} &nbsp;|&nbsp;
+              <strong>Turno:</strong> {filterTurno||'Todos'} &nbsp;|&nbsp;
+              <strong>Analista:</strong> {filterAnalista||'Todas'}
+              {prod==='A36'&&<span>
+                &nbsp;|&nbsp;<strong>Tipo:</strong> {filterTipoMuestra.length===2?'Puntual + Acopio':filterTipoMuestra.join(', ')||'—'}
+                &nbsp;|&nbsp;<strong>N° Acopio:</strong> {filterNumAcopio.length===ACOPIO_OPTS.length?'Todos':filterNumAcopio.join(', ')}
+              </span>}
+              <br/><strong>Muestras:</strong> {filtered.length} registros
+            </div>
+          </div>
           <div className="dash-tabs">
             <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
             <button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>
