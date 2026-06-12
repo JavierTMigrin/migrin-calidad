@@ -94,6 +94,17 @@ Los EETT se leen en vivo de la tabla `especificaciones` (lo que edites
 en Ajustes se refleja al actualizar Excel). Las vistas se regeneran con
 `gen-vistas-analisis.ps1` si se agregan productos nuevos.
 
+## Catálogo de vistas auto-actualizable (supabase-catalogo-vistas.sql)
+
+La vista **`v_catalogo`** lista todas las vistas disponibles con su URL
+completa, planta, tipo y cantidad de columnas. Se actualiza sola al
+crear vistas nuevas. Conéctala en Excel como cualquier otra:
+
+`https://wxjclxmtceuhlbwxtptc.supabase.co/rest/v1/v_catalogo?select=*`
+
+Columnas: `vista`, `planta`, `tipo`, `url` (lista para copiar/pegar),
+`n_columnas`.
+
 ## Filtros útiles (en la URL)
 
 - Último año: `?select=*&fecha_muestreo=gte.2026-01-01`
