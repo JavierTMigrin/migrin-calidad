@@ -61,6 +61,39 @@ retenido parcial por tamiz (%, masa ÷ peso final × 100, igual que la app);
 en Cilindro la salida es `sal_rp_*`; `sio2`...`tio2` = química (%);
 el resto son los campos del formulario.
 
+## Vistas de análisis (supabase-vistas-analisis.sql)
+
+Para cada producto con granulometría existen 2 vistas adicionales,
+nombradas por planta y producto:
+
+**`v_<planta>_<producto>_serie`** — formato largo (1 fila por ensayo × tamiz),
+ideal para tablas dinámicas y gráficos de tendencia:
+| Columna | Contenido |
+|---|---|
+| folio, fecha_muestreo, turno, analista | identificación del ensayo |
+| orden_tamiz, tamiz | banda granulométrica en orden |
+| ret_parcial / ret_acumulado / pasante_acum | los 3 valores en % |
+| rp_movil_7 / rp_movil_30 / ra_movil_7 | promedios móviles |
+| eett_rp_min/max, eett_ra_min/max, eett_pas_min/max | límites EETT vigentes |
+| estado_eett | OK / FUERA / vacío (sin EETT) |
+
+**`v_<planta>_<producto>_carta`** — carta de control (1 fila por tamiz):
+| Columna | Contenido |
+|---|---|
+| n_datos | cantidad de ensayos |
+| media_rp, desv_std_rp, cv_rp_pct | estadística del ret. parcial |
+| lcs_rp_3s / lci_rp_3s | límites de control ±3σ |
+| media_ra, desv_std_ra, lcs_ra_3s / lci_ra_3s | ídem ret. acumulado |
+| eett_* | límites EETT |
+| n_fuera, pct_cumplimiento | fuera de norma y % cumplimiento |
+
+Ejemplos: `v_arenas_a36_serie`, `v_cuarzo_dlk_carta`,
+`v_despachos_lirquen_serie`, `v_turco_tlh_carta`.
+
+Los EETT se leen en vivo de la tabla `especificaciones` (lo que edites
+en Ajustes se refleja al actualizar Excel). Las vistas se regeneran con
+`gen-vistas-analisis.ps1` si se agregan productos nuevos.
+
 ## Filtros útiles (en la URL)
 
 - Último año: `?select=*&fecha_muestreo=gte.2026-01-01`

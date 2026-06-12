@@ -436,10 +436,10 @@ SELECT
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
-  ROUND(NULLIF(REPLACE(granu->>0,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_14,
-  ROUND(NULLIF(REPLACE(granu->>1,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_16,
-  ROUND(NULLIF(REPLACE(granu->>2,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_18,
-  ROUND(NULLIF(REPLACE(granu->>3,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_20,
+  NULLIF(REPLACE(granu->>0,',','.'),'')::numeric AS granos_14,
+  NULLIF(REPLACE(granu->>1,',','.'),'')::numeric AS granos_16,
+  NULLIF(REPLACE(granu->>2,',','.'),'')::numeric AS granos_18,
+  NULLIF(REPLACE(granu->>3,',','.'),'')::numeric AS granos_20,
   observaciones, enviado_por, created_at
 FROM ensayos
 WHERE producto_key = 'CGRANOS'
@@ -673,9 +673,9 @@ SELECT
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
-  ROUND(NULLIF(REPLACE(granu->>0,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_16,
-  ROUND(NULLIF(REPLACE(granu->>1,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_18,
-  ROUND(NULLIF(REPLACE(granu->>2,',','.'),'')::numeric / NULLIF(peso_final,0) * 100, 2) AS rp_20,
+  NULLIF(REPLACE(granu->>0,',','.'),'')::numeric AS granos_16,
+  NULLIF(REPLACE(granu->>1,',','.'),'')::numeric AS granos_18,
+  NULLIF(REPLACE(granu->>2,',','.'),'')::numeric AS granos_20,
   (extra->>'punto') AS punto_muestreo,
   NULLIF(extra->'arcillas'->>0,'')::numeric AS arcillas_16,
   NULLIF(extra->'arcillas'->>1,'')::numeric AS arcillas_18,
