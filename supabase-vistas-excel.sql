@@ -6,7 +6,7 @@
 
 CREATE OR REPLACE VIEW v_a36 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -38,7 +38,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_a38 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -72,7 +72,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_alimentacion AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -105,7 +105,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_rechazo_2001 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -129,7 +129,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_veralia_alta AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -154,7 +154,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_veralia_baja AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -179,7 +179,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_molino_1 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -202,7 +202,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_molino_2 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -225,7 +225,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_under_2007 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -248,7 +248,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_over_2007 AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -271,7 +271,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_under_tack AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -294,7 +294,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_muestras_esp AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -325,7 +325,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_lodos_arenas AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -337,7 +337,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_desp_padre_hurtado AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -365,7 +365,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_desp_lirquen AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -397,7 +397,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_desp_llayllay AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -429,7 +429,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_control_granos AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -444,7 +444,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_materias_primas AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -463,7 +463,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_alim_cuarzo AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -495,7 +495,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tlh_cuarzo AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -527,7 +527,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_compacta AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -558,7 +558,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_dlk AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -590,7 +590,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_lodos_cuarzo AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -602,7 +602,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_tlh AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -632,7 +632,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_alimentacion AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -666,7 +666,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_granos AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -684,7 +684,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_arcillas AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -701,7 +701,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_arenas_minas AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -733,7 +733,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_cilindro AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -769,7 +769,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_floculante AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -787,7 +787,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_lodo AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -806,7 +806,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_grano_mina AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -834,7 +834,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_arena_mina_cristaleria AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -854,7 +854,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 CREATE OR REPLACE VIEW v_tt_fierrillo_casillero AS
 SELECT
-  id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+  folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida,
@@ -884,7 +884,7 @@ ORDER BY fecha_muestreo DESC, created_at DESC;
 
 -- Vista general (todos los formularios, sin expandir granulometria)
 CREATE OR REPLACE VIEW v_ensayos_todos AS
-SELECT id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
+SELECT folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
   producto_key, producto_label, tipo_muestra, num_acopio,
   peso_inicial, peso_final, peso_fondo, pct_humedad,
   guia, lote, hora_salida, granu, quimica, extra,

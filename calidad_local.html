@@ -1086,6 +1086,7 @@ function dbToRow(r){
   var q=r.quimica||{};
   var row={
     ID:r.id,
+    Folio:r.folio||null,
     FechaMuestreo:r.fecha_muestreo,
     FechaEnvio:r.fecha_envio,
     HoraEnvio:r.hora_envio,
@@ -4518,9 +4519,9 @@ function HistoryScreen({account,onBack}){
       if(s.includes('"')||s.includes(','))s='"'+s.replace(/"/g,'""')+'"';
       return s;
     }
-    var hdr=['ID','Fecha','Hora','Turno','Analista','Planta','Producto','PesoInicial','PesoFinal','Estado'];
+    var hdr=['Folio','ID','Fecha','Hora','Turno','Analista','Planta','Producto','PesoInicial','PesoFinal','Estado'];
     var rows=records.map(function(r){
-      return[r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
+      return[r.Folio||'',r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
         r.Analista||r.analista,getPlanta(r),r.Producto||r.productoLabel,
         r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
         r.status==='sent'?'Enviado':'Pendiente'].map(esc);
@@ -4561,12 +4562,12 @@ function HistoryScreen({account,onBack}){
           <div style={{overflowX:'auto'}}>
             <table className="htbl">
               <thead><tr>
-                <th>Fecha</th><th>Planta</th><th>Producto</th><th>Analista</th><th>Turno</th><th>Estado</th>
+                <th style={{width:52}}>N°</th><th>Fecha</th><th>Planta</th><th>Producto</th><th>Analista</th><th>Turno</th><th>Estado</th>
                 <th style={{width:36,textAlign:'center'}}/>
               </tr></thead>
               <tbody>
                 {records.length===0&&(
-                  <tr><td colSpan={7} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
+                  <tr><td colSpan={8} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
                     No hay registros
                   </td></tr>
                 )}
@@ -4580,6 +4581,7 @@ function HistoryScreen({account,onBack}){
                     <React.Fragment key={rid}>
                       <tr style={{cursor:'pointer',background:isOpen?'var(--primary-xlight)':''}}
                         onClick={function(){setExpandedId(isOpen?null:rid);}}>
+                        <td style={{fontWeight:700,color:'var(--primary)'}}>{r.Folio?'#'+r.Folio:'—'}</td>
                         <td>{r.FechaMuestreo||r.fecha}</td>
                         <td style={{fontSize:'.76rem',fontWeight:600,color:planta==='Cuarzo'?'#276749':'#1a5276'}}>{planta}</td>
                         <td>
@@ -4609,16 +4611,17 @@ function HistoryScreen({account,onBack}){
                       </tr>
                       {isOpen&&rec&&(
                         <tr>
-                          <td colSpan={7} style={{padding:0,background:'#f8fafc',borderBottom:'2px solid var(--primary-xlight)'}}>
+                          <td colSpan={8} style={{padding:0,background:'#f8fafc',borderBottom:'2px solid var(--primary-xlight)'}}>
                             <div style={{padding:'16px 20px'}}>
 
                               {/* INFO GENERAL */}
                               <div style={{fontWeight:700,fontSize:'.78rem',color:'var(--primary)',
                                 textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>
-                                Detalle del Ensayo
+                                Detalle del Ensayo{r.Folio?' — Muestra #'+r.Folio:''}
                               </div>
                               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',
                                 gap:'6px 20px',fontSize:'.83rem',marginBottom:14}}>
+                                {r.Folio&&<div><b>N° Muestra:</b> #{r.Folio}</div>}
                                 <div><b>Fecha:</b> {rec.data.fecha}</div>
                                 <div><b>Hora envio:</b> {rec.data.horaEnvio||'—'}</div>
                                 <div><b>Analista:</b> {rec.data.analista||'—'}</div>
