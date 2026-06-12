@@ -394,6 +394,12 @@ const SIEVE_CONFIG={
     {us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},{us:'#200',mm:'0,075'},
     {us:'#270',mm:'0,053'},
   ],
+  // ── OTROS CONTROLES ARENAS ──
+  'CGRANOS':[ // cantidad de granos (conteo, no gramos)
+    {us:'#14',mm:'1,680'},{us:'#16',mm:'1,180'},
+    {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+  ],
+  'MPRIMA':[], // materias primas: solo quimica
   // ── CUARZO ──
   'CALIM':  CALIM_SIEVES,
   'CTLH':   CALIM_SIEVES,
@@ -433,6 +439,8 @@ const PRODUCT_CONFIG={
   'DESP_PH':  {quimica:true, humedad:true, tipoMuestra:false},
   'DESP_LIR': {quimica:true, humedad:true, tipoMuestra:false},
   'DESP_LLAY':{quimica:true, humedad:true, tipoMuestra:false},
+  'CGRANOS':  {quimica:false,humedad:false,tipoMuestra:false},
+  'MPRIMA':   {quimica:true, humedad:false,tipoMuestra:false},
   'CALIM':  {quimica:true, humedad:true, tipoMuestra:false},
   'CTLH':   {quimica:true, humedad:true, tipoMuestra:false},
   'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
@@ -445,6 +453,7 @@ const GRANU_TITLE={
   MOL1:'Molino 1',MOL2:'Molino 2',UND2007:'Under 20.07',OVR2007:'Over 20.07',
   UTACK:'Under Tack 222',MESP:'Muestras Especiales',LODOSA:'Lodos Arenas',
   DESP_PH:'Despacho Padre Hurtado',DESP_LIR:'Despacho Lirquen',DESP_LLAY:'Despacho Llay-Llay',
+  CGRANOS:'Control de Granos',MPRIMA:'Materias Primas Las Piedras',
   CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
 };
 
@@ -798,7 +807,20 @@ const SPECS_DESP_CRIST={
   },
   humedad:{max:null},
 };
-const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS);
+const OTROS_PRODUCTS=[
+  {value:'CGRANOS',label:'Control de Granos'},
+  {value:'MPRIMA', label:'Materias Primas Las Piedras'},
+];
+const MPRIMA_IDENTIFICACIONES=[
+  'Compacta 1','Compacta 2','Compacta 3','Compacta 4','Compacta 5','Compacta 6',
+  'DLK','Molino',
+  'Integral 1','Integral 2','Integral 3','Integral 4','Integral 5','Integral 6',
+  'Fierrillo',
+].map(function(n){return{value:n,label:n};});
+const ACOPIOS_PRODUCCION=[
+  'Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia',
+].map(function(n){return{value:n,label:n};});
+const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS);
 
 /* ── EETT EDITABLES ──
    Registro en vivo de especificaciones por producto. Los SPECS_* de
@@ -844,6 +866,8 @@ var EETT_PRODUCTS=ARENA_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Cuarzo'};
 })).concat(DESPACHO_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Despachos'};
+})).concat(OTROS_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.label,planta:'Arenas'};
 }));
 async function loadEETT(){
   try{
@@ -1937,7 +1961,218 @@ function DespachoForm({account,producto,onBack,onSuccess}){
   );
 }
 
-function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel,extraGroup}){
+/* ── FORMULARIO CONTROL DE GRANOS ──
+   Conteo de granos por tamiz (#14, #16, #18, #20) para el acopio
+   en produccion. No lleva pesos ni quimica. */
+function GranosForm({account,onBack,onSuccess}){
+  var sieves=SIEVE_CONFIG['CGRANOS']||[];
+  var[fecha,setFecha]=useState(today());
+  var[hora,setHora]=useState(nowTime());
+  var[acopio,setAcopio]=useState('');
+  var[gv,setGv]=useState(Array(sieves.length).fill(''));
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function updGv(i,v){
+    // solo enteros
+    var clean=v.replace(/[^0-9]/g,'');
+    setGv(function(p){var n=p.slice();n[i]=clean;return n;});
+  }
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!hora)e.hora='Hora requerida';
+    if(!acopio)e.acopio='Seleccione el acopio en produccion';
+    if(!gv.some(function(v){return v!=='';}))e.granos='Ingrese la cantidad de granos de al menos un tamiz';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'CGRANOS',productoLabel:'Control de Granos',
+      tipoMuestra:'',numAcopio:acopio,
+      pesoInicial:'',pesoFinal:'',granu:gv,pesoFondo:null,
+      pctHumedad:'',quimica:{},observaciones:'',
+      guia:'',lote:'',horaSalida:hora,
+    };
+    addPending(data);
+    try{
+      await sendDespachoToSupabase(data,account);
+      delPending(data.id);
+      setSending(false);
+      onSuccess('Control de granos registrado exitosamente.');
+    }catch(err){
+      console.error(err);
+      setSending(false);
+      onSuccess('Sin conexion: control de granos guardado localmente como pendiente.');
+    }
+  }
+
+  var errList=Object.values(errors);
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div>
+          <h2>Control de Granos</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>Planta Arenas</div>
+        </div>
+      </div>
+
+      {errList.length>0&&(
+        <div className="err-box">
+          <strong>Corrija los siguientes errores:</strong>
+          <ul>{errList.map(function(er,i){return <li key={i}>{er}</li>;})}</ul>
+        </div>
+      )}
+
+      <SecCard title="Parametros Iniciales" icon="&#128203;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaG" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaG" label="Hora" type="time" required value={hora}
+            onChange={function(e){setHora(e.target.value);}} error={errors.hora}/>
+        </div>
+        <div style={{maxWidth:320}}>
+          <Sel name="acopioG" label="Acopio en produccion" required options={ACOPIOS_PRODUCCION}
+            value={acopio} onChange={function(e){setAcopio(e.target.value);}} error={errors.acopio}/>
+        </div>
+      </SecCard>
+
+      <SecCard title="Cantidad de Granos" icon="&#129514;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return(
+              <Field key={s.us} name={'cg'+i} label={s.us+' ('+s.mm+' mm)'}
+                value={gv[i]} onChange={function(e){updGv(i,e.target.value);}} placeholder="0"/>
+            );
+          })}
+        </div>
+        {errors.granos&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors.granos}
+        </div>}
+      </SecCard>
+
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Control'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── FORMULARIO MATERIAS PRIMAS LAS PIEDRAS ──
+   Identificacion de la arena (desplegable) + analisis quimico. */
+function MateriasPrimasForm({account,onBack,onSuccess}){
+  var[fecha,setFecha]=useState(today());
+  var[identificacion,setIdentificacion]=useState('');
+  var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha de muestreo requerida';
+    if(!identificacion)e.identificacion='Seleccione la identificacion de la arena';
+    if(!quimica.sio2)e.sio2='SiO₂ requerido';
+    if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
+    if(!quimica.fe2o3)e.fe2o3='Fe₂O₃ requerido';
+    if(!quimica.cao)e.cao='CaO requerido';
+    if(!quimica.mgo)e.mgo='MgO requerido';
+    if(!quimica.k2o)e.k2o='K₂O requerido';
+    if(!quimica.na2o)e.na2o='Na₂O requerido';
+    if(!quimica.tio2)e.tio2='TiO₂ requerido';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'MPRIMA',productoLabel:'Materias Primas Las Piedras',
+      tipoMuestra:identificacion,numAcopio:'',
+      pesoInicial:'',pesoFinal:'',granu:[],pesoFondo:null,
+      pctHumedad:'',quimica:quimica,observaciones:'',
+    };
+    addPending(data);
+    try{
+      await sendToSupabase(data,account);
+      delPending(data.id);
+      setSending(false);
+      onSuccess('Materias primas registrado exitosamente.');
+    }catch(err){
+      console.error(err);
+      setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+
+  var errList=Object.values(errors);
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div>
+          <h2>Materias Primas Las Piedras</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>Planta Arenas</div>
+        </div>
+      </div>
+
+      {errList.length>0&&(
+        <div className="err-box">
+          <strong>Corrija los siguientes errores:</strong>
+          <ul>{errList.map(function(er,i){return <li key={i}>{er}</li>;})}</ul>
+        </div>
+      )}
+
+      <SecCard title="Parametros Iniciales" icon="&#128203;">
+        <div className="fg fg-2">
+          <Field name="fechaMP" label="Fecha de muestreo" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Sel name="identMP" label="Identificacion de la arena" required options={MPRIMA_IDENTIFICACIONES}
+            value={identificacion} onChange={function(e){setIdentificacion(e.target.value);}} error={errors.identificacion}/>
+        </div>
+      </SecCard>
+
+      <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
+        <div className="fg-quim">
+          {[
+            {k:'sio2',l:'SiO₂ (%)'},{k:'al2o3',l:'Al₂O₃ (%)'},
+            {k:'fe2o3',l:'Fe₂O₃ (%)'},{k:'cao',l:'CaO (%)'},
+            {k:'mgo',l:'MgO (%)'},{k:'k2o',l:'K₂O (%)'},
+            {k:'na2o',l:'Na₂O (%)'},{k:'tio2',l:'TiO₂ (%)'},
+          ].map(function(f){
+            return(
+              <Field key={f.k} name={f.k+'MP'} label={f.l} type="decimal" required value={quimica[f.k]}
+                onChange={function(e){var v=e.target.value;setQuimica(function(p){var n=Object.assign({},p);n[f.k]=v;return n;});}}
+                error={errors[f.k]} placeholder="0,00"/>
+            );
+          })}
+        </div>
+      </SecCard>
+
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Muestra'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel,extraGroups}){
   var[view,setView]=useState('form');
   var[sending,setSending]=useState(false);
   var[reportModal,setReportModal]=useState(null);
@@ -2107,24 +2342,26 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
             </button>
           );
         })}
-        {extraGroup&&(
-          <>
-            <div style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:10,margin:'6px 0 0'}}>
-              <div style={{flex:1,height:1,background:'var(--border)'}}/>
-              <span style={{fontSize:'.78rem',fontWeight:700,color:'var(--text-secondary)',textTransform:'uppercase',letterSpacing:'.05em'}}>{extraGroup.label}</span>
-              <div style={{flex:1,height:1,background:'var(--border)'}}/>
-            </div>
-            {extraGroup.products.map(function(p){
-              return(
-                <button key={p.value} className="prod-btn"
-                  style={{borderColor:'#276749'}}
-                  onClick={function(){extraGroup.onPick(p.value);}}>
-                  🚚 {p.label.replace('Despacho ','')}
-                </button>
-              );
-            })}
-          </>
-        )}
+        {(extraGroups||[]).map(function(grp){
+          return(
+            <React.Fragment key={grp.label}>
+              <div style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:10,margin:'6px 0 0'}}>
+                <div style={{flex:1,height:1,background:'var(--border)'}}/>
+                <span style={{fontSize:'.78rem',fontWeight:700,color:'var(--text-secondary)',textTransform:'uppercase',letterSpacing:'.05em'}}>{grp.label}</span>
+                <div style={{flex:1,height:1,background:'var(--border)'}}/>
+              </div>
+              {grp.products.map(function(p){
+                return(
+                  <button key={p.value} className="prod-btn"
+                    style={{borderColor:grp.color||'#276749'}}
+                    onClick={function(){grp.onPick(p.value);}}>
+                    {grp.icon?grp.icon+' ':''}{p.label.replace('Despacho ','')}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {!producto&&(
@@ -2273,14 +2510,26 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
 
 function ArenasForm({account,onBack,onSuccess}){
   var[desp,setDesp]=useState(null);
+  var[extra,setExtra]=useState(null);
   if(desp){
     return <DespachoForm account={account} producto={desp}
       onBack={function(){setDesp(null);}} onSuccess={onSuccess}/>;
   }
+  if(extra==='CGRANOS'){
+    return <GranosForm account={account}
+      onBack={function(){setExtra(null);}} onSuccess={onSuccess}/>;
+  }
+  if(extra==='MPRIMA'){
+    return <MateriasPrimasForm account={account}
+      onBack={function(){setExtra(null);}} onSuccess={onSuccess}/>;
+  }
   return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
     plantaLabel="Planta Arenas" products={ARENA_PRODUCTS}
     lsGet={getPending} lsAdd={addPending} lsDel={delPending}
-    extraGroup={{label:'Despachos Arena Premium',products:DESPACHO_PRODUCTS,onPick:setDesp}}/>;
+    extraGroups={[
+      {label:'Despachos Arena Premium',icon:'🚚',color:'#276749',products:DESPACHO_PRODUCTS,onPick:setDesp},
+      {label:'Otros Controles',icon:'🧪',color:'#8e44ad',products:OTROS_PRODUCTS,onPick:setExtra},
+    ]}/>;
 }
 
 function CuarzoForm({account,onBack,onSuccess}){
