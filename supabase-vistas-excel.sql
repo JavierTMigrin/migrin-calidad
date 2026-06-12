@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- MIGRIN Control de Calidad - Vistas para conexion Excel/Power BI
 -- Una vista por formulario con granulometria/quimica expandidas.
 -- Ejecutar en el SQL Editor de Supabase.
