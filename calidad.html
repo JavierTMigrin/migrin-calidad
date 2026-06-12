@@ -1033,7 +1033,7 @@ async function sendAlertaEmail(data,violations,user){
       enviadoPor:user?user.email:'',
       violaciones:violations,
       recomendacion:esAcopio?'ACOPIO FUERA DE NORMA'
-        :data.tipoMuestra==='Despacho'?'DESPACHO FUERA DE NORMA — revisar antes de enviar al cliente'
+        :data.tipoMuestra==='Despacho'?'NO DESPACHAR — PRODUCTO CON POSIBILIDAD DE RECHAZO'
         :'Se recomienda cambio a cono de emergencia.',
       noAptoDespacho:humViol,
     }});
@@ -1520,7 +1520,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
               {data.tipoMuestra==='Acopio'
                 ?'🚨 ACOPIO FUERA DE NORMA'
                 :data.tipoMuestra==='Despacho'
-                ?'🚨 DESPACHO FUERA DE NORMA — revisar antes de enviar al cliente'
+                ?'⛔ NO DESPACHAR — PRODUCTO CON POSIBILIDAD DE RECHAZO'
                 :'🚨 PARAMETROS FUERA DE NORMA — Se recomienda cambio a cono de emergencia'}
             </div>
             {violations.some(function(v){return v.param==='Humedad';})&&(
@@ -1757,7 +1757,8 @@ function DespachoForm({account,producto,onBack,onSuccess}){
   var[guia,setGuia]=useState('');
   var[lote,setLote]=useState('');
   var[gv,setGv]=useState(Array(sieves.length).fill(''));
-  var[pan,setPan]=useState('');
+  var[pesoInicial,setPesoInicial]=useState('');
+  var[pesoFinal,setPesoFinal]=useState('');
   var[pctHumedad,setPctHumedad]=useState('');
   var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
   var[errors,setErrors]=useState({});
@@ -1772,19 +1773,19 @@ function DespachoForm({account,producto,onBack,onSuccess}){
 
   function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
 
-  var suma=gv.reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0)
-    +(isNaN(parseDecimal(pan))?0:parseDecimal(pan));
-  var sumaOk=Math.abs(suma-100)<=0.5;
-  var gc=useMemo(function(){return calcGranu(producto,gv,'100');},[producto,gv]);
+  var gc=useMemo(function(){return calcGranu(producto,gv,pesoFinal);},[producto,gv,pesoFinal]);
 
   function validate(){
     var e={};
     if(!fecha)e.fecha='Fecha de despacho requerida';
     if(!horaSalida)e.horaSalida='Hora de salida requerida';
     if(!guia)e.guia='Numero de guia requerido';
-    var anyG=gv.some(function(v){return v!=='';})||pan!=='';
-    if(!anyG)e.granu='Ingrese la granulometria';
-    else if(!sumaOk)e.granu='La suma de la granulometria debe ser 100% (actual: '+fmt(suma,2)+'%)';
+    var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
+    if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
+    if(!pesoFinal)e.pesoFinal='Peso final requerido';
+    else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
+      e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+    if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     if(!pctHumedad)e.pctHumedad='Humedad requerida';
     if(!quimica.sio2)e.sio2='SiO₂ requerido';
     if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
@@ -1806,7 +1807,7 @@ function DespachoForm({account,producto,onBack,onSuccess}){
       id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
       turno:'',analista:account?account.email:'',producto:producto,productoLabel:prodLabel,
       tipoMuestra:'Despacho',numAcopio:'',
-      pesoInicial:'100',pesoFinal:'100',granu:gv,pesoFondo:parseDecimal(pan)||0,
+      pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
       pctHumedad:pctHumedad,quimica:quimica,observaciones:'',
       guia:guia,lote:lote,horaSalida:horaSalida,
     };
@@ -1855,7 +1856,6 @@ function DespachoForm({account,producto,onBack,onSuccess}){
   }
 
   var errList=Object.values(errors);
-  var sumaColor=suma===0?'var(--text-muted)':sumaOk?'var(--success)':'var(--error)';
 
   return(
     <div>
@@ -1889,25 +1889,17 @@ function DespachoForm({account,producto,onBack,onSuccess}){
         </div>
       </SecCard>
 
-      <SecCard title={'Analisis Granulometrico (%) — '+prodLabel} icon="&#128300;">
-        <div className="fg-quim">
-          {sieves.map(function(s,i){
-            return(
-              <Field key={s.us} name={'g'+i} label={s.us+' ('+s.mm+' mm)'} type="decimal"
-                value={gv[i]} onChange={function(e){updGv(i,e.target.value);}} placeholder="0,00"/>
-            );
-          })}
-          <Field name="pan" label="PAN" type="decimal" value={pan}
-            onChange={function(e){setPan(e.target.value);}} placeholder="0,00"/>
-          <div className="field">
-            <label>SUMA (%)<span className="calc-badge">Calculado</span></label>
-            <input type="text" readOnly className="f-ro" value={suma?fmt(suma,2):''}
-              style={{fontWeight:700,color:sumaColor}}/>
-            <span className="fhint" style={{color:sumaColor}}>
-              {suma===0?'Debe sumar 100%':sumaOk?'✓ Suma correcta':'Debe sumar 100% ± 0,5'}
-            </span>
-          </div>
+      <SecCard title="Pesos" icon="&#9878;&#65039;">
+        <div className="fg fg-2">
+          <Field name="piD" label="Peso Inicial (g)" type="decimal" required value={pesoInicial}
+            onChange={function(e){setPesoInicial(e.target.value);}} error={errors.pesoInicial} placeholder="0,00"/>
+          <Field name="pfD" label="Peso Final (g)" type="decimal" required value={pesoFinal}
+            onChange={function(e){setPesoFinal(e.target.value);}} error={errors.pesoFinal} placeholder="0,00"/>
         </div>
+      </SecCard>
+
+      <SecCard title={'Granulometria — '+prodLabel} icon="&#128300;">
+        <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
         {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
           Aviso: {errors.granu}
         </div>}
@@ -2172,7 +2164,7 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
   );
 }
 
-function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel,extraGroups}){
+function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel,extraGroups,otrosGroup}){
   var[view,setView]=useState('form');
   var[sending,setSending]=useState(false);
   var[reportModal,setReportModal]=useState(null);
@@ -2362,6 +2354,34 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
             </React.Fragment>
           );
         })}
+        {otrosGroup&&(
+          <>
+            <div style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:10,margin:'6px 0 0'}}>
+              <div style={{flex:1,height:1,background:'var(--border)'}}/>
+              <span style={{fontSize:'.78rem',fontWeight:700,color:'var(--text-secondary)',textTransform:'uppercase',letterSpacing:'.05em'}}>{otrosGroup.label}</span>
+              <div style={{flex:1,height:1,background:'var(--border)'}}/>
+            </div>
+            {otrosGroup.inline.map(function(p){
+              return(
+                <button key={p.value}
+                  className={'prod-btn'+(producto===p.value?' sel':'')}
+                  style={{borderColor:otrosGroup.color}}
+                  onClick={function(){setProducto(p.value);}}>
+                  {p.label}
+                </button>
+              );
+            })}
+            {otrosGroup.nav.map(function(p){
+              return(
+                <button key={p.value} className="prod-btn"
+                  style={{borderColor:otrosGroup.color}}
+                  onClick={function(){otrosGroup.onNav(p.value);}}>
+                  {otrosGroup.icon?otrosGroup.icon+' ':''}{p.label}
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {!producto&&(
@@ -2523,13 +2543,19 @@ function ArenasForm({account,onBack,onSuccess}){
     return <MateriasPrimasForm account={account}
       onBack={function(){setExtra(null);}} onSuccess={onSuccess}/>;
   }
+  var otrosInlineKeys=['UND2007','OVR2007','UTACK','MESP','LODOSA'];
   return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
-    plantaLabel="Planta Arenas" products={ARENA_PRODUCTS}
+    plantaLabel="Planta Arenas"
+    products={ARENA_PRODUCTS.filter(function(p){return otrosInlineKeys.indexOf(p.value)<0;})}
     lsGet={getPending} lsAdd={addPending} lsDel={delPending}
     extraGroups={[
       {label:'Despachos Arena Premium',icon:'🚚',color:'#276749',products:DESPACHO_PRODUCTS,onPick:setDesp},
-      {label:'Otros Controles',icon:'🧪',color:'#8e44ad',products:OTROS_PRODUCTS,onPick:setExtra},
-    ]}/>;
+    ]}
+    otrosGroup={{
+      label:'Otros Controles',icon:'🧪',color:'#8e44ad',
+      inline:ARENA_PRODUCTS.filter(function(p){return otrosInlineKeys.indexOf(p.value)>=0;}),
+      nav:OTROS_PRODUCTS,onNav:setExtra,
+    }}/>;
 }
 
 function CuarzoForm({account,onBack,onSuccess}){
