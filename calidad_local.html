@@ -515,42 +515,25 @@ const SPECS_A38={
   humedad:{max:6.0},
 };
 
-function getSpecs(producto){
-  if(producto==='A38')return SPECS_A38;
-  if(producto==='CTLH')return SPECS_CTLH;
-  if(producto==='CDLK')return SPECS_CDLK;
-  if(producto==='VERALTA')return SPECS_VERALTA;
-  if(producto==='VERBAJA')return SPECS_VERBAJA;
-  return null;
+/* Devuelve true si el spec tiene al menos un limite numerico definido */
+function specHasLimits(sp){
+  if(!sp)return false;
+  var found=false;
+  (function walk(o){
+    Object.keys(o).forEach(function(k){
+      var v=o[k];
+      if(v===null||v===undefined)return;
+      if(typeof v==='number'){found=true;}
+      else if(typeof v==='object')walk(v);
+    });
+  })(sp);
+  return found;
 }
 
-/* ── EETT EDITABLES ──
-   Los objetos SPECS_* de arriba son los valores por defecto.
-   Si existe un override en la tabla `especificaciones` de Supabase,
-   se fusiona en memoria al iniciar la app (mutacion in-place, asi
-   toda la logica que referencia SPECS_* ve los valores editados). */
-var EETT_LIVE={
-  A36:SPECS_A36,A38:SPECS_A38,
-  VERALTA:SPECS_VERALTA,VERBAJA:SPECS_VERBAJA,
-  CTLH:SPECS_CTLH,CDLK:SPECS_CDLK,
-};
-const EETT_PRODUCTS=[
-  {key:'A36',label:'A36 — TLH (Lirquen / Cristalerias)'},
-  {key:'A38',label:'A38 — Fierrillo'},
-  {key:'VERALTA',label:'Veralia Alta Hierro'},
-  {key:'VERBAJA',label:'Veralia Baja Hierro'},
-  {key:'CTLH',label:'TLH Cuarzo (A-37)'},
-  {key:'CDLK',label:'DLK'},
-];
-async function loadEETT(){
-  try{
-    var res=await supabase.from('especificaciones').select('*');
-    if(res.error||!res.data)return;
-    res.data.forEach(function(r){
-      var live=EETT_LIVE[r.producto_key];
-      if(live&&r.specs)Object.keys(r.specs).forEach(function(k){live[k]=r.specs[k];});
-    });
-  }catch(e){console.error('Error cargando EETT:',e);}
+function getSpecs(producto){
+  if(producto==='A36')return null; // A36 se evalua con SPECS_A36 (dos especificaciones)
+  var sp=EETT_LIVE[producto];
+  return sp&&specHasLimits(sp)?sp:null;
 }
 
 function getDashboardControles(prod){
@@ -743,6 +726,51 @@ const CUARZO_PRODUCTS=[
   {value:'CLODOS',label:'Lodos Cuarzo'},
 ];
 const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS);
+
+/* ── EETT EDITABLES ──
+   Registro en vivo de especificaciones por producto. Los SPECS_* de
+   arriba son los valores por defecto; los productos sin EETT reciben
+   una plantilla vacia (todos los limites en null) generada desde su
+   SIEVE_CONFIG y PRODUCT_CONFIG, lista para completar desde el editor
+   de Ajustes. Al agregar un producto nuevo a ARENA_PRODUCTS o
+   CUARZO_PRODUCTS aparece automaticamente en el editor.
+   Los overrides guardados en la tabla `especificaciones` de Supabase
+   se fusionan en memoria al iniciar (mutacion in-place, asi toda la
+   logica que referencia estos objetos ve los valores editados). */
+const QUIMICA_TEMPLATE=['SiO2','Al2O3','Fe2O3','CaO','MgO','K2O','Na2O','TiO2','K2O_Na2O'];
+function buildEmptySpec(key){
+  var g={};
+  (SIEVE_CONFIG[key]||[]).forEach(function(s){
+    g[s.us]={retMax:null,retMin:null,pasMax:null,pasMin:null};
+  });
+  var sp={granulometria:g};
+  var cfg=PRODUCT_CONFIG[key]||{};
+  if(cfg.quimica){
+    sp.quimica={};
+    QUIMICA_TEMPLATE.forEach(function(el){sp.quimica[el]={min:null,max:null};});
+  }
+  if(cfg.humedad)sp.humedad={max:null};
+  sp.d50Max=null;
+  return sp;
+}
+var EETT_DEFAULTS={A36:SPECS_A36,A38:SPECS_A38,VERALTA:SPECS_VERALTA,VERBAJA:SPECS_VERBAJA,CTLH:SPECS_CTLH,CDLK:SPECS_CDLK};
+var EETT_LIVE={};
+ALL_PRODUCTS.forEach(function(p){
+  EETT_LIVE[p.value]=EETT_DEFAULTS[p.value]||buildEmptySpec(p.value);
+});
+var EETT_PRODUCTS=ALL_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.value==='A36'?'A36 — TLH (Lirquen / Cristalerias)':p.label};
+});
+async function loadEETT(){
+  try{
+    var res=await supabase.from('especificaciones').select('*');
+    if(res.error||!res.data)return;
+    res.data.forEach(function(r){
+      var live=EETT_LIVE[r.producto_key];
+      if(live&&r.specs)Object.keys(r.specs).forEach(function(k){live[k]=r.specs[k];});
+    });
+  }catch(e){console.error('Error cargando EETT:',e);}
+}
 const TURNOS=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'}];
 const ANALISTAS_DEFAULT=[{value:'Camila Opazo',label:'Camila Opazo'},{value:'Ximena Gutierrez',label:'Ximena Gutierrez'}];
 
