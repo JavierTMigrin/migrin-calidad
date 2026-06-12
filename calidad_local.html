@@ -3598,6 +3598,9 @@ function DashboardScreen({account,onBack}){
   var[filterTurno,setFilterTurno]=useState('');
   var[filterAnalista,setFilterAnalista]=useState('');
   var[maWin,setMaWin]=useState(5);
+  var[showMA,setShowMA]=useState(true);
+  var[showAvg,setShowAvg]=useState(true);
+  var[showLims,setShowLims]=useState(true);
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
   var[filterNumAcopio,setFilterNumAcopio]=useState(ACOPIO_OPTS.slice());
   // chart refs — granu curves
@@ -3609,6 +3612,8 @@ function DashboardScreen({account,onBack}){
   var tInsts=useRef([null,null,null,null,null,null]);
   // chemistry chart
   var cQRef=useRef(null);var iQRef=useRef(null);
+  // per-oxide chemistry charts
+  var chemRefs=useRef({});var chemInsts=useRef({});
   var logoSrc=useMemo(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'';},[]);
 
   useEffect(function(){loadData();},[]);
@@ -3836,17 +3841,48 @@ function DashboardScreen({account,onBack}){
   },[prod]);
 
   var chemControls=useMemo(function(){
-    var ps=getSpecs(prod);
-    if(!ps||!ps.quimica)return[
-      {key:'SiO2',label:'SiO₂ (%)',color:'#1a5276',limMin:null,limMax:null},
-      {key:'Al2O3',label:'Al₂O₃ (%)',color:'#c53030',limMin:null,limMax:null},
-      {key:'Fe2O3',label:'Fe₂O₃ (%)',color:'#b7791f',limMin:null,limMax:null},
-    ];
-    var cols=['#1a5276','#c53030','#b7791f','#276749','#8e44ad','#555'];
-    var pairs=[['SiO2','SiO₂'],['Al2O3','Al₂O₃'],['Fe2O3','Fe₂O₃'],['CaO','CaO'],['MgO','MgO'],['K2O','K₂O'],['Na2O','Na₂O'],['TiO2','TiO₂']];
-    return pairs.filter(function(p){var s=ps.quimica[p[0]];return s&&(s.min!==null||s.max!==null);})
-      .map(function(p,i){var s=ps.quimica[p[0]];return{key:p[0],label:p[1]+' (%)',color:cols[i%cols.length],limMin:s.min,limMax:s.max};});
+    var cols=['#1a5276','#c53030','#b7791f','#276749','#8e44ad','#e67e22','#2e86c1','#555','#117864'];
+    var pairs=[['SiO2','SiO₂'],['Al2O3','Al₂O₃'],['Fe2O3','Fe₂O₃'],['CaO','CaO'],['MgO','MgO'],
+               ['K2O','K₂O'],['Na2O','Na₂O'],['TiO2','TiO₂'],['K2O_Na2O','K₂O+Na₂O']];
+    var qspec=null,specName='';
+    if(prod==='A36'){
+      // A36 se controla quimicamente contra la EETT de Lirquen (la mas exigente)
+      qspec=(SPECS_A36.LIRQUEN||{}).quimica||null;specName='EETT Lirquen';
+    }else{
+      var ps=getSpecs(prod);
+      qspec=ps?ps.quimica:null;
+    }
+    return pairs.map(function(p,i){
+      var s=qspec?qspec[p[0]]:null;
+      return{key:p[0],label:p[1]+' (%)',color:cols[i%cols.length],
+        limMin:s&&s.min!=null?s.min:null,limMax:s&&s.max!=null?s.max:null,specName:specName};
+    });
   },[prod]);
+
+  /* Oxidos a graficar: los que tienen EETT o datos reales en el periodo */
+  var chemActive=useMemo(function(){
+    return chemControls.filter(function(c){
+      if(c.limMin!=null||c.limMax!=null)return true;
+      return filtered.some(function(r){var v=parseDecimal(r[c.key]);return v!=null&&!isNaN(v)&&v!==0;});
+    });
+  },[chemControls,filtered]);
+
+  /* Estadistica por oxido: ultimo, promedio, desv std, movil, min/max, n */
+  var chemStats=useMemo(function(){
+    return chemActive.map(function(c){
+      var vals=filtered.map(function(r){var v=parseDecimal(r[c.key]);return(v==null||isNaN(v))?null:v;});
+      var vld=vals.filter(function(v){return v!=null;});
+      var n=vld.length;
+      var avg=n?vld.reduce(function(a,b){return a+b;},0)/n:null;
+      var std=n>1?Math.sqrt(vld.reduce(function(a,b){return a+Math.pow(b-avg,2);},0)/(n-1)):null;
+      var last=null;for(var i=vals.length-1;i>=0;i--){if(vals[i]!=null){last=vals[i];break;}}
+      var ma=movAvg(vals,maWin);
+      var lastMa=null;for(var j=ma.length-1;j>=0;j--){if(ma[j]!=null){lastMa=ma[j];break;}}
+      return{ctrl:c,vals:vals,ma:ma,n:n,avg:avg,std:std,last:last,lastMa:lastMa,
+        min:n?Math.min.apply(null,vld):null,max:n?Math.max.apply(null,vld):null,
+        sem:calcSemaforo(last,c.limMin,c.limMax)};
+    });
+  },[chemActive,filtered,maWin]);
 
   var allCtrls=useMemo(function(){
     var ps=getSpecs(prod);
@@ -3940,24 +3976,26 @@ function DashboardScreen({account,onBack}){
     }
     var dsPar=[
       {label:'Último ensayo',data:granuCurveData.lastPar,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
-      {label:'Prom.período',data:granuCurveData.avgPar,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]},
     ];
     var dsPas=[
       {label:'Último ensayo',data:granuCurveData.lastPas,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
-      {label:'Prom.período',data:granuCurveData.avgPas,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]},
     ];
+    if(showAvg){
+      dsPar.push({label:'Prom.período',data:granuCurveData.avgPar,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]});
+      dsPas.push({label:'Prom.período',data:granuCurveData.avgPas,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]});
+    }
     var hasRetMax=sieves.some(function(s){var g=granuSpec[s.us];return g&&g.retMax!=null;});
     var hasPasMin=sieves.some(function(s){var g=granuSpec[s.us];return g&&g.pasMin!=null;});
     var hasPasMax=sieves.some(function(s){var g=granuSpec[s.us];return g&&g.pasMax!=null;});
-    if(hasRetMax)dsPar.push({label:'Lím.Máx',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.retMax!=null?g.retMax:null;}),borderColor:'rgba(197,48,48,.65)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
-    if(hasPasMin)dsPas.push({label:'Lím.Mín',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.pasMin!=null?g.pasMin:null;}),borderColor:'rgba(39,103,73,.7)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
-    if(hasPasMax)dsPas.push({label:'Lím.Máx',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.pasMax!=null?g.pasMax:null;}),borderColor:'rgba(197,48,48,.65)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
+    if(showLims&&hasRetMax)dsPar.push({label:'Lím.Máx',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.retMax!=null?g.retMax:null;}),borderColor:'rgba(197,48,48,.65)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
+    if(showLims&&hasPasMin)dsPas.push({label:'Lím.Mín',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.pasMin!=null?g.pasMin:null;}),borderColor:'rgba(39,103,73,.7)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
+    if(showLims&&hasPasMax)dsPas.push({label:'Lím.Máx',data:sieves.map(function(s){var g=granuSpec[s.us];return g&&g.pasMax!=null?g.pasMax:null;}),borderColor:'rgba(197,48,48,.65)',borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,borderDash:[5,3]});
     mkC(cParRef,iParRef,dsPar);mkC(cPasRef,iPasRef,dsPas);
     return function(){
       if(iParRef.current){iParRef.current.destroy();iParRef.current=null;}
       if(iPasRef.current){iPasRef.current.destroy();iPasRef.current=null;}
     };
-  },[tab,granuCurveData,prod,filteredStats]);
+  },[tab,granuCurveData,prod,filteredStats,showAvg,showLims]);
 
   // === CHART: Trend Charts ===
   useEffect(function(){
@@ -3979,11 +4017,11 @@ function DashboardScreen({account,onBack}){
       var semC=vals.map(function(v){return SEM_COLOR[calcSemaforo(v,ctrl.limMin,ctrl.limMax)]||'#888';});
       var ds=[
         {label:ctrl.label,data:vals,borderColor:ctrl.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,pointBackgroundColor:semC,tension:.3,spanGaps:true},
-        {label:'MA'+maWin,data:ma,borderColor:'#e67e22',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]},
-        {label:'Prom.',data:vals.map(function(){return pAvg;}),borderColor:'#aaa',backgroundColor:'transparent',borderWidth:1,pointRadius:0,spanGaps:true,borderDash:[3,3]},
       ];
-      if(ctrl.limMax!=null)ds.push({label:'Lím',data:vals.map(function(){return ctrl.limMax;}),borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1,pointRadius:0,borderDash:[6,3],spanGaps:true});
-      if(ctrl.limMin!=null)ds.push({label:'Lím',data:vals.map(function(){return ctrl.limMin;}),borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1,pointRadius:0,borderDash:[6,3],spanGaps:true});
+      if(showMA)ds.push({label:'MA'+maWin,data:ma,borderColor:'#e67e22',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
+      if(showAvg)ds.push({label:'Prom.',data:vals.map(function(){return pAvg;}),borderColor:'#aaa',backgroundColor:'transparent',borderWidth:1,pointRadius:0,spanGaps:true,borderDash:[3,3]});
+      if(showLims&&ctrl.limMax!=null)ds.push({label:'Lím',data:vals.map(function(){return ctrl.limMax;}),borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1,pointRadius:0,borderDash:[6,3],spanGaps:true});
+      if(showLims&&ctrl.limMin!=null)ds.push({label:'Lím',data:vals.map(function(){return ctrl.limMin;}),borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1,pointRadius:0,borderDash:[6,3],spanGaps:true});
       tInsts.current[i]=new window.Chart(trList[i].current,{type:'line',
         data:{labels:tLbls,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
@@ -3991,27 +4029,46 @@ function DashboardScreen({account,onBack}){
           scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8,family:'Inter'}}}}}});
     });
     return function(){tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});};
-  },[tab,filtered,prod,maWin,allCtrls]);
+  },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims]);
 
-  // === CHART: Chemistry ===
+  // === CHART: Chemistry (un grafico por oxido, estilo tendencias EETT) ===
   useEffect(function(){
-    if(tab!=='quim'||!cQRef.current||!window.Chart)return;
-    if(iQRef.current){iQRef.current.destroy();iQRef.current=null;}
-    var lbs=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
-    var ds=[];
-    chemControls.forEach(function(ctrl){
-      var raw=filtered.map(function(r){var v=parseDecimal(r[ctrl.key]);return isNaN(v)?null:+v.toFixed(3);});
-      var ma=movAvg(raw,maWin);
-      ds.push({label:ctrl.label,data:raw,borderColor:ctrl.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,tension:.3,spanGaps:true});
-      ds.push({label:ctrl.label+' MA'+maWin,data:ma,borderColor:ctrl.color,backgroundColor:ctrl.color+'33',borderWidth:2.5,pointRadius:0,tension:.4,spanGaps:true,fill:false,borderDash:[4,2]});
+    if(tab!=='quim'||!window.Chart)return;
+    Object.keys(chemInsts.current).forEach(function(k){
+      if(chemInsts.current[k]){chemInsts.current[k].destroy();chemInsts.current[k]=null;}
     });
-    iQRef.current=new window.Chart(cQRef.current,{type:'line',
-      data:{labels:lbs,datasets:ds},
-      options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{position:'top',labels:{font:{size:10,family:'Inter'}}}},
-        scales:{x:{ticks:{font:{size:9,family:'Inter'},maxRotation:45}},y:{ticks:{font:{size:9,family:'Inter'}}}}}});
-    return function(){if(iQRef.current){iQRef.current.destroy();iQRef.current=null;}};
-  },[tab,filtered,maWin,prod,chemControls]);
+    var lbs=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
+    chemStats.forEach(function(st){
+      var el=chemRefs.current[st.ctrl.key];
+      if(!el)return;
+      var c=st.ctrl;
+      var semC=st.vals.map(function(v){return SEM_COLOR[calcSemaforo(v,c.limMin,c.limMax)]||'#888';});
+      var ds=[
+        {label:c.label,data:st.vals.map(function(v){return v!=null?+v.toFixed(3):null;}),
+          borderColor:c.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,
+          pointBackgroundColor:semC,tension:.3,spanGaps:true},
+      ];
+      if(showMA)ds.push({label:'MA'+maWin,data:st.ma,borderColor:'#e67e22',backgroundColor:'transparent',
+        borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
+      if(showAvg&&st.avg!=null)ds.push({label:'Prom.',data:st.vals.map(function(){return st.avg;}),
+        borderColor:'#aaa',backgroundColor:'transparent',borderWidth:1,pointRadius:0,spanGaps:true,borderDash:[3,3]});
+      if(showLims&&c.limMax!=null)ds.push({label:'Lím.Máx',data:st.vals.map(function(){return c.limMax;}),
+        borderColor:'#c53030',backgroundColor:'transparent',borderWidth:1.2,pointRadius:0,borderDash:[6,3],spanGaps:true});
+      if(showLims&&c.limMin!=null)ds.push({label:'Lím.Mín',data:st.vals.map(function(){return c.limMin;}),
+        borderColor:'#276749',backgroundColor:'transparent',borderWidth:1.2,pointRadius:0,borderDash:[6,3],spanGaps:true});
+      chemInsts.current[st.ctrl.key]=new window.Chart(el,{type:'line',
+        data:{labels:lbs,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},
+                  y:{ticks:{font:{size:8,family:'Inter'}}}}}});
+    });
+    return function(){
+      Object.keys(chemInsts.current).forEach(function(k){
+        if(chemInsts.current[k]){chemInsts.current[k].destroy();chemInsts.current[k]=null;}
+      });
+    };
+  },[tab,chemStats,filtered,maWin,showMA,showAvg,showLims]);
 
   // === RENDER HELPERS ===
   function getTRef(i){return [tr0,tr1,tr2,tr3,tr4,tr5][i]||null;}
@@ -4048,6 +4105,36 @@ function DashboardScreen({account,onBack}){
           {varBadge(stat.ult5Var,ult5Lbl,isLow,isInfo)}
           {varBadge(stat.perVar,'per',isLow,isInfo)}
         </div>
+      </div>
+    );
+  }
+
+  function lineTogglesBar(){
+    function tg(val,set,lbl,col){
+      return(
+        <label style={{display:'inline-flex',alignItems:'center',gap:5,cursor:'pointer',
+          padding:'3px 10px',borderRadius:14,fontSize:'.76rem',fontWeight:600,
+          background:val?'var(--primary-xlight)':'#f0f0f0',
+          color:val?'var(--primary)':'var(--text-muted)',
+          border:'1px solid '+(val?'var(--primary-light)':'var(--border)')}}>
+          <input type="checkbox" checked={val} style={{accentColor:col||'var(--primary)',margin:0}}
+            onChange={function(e){set(e.target.checked);}}/>
+          {lbl}
+        </label>
+      );
+    }
+    return(
+      <div className="ma-bar" style={{flexWrap:'wrap'}}>
+        <span>Promedio movil:</span>
+        <select value={maWin} onChange={function(e){setMaWin(parseInt(e.target.value));}}>
+          <option value="5">5 periodos</option><option value="7">7 periodos</option>
+          <option value="10">10 periodos</option><option value="30">30 periodos</option>
+        </select>
+        <span style={{marginLeft:8}}>Mostrar:</span>
+        {tg(showMA,setShowMA,'Móvil','#e67e22')}
+        {tg(showAvg,setShowAvg,'Promedio','#888')}
+        {tg(showLims,setShowLims,'Límites EETT','#c53030')}
+        <span style={{color:'var(--text-muted)',fontWeight:400}}>({filtered.length} registros)</span>
       </div>
     );
   }
@@ -4266,6 +4353,7 @@ function DashboardScreen({account,onBack}){
 
           {tab==='granu'&&(
             <>
+              {lineTogglesBar()}
               {/* ══ PÁGINA 1 ══ */}
               <div id="export-page1" style={{background:'#fff',paddingBottom:6}}>
                 {expHdr()}
@@ -4486,37 +4574,75 @@ function DashboardScreen({account,onBack}){
 
           {tab==='quim'&&(
             <div>
-              <div className="ma-bar">
-                <span>Promedio movil:</span>
-                <select value={maWin} onChange={function(e){setMaWin(parseInt(e.target.value));}}>
-                  <option value="5">5 periodos</option><option value="7">7 periodos</option>
-                </select>
-                <span style={{color:'var(--text-muted)',fontWeight:400}}>({filtered.length} registros)</span>
-              </div>
+              {lineTogglesBar()}
+
+              {/* KPIs por oxido (ultimo valor vs EETT) */}
               <div className="kpi4-grid" style={{marginBottom:16}}>
-                {chemControls.map(function(c,i){
-                  var vals=filtered.map(function(r){var v=parseDecimal(r[c.key]);return isNaN(v)?null:v;}).filter(function(v){return v!=null;});
-                  var last=vals.length?vals[vals.length-1]:null;
-                  var sem=calcSemaforo(last,c.limMin,c.limMax);
-                  var sc=SEM_COLOR[sem]||'#999';
-                  var bd=sem==='ok'?'bd-ok':sem==='warning'?'bd-warn':sem==='error'?'bd-err':'';
+                {chemStats.filter(function(st){return st.ctrl.limMin!=null||st.ctrl.limMax!=null;}).slice(0,4).map(function(st,i){
+                  var c=st.ctrl;var sc=SEM_COLOR[st.sem]||'#999';
+                  var bd=st.sem==='ok'?'bd-ok':st.sem==='warning'?'bd-warn':st.sem==='error'?'bd-err':'';
                   return(
                     <div key={i} className={'kpi4-card '+bd}>
                       <div className="kpi4-name">{c.label}</div>
-                      <div className="kpi4-val" style={{color:sc}}>{last!=null?fmt(last,3):'-'}</div>
+                      <div className="kpi4-val" style={{color:sc}}>{st.last!=null?fmt(st.last,3):'-'}</div>
                       <div className="kpi4-lim">
-                        {c.limMax!=null&&c.limMin!=null?c.limMin+' – '+c.limMax:
-                         c.limMax!=null?'máx '+c.limMax:c.limMin!=null?'mín '+c.limMin:'informativo'}
+                        EETT: {c.limMax!=null&&c.limMin!=null?c.limMin+' – '+c.limMax:
+                         c.limMax!=null?'≤ '+c.limMax:c.limMin!=null?'≥ '+c.limMin:'—'}
+                        {c.specName?' ('+c.specName+')':''}
                       </div>
-                      <div className="kpi4-sem" style={{color:sc}}>{SEM_ICON[sem]} {SEM_LABEL[sem]}</div>
+                      <div className="kpi4-sem" style={{color:sc}}>{SEM_ICON[st.sem]} {SEM_LABEL[st.sem]}</div>
                     </div>
                   );
                 })}
               </div>
-              <div className="dash-chart-card">
-                <div className="dash-chart-title">Tendencias Químicas — {filtered.length} registros</div>
-                <div style={{position:'relative',height:360}}><canvas ref={cQRef}/></div>
+
+              {/* Un grafico por oxido con su estadistica */}
+              <div className="granu-curves">
+                {chemStats.map(function(st){
+                  var c=st.ctrl;var sc=SEM_COLOR[st.sem]||'#999';
+                  function chip(lbl,val,dec,color){
+                    if(val==null||isNaN(val))return null;
+                    return(
+                      <span style={{display:'inline-flex',gap:4,alignItems:'baseline',padding:'2px 8px',
+                        borderRadius:10,background:'#f5f7fa',border:'1px solid var(--border)',fontSize:'.7rem'}}>
+                        <span style={{color:'var(--text-muted)',fontWeight:600}}>{lbl}</span>
+                        <span style={{fontWeight:800,color:color||'var(--text)'}}>{fmt(val,dec)}</span>
+                      </span>
+                    );
+                  }
+                  return(
+                    <div key={c.key} className="gcurve-card">
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap',gap:6,marginBottom:6}}>
+                        <div className="gcurve-title" style={{marginBottom:0}}>{c.label}</div>
+                        <span style={{fontSize:'.69rem',fontWeight:700,
+                          color:(c.limMin!=null||c.limMax!=null)?'var(--primary)':'var(--text-muted)'}}>
+                          {(c.limMin!=null||c.limMax!=null)
+                            ?('EETT: '+(c.limMin!=null?'≥'+c.limMin:'')+(c.limMin!=null&&c.limMax!=null?' – ':'')+(c.limMax!=null?'≤'+c.limMax:'')+(c.specName?' · '+c.specName:''))
+                            :'Sin EETT — informativo'}
+                        </span>
+                      </div>
+                      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+                        {chip('Último',st.last,3,sc)}
+                        {chip('Prom',st.avg,3)}
+                        {chip('Desv σ',st.std,4)}
+                        {chip('MA'+maWin,st.lastMa,3,'#e67e22')}
+                        {chip('Mín',st.min,3)}
+                        {chip('Máx',st.max,3)}
+                        {st.n?<span style={{fontSize:'.7rem',color:'var(--text-muted)',alignSelf:'center'}}>n={st.n}</span>:null}
+                      </div>
+                      <div style={{position:'relative',minHeight:190}}>
+                        <canvas ref={function(el){chemRefs.current[c.key]=el;}}/>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+              {chemStats.length===0&&(
+                <div style={{textAlign:'center',padding:30,color:'var(--text-muted)',background:'var(--card)',
+                  borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+                  Sin datos quimicos en el periodo seleccionado
+                </div>
+              )}
             </div>
           )}
         </>
