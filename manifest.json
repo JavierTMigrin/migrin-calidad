@@ -1,0 +1,20 @@
+{
+  "name": "Control de Calidad MIGRIN",
+  "short_name": "Calidad MIGRIN",
+  "description": "Registro y control de calidad de plantas MIGRIN S.A.",
+  "start_url": "./calidad.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6f8",
+  "theme_color": "#1a5276",
+  "lang": "es-CL",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,9 +1,16 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Control de Calidad — MIGRIN S.A.</title>
+<title>Control de Calidad — MIGRIN S.A. (LOCAL)</title>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1a5276"/>
+<link rel="icon" type="image/png" href="logo.png"/>
+<link rel="apple-touch-icon" href="logo.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Calidad MIGRIN"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1309,8 +1316,10 @@ function PassModal({onOk,onCancel,currentUser}){
   );
 }
 
-function GranuTable({producto,pesoFinal,values,onChange}){
+function GranuTable({producto,pesoFinal,pesoInicial,values,onChange}){
   var gc=useMemo(function(){return calcGranu(producto,values,pesoFinal);},[producto,values,pesoFinal]);
+  var pIni=parseDecimal(pesoInicial),pFin=parseDecimal(pesoFinal);
+  var pesoImposible=!isNaN(pIni)&&!isNaN(pFin)&&pIni>0&&pFin>pIni;
   var specs=getSpecs(producto);
   var granuSpec=specs?specs.granulometria:{};
   var hasSpec=Object.keys(granuSpec).length>0;
@@ -1361,6 +1370,11 @@ function GranuTable({producto,pesoFinal,values,onChange}){
           </tbody>
         </table>
       </div>
+      {pesoImposible&&(
+        <div className="closure closure-err">
+          ⚠ El peso final ({fmt(pFin)} g) es MAYOR que el peso inicial ({fmt(pIni)} g) — fisicamente imposible. Revise los pesos ingresados.
+        </div>
+      )}
       <div className={'closure '+(gc.closeOk?'closure-ok':'closure-err')}>
         {gc.negative
           ?'Aviso: Los pesos superan el peso final (Fondo = '+fmt(gc.fondPeso)+' g)'
@@ -1842,6 +1856,20 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
           <div className="rc-div"/>
           </>
           )}
+          <div style={{display:'flex',justifyContent:'space-around',gap:30,marginTop:34,marginBottom:8}}>
+            <div style={{textAlign:'center',minWidth:180}}>
+              <div style={{borderTop:'1px solid #555',paddingTop:6,fontSize:'.74rem',color:'#333',fontWeight:600}}>
+                {data.analista||'—'}
+              </div>
+              <div style={{fontSize:'.66rem',color:'#888'}}>Analista de Calidad</div>
+            </div>
+            <div style={{textAlign:'center',minWidth:180}}>
+              <div style={{borderTop:'1px solid #555',paddingTop:6,fontSize:'.74rem',color:'#333',fontWeight:600}}>
+                &nbsp;
+              </div>
+              <div style={{fontSize:'.66rem',color:'#888'}}>Jefe de Calidad / Responsable Tecnico</div>
+            </div>
+          </div>
           <div className="rc-foot">{footer}</div>
         </div>
 
@@ -2021,7 +2049,7 @@ function DespachoForm({account,producto,onBack,onSuccess}){
       </SecCard>
 
       <SecCard title={'Granulometria — '+prodLabel} icon="&#128300;">
-        <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
+        <GranuTable producto={producto} pesoFinal={pesoFinal} pesoInicial={pesoInicial} values={gv} onChange={updGv}/>
         {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
           Aviso: {errors.granu}
         </div>}
@@ -2550,7 +2578,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
             </div>
           </SecCard>
           <SecCard title={'Granulometria — '+prodLabel} icon="&#128300;">
-            <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
+            <GranuTable producto={producto} pesoFinal={pesoFinal} pesoInicial={pesoInicial} values={gv} onChange={updGv}/>
             {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
               Aviso: {errors.granu}
             </div>}
@@ -3427,7 +3455,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
           </SecCard>
 
           <SecCard title={'Granulometria — '+(GRANU_TITLE[producto]||prodLabel3)} icon="&#128300;">
-            <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
+            <GranuTable producto={producto} pesoFinal={pesoFinal} pesoInicial={pesoInicial} values={gv} onChange={updGv}/>
             {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
               Aviso: {errors.granu}
             </div>}
@@ -3693,6 +3721,29 @@ function DashboardScreen({account,onBack}){
       return true;
     });
   },[records,prod,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno,filterAnalista,filterTipoMuestra,filterNumAcopio]);
+
+  /* % cumplimiento EETT del periodo: evalua cada ensayo filtrado con
+     collectViolations (mismas reglas que la alerta del informe) */
+  var cumplimiento=useMemo(function(){
+    var sieves=SIEVE_CONFIG[prod]||[];
+    if(!sieves.length)return null;
+    var evaluados=0,fuera=0;
+    filtered.forEach(function(r){
+      var gv=(r.granu&&Array.isArray(r.granu))?r.granu
+        :sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+      var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+      if(!parseDecimal(pf))return;
+      var gc=calcGranu(prod,gv,pf);
+      var data={producto:prod,quimica:r.quimica||{},
+        pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')};
+      var v=collectViolations(data,gc);
+      evaluados++;
+      if(v.length)fuera++;
+    });
+    if(!evaluados)return null;
+    return{evaluados:evaluados,fuera:fuera,ok:evaluados-fuera,
+      pct:Math.round((evaluados-fuera)/evaluados*1000)/10};
+  },[filtered,prod]);
 
   function computeStats(row){
     var sieves=SIEVE_CONFIG[prod]||[];
@@ -4135,6 +4186,18 @@ function DashboardScreen({account,onBack}){
       {/* ── BADGES ── */}
       <div className="db-badge-bar">
         {badges.map(function(b,i){return <span key={i} className="db-badge">{b}</span>;})}
+        {cumplimiento&&(
+          <span style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:8,
+            padding:'5px 14px',borderRadius:20,fontWeight:700,fontSize:'.82rem',
+            background:cumplimiento.pct>=95?'#f0fff4':cumplimiento.pct>=85?'#fffff0':'#fff5f5',
+            color:cumplimiento.pct>=95?'var(--success)':cumplimiento.pct>=85?'#b7791f':'var(--error)',
+            border:'1px solid '+(cumplimiento.pct>=95?'#9ae6b4':cumplimiento.pct>=85?'#f6e05e':'#feb2b2')}}>
+            Cumplimiento EETT: {cumplimiento.pct}%
+            <span style={{fontWeight:500,fontSize:'.74rem'}}>
+              ({cumplimiento.ok}/{cumplimiento.evaluados} ensayos{cumplimiento.fuera?' — '+cumplimiento.fuera+' fuera':''})
+            </span>
+          </span>
+        )}
       </div>
 
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
@@ -4423,6 +4486,9 @@ function HistoryScreen({account,onBack}){
   var[resendSt,setResendSt]=useState({});
   var[reportView,setReportView]=useState(null);
   var[page,setPage]=useState(0);
+  var[busca,setBusca]=useState('');
+  var[fDesde,setFDesde]=useState('');
+  var[fHasta,setFHasta]=useState('');
   var PAGE_SIZE=50;
 
   useEffect(function(){load();},[]);
@@ -4520,7 +4586,7 @@ function HistoryScreen({account,onBack}){
       return s;
     }
     var hdr=['Folio','ID','Fecha','Hora','Turno','Analista','Planta','Producto','PesoInicial','PesoFinal','Estado'];
-    var rows=records.map(function(r){
+    var rows=visibles.map(function(r){
       return[r.Folio||'',r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
         r.Analista||r.analista,getPlanta(r),r.Producto||r.productoLabel,
         r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
@@ -4531,6 +4597,20 @@ function HistoryScreen({account,onBack}){
     a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
     a.download='historial_calidad.csv';a.click();
   }
+
+  var visibles=useMemo(function(){
+    var q=busca.trim().toLowerCase();
+    return records.filter(function(r){
+      var fecha=r.FechaMuestreo||r.fecha||'';
+      if(fDesde&&fecha<fDesde)return false;
+      if(fHasta&&fecha>fHasta)return false;
+      if(!q)return true;
+      var folio=r.Folio?String(r.Folio):'';
+      var hay=[folio,'#'+folio,r.Producto||r.productoLabel||'',
+        r.Analista||r.analista||'',r.Turno||r.turno||'',getPlanta(r)].join(' ').toLowerCase();
+      return hay.indexOf(q)!==-1;
+    });
+  },[records,busca,fDesde,fHasta]);
 
   if(reportView){
     return(
@@ -4555,10 +4635,32 @@ function HistoryScreen({account,onBack}){
         {isAdmin&&<span className="badge badge-s" style={{padding:'4px 12px'}}>Admin activo</span>}
         <button className="btn btn-secondary" onClick={load} style={{marginLeft:'auto'}}>&#8635; Actualizar</button>
       </div>
+      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end',
+        background:'var(--card)',padding:'10px 14px',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+        <div className="field" style={{flex:2,minWidth:180}}>
+          <label style={{fontSize:'.72rem'}}>Buscar</label>
+          <input type="text" value={busca} placeholder="Folio, producto, analista, planta..."
+            onChange={function(e){setBusca(e.target.value);setPage(0);}}/>
+        </div>
+        <div className="field" style={{flex:1,minWidth:130}}>
+          <label style={{fontSize:'.72rem'}}>Desde</label>
+          <input type="date" value={fDesde} onChange={function(e){setFDesde(e.target.value);setPage(0);}}/>
+        </div>
+        <div className="field" style={{flex:1,minWidth:130}}>
+          <label style={{fontSize:'.72rem'}}>Hasta</label>
+          <input type="date" value={fHasta} onChange={function(e){setFHasta(e.target.value);setPage(0);}}/>
+        </div>
+        {(busca||fDesde||fHasta)&&(
+          <button className="btn btn-secondary" style={{padding:'8px 14px'}}
+            onClick={function(){setBusca('');setFDesde('');setFHasta('');setPage(0);}}>
+            ✕ Limpiar
+          </button>
+        )}
+      </div>
       {loading
         ?<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>
         :<div className="sec-card">
-          <div className="sec-card-hdr">Registros ({records.length}){records.length>PAGE_SIZE&&' — pág '+(page+1)+'/'+Math.ceil(records.length/PAGE_SIZE)}</div>
+          <div className="sec-card-hdr">Registros ({visibles.length}{visibles.length!==records.length?' de '+records.length:''}){visibles.length>PAGE_SIZE&&' — pág '+(page+1)+'/'+Math.ceil(visibles.length/PAGE_SIZE)}</div>
           <div style={{overflowX:'auto'}}>
             <table className="htbl">
               <thead><tr>
@@ -4566,12 +4668,12 @@ function HistoryScreen({account,onBack}){
                 <th style={{width:36,textAlign:'center'}}/>
               </tr></thead>
               <tbody>
-                {records.length===0&&(
+                {visibles.length===0&&(
                   <tr><td colSpan={8} style={{textAlign:'center',color:'var(--text-muted)',padding:28}}>
-                    No hay registros
+                    {records.length===0?'No hay registros':'Sin resultados para el filtro'}
                   </td></tr>
                 )}
-                {records.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE).map(function(r,i){
+                {visibles.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE).map(function(r,i){
                   var rid=r.ID||r.id||i;
                   var isOpen=expandedId===rid;
                   var rst=resendSt[rid]||{};
@@ -4762,16 +4864,16 @@ function HistoryScreen({account,onBack}){
               </tbody>
             </table>
           </div>
-          {records.length>PAGE_SIZE&&(
+          {visibles.length>PAGE_SIZE&&(
             <div style={{display:'flex',gap:8,justifyContent:'center',padding:'12px 0',borderTop:'1px solid var(--border)'}}>
               <button className="btn btn-secondary" disabled={page===0}
                 onClick={function(){setPage(function(p){return p-1;});window.scrollTo({top:0});}}>
                 &#8592; Anterior
               </button>
               <span style={{padding:'8px 12px',fontSize:'.85rem',color:'var(--text-secondary)'}}>
-                {page+1} / {Math.ceil(records.length/PAGE_SIZE)}
+                {page+1} / {Math.ceil(visibles.length/PAGE_SIZE)}
               </span>
-              <button className="btn btn-secondary" disabled={(page+1)*PAGE_SIZE>=records.length}
+              <button className="btn btn-secondary" disabled={(page+1)*PAGE_SIZE>=visibles.length}
                 onClick={function(){setPage(function(p){return p+1;});window.scrollTo({top:0});}}>
                 Siguiente &#8594;
               </button>
@@ -5323,6 +5425,13 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js').catch(function(e){console.warn('SW',e);});
+  });
+}
 </script>
 </body>
 </html>
