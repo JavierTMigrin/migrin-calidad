@@ -4,6 +4,9 @@
 -- Ejecutar en el SQL Editor de Supabase.
 -- ============================================================
 
+-- Borrar vistas previas (necesario para reordenar columnas):
+DROP VIEW IF EXISTS v_a36, v_a38, v_alimentacion, v_rechazo_2001, v_veralia_alta, v_veralia_baja, v_molino_1, v_molino_2, v_under_2007, v_over_2007, v_under_tack, v_muestras_esp, v_lodos_arenas, v_desp_padre_hurtado, v_desp_lirquen, v_desp_llayllay, v_control_granos, v_materias_primas, v_alim_cuarzo, v_tlh_cuarzo, v_compacta, v_dlk, v_lodos_cuarzo, v_tt_tlh, v_tt_alimentacion, v_tt_granos, v_tt_arcillas, v_tt_arenas_minas, v_tt_cilindro, v_tt_floculante, v_tt_lodo, v_tt_grano_mina, v_tt_arena_mina_cristaleria, v_tt_fierrillo_casillero, v_ensayos_todos;
+
 CREATE OR REPLACE VIEW v_a36 AS
 SELECT
   folio, id, fecha_muestreo, fecha_envio, hora_envio, turno, analista,
