@@ -374,6 +374,26 @@ const SIEVE_CONFIG={
   'UTACK':  MOLINO_SIEVES,
   'MESP':   MOLINO_SIEVES,
   'LODOSA': [{us:'#120',mm:'0,125'}],
+  // ── DESPACHOS ARENA PREMIUM ── (se ingresan % directos, no gramos)
+  'DESP_PH':[
+    {us:'#20',mm:'0,850'},{us:'#30',mm:'0,600'},{us:'#40',mm:'0,425'},
+    {us:'#50',mm:'0,300'},{us:'#70',mm:'0,212'},{us:'#100',mm:'0,150'},
+    {us:'#140',mm:'0,106'},{us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
+  ],
+  'DESP_LIR':[
+    {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},{us:'#25',mm:'0,710'},
+    {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},{us:'#40',mm:'0,425'},
+    {us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},
+    {us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},{us:'#200',mm:'0,075'},
+    {us:'#270',mm:'0,053'},
+  ],
+  'DESP_LLAY':[
+    {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},{us:'#25',mm:'0,710'},
+    {us:'#30',mm:'0,600'},{us:'#35',mm:'0,500'},{us:'#40',mm:'0,425'},
+    {us:'#60',mm:'0,250'},{us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},
+    {us:'#140',mm:'0,106'},{us:'#170',mm:'0,090'},{us:'#200',mm:'0,075'},
+    {us:'#270',mm:'0,053'},
+  ],
   // ── CUARZO ──
   'CALIM':  CALIM_SIEVES,
   'CTLH':   CALIM_SIEVES,
@@ -410,6 +430,9 @@ const PRODUCT_CONFIG={
   'UTACK':  {quimica:false,humedad:false,tipoMuestra:false},
   'MESP':   {quimica:true, humedad:true, tipoMuestra:false},
   'LODOSA': {quimica:false,humedad:false,tipoMuestra:false},
+  'DESP_PH':  {quimica:true, humedad:true, tipoMuestra:false},
+  'DESP_LIR': {quimica:true, humedad:true, tipoMuestra:false},
+  'DESP_LLAY':{quimica:true, humedad:true, tipoMuestra:false},
   'CALIM':  {quimica:true, humedad:true, tipoMuestra:false},
   'CTLH':   {quimica:true, humedad:true, tipoMuestra:false},
   'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
@@ -421,6 +444,7 @@ const GRANU_TITLE={
   REC2001:'Rechazo 20.01',VERALTA:'Veralia Alta Hierro',VERBAJA:'Veralia Baja Hierro',
   MOL1:'Molino 1',MOL2:'Molino 2',UND2007:'Under 20.07',OVR2007:'Over 20.07',
   UTACK:'Under Tack 222',MESP:'Muestras Especiales',LODOSA:'Lodos Arenas',
+  DESP_PH:'Despacho Padre Hurtado',DESP_LIR:'Despacho Lirquen',DESP_LLAY:'Despacho Llay-Llay',
   CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
 };
 
@@ -736,7 +760,45 @@ const CUARZO_PRODUCTS=[
   {value:'CDLK',  label:'DLK'},
   {value:'CLODOS',label:'Lodos Cuarzo'},
 ];
-const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS);
+const DESPACHO_PRODUCTS=[
+  {value:'DESP_PH',  label:'Despacho Padre Hurtado'},
+  {value:'DESP_LIR', label:'Despacho Lirquen'},
+  {value:'DESP_LLAY',label:'Despacho Llay-Llay'},
+];
+/* EETT por defecto de despachos: Lirquen hereda A36-Lirquen;
+   Padre Hurtado y Llay-Llay heredan A36-Cristalerias.
+   (formato generico: retMax/retMin = Ret.Acumulado, pasMax/pasMin = Pasante) */
+const SPECS_DESP_LIRQUEN={
+  nombre:'Despacho Lirquen',
+  granulometria:{
+    '#18' :{retMax:0,   retMin:null,pasMax:null,pasMin:null},
+    '#25' :{retMax:0.4, retMin:null,pasMax:null,pasMin:null},
+    '#35' :{retMax:2.0, retMin:null,pasMax:null,pasMin:null},
+    '#120':{retMax:null,retMin:86.0,pasMax:null,pasMin:null},
+    '#170':{retMax:null,retMin:95.0,pasMax:null,pasMin:null},
+  },
+  quimica:{
+    SiO2:{min:98.5,max:null},Al2O3:{min:null,max:0.2},Fe2O3:{min:null,max:0.11},
+    CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
+    Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
+  },
+  humedad:{max:null},
+  d50Max:0.290,
+};
+const SPECS_DESP_CRIST={
+  granulometria:{
+    '#20' :{retMax:0,   retMin:null,pasMax:null,pasMin:null},
+    '#30' :{retMax:0.1, retMin:null,pasMax:null,pasMin:null},
+    '#100':{retMax:null,retMin:98.5,pasMax:null,pasMin:null},
+  },
+  quimica:{
+    SiO2:{min:94.3,max:null},Al2O3:{min:2.2,max:3.0},Fe2O3:{min:0.06,max:0.12},
+    CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
+    Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
+  },
+  humedad:{max:null},
+};
+const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS);
 
 /* ── EETT EDITABLES ──
    Registro en vivo de especificaciones por producto. Los SPECS_* de
@@ -764,7 +826,14 @@ function buildEmptySpec(key){
   sp.d50Max=null;
   return sp;
 }
-var EETT_DEFAULTS={A36:SPECS_A36,A38:SPECS_A38,VERALTA:SPECS_VERALTA,VERBAJA:SPECS_VERBAJA,CTLH:SPECS_CTLH,CDLK:SPECS_CDLK};
+var EETT_DEFAULTS={
+  A36:SPECS_A36,A38:SPECS_A38,VERALTA:SPECS_VERALTA,VERBAJA:SPECS_VERBAJA,
+  CTLH:SPECS_CTLH,CDLK:SPECS_CDLK,
+  DESP_LIR:SPECS_DESP_LIRQUEN,
+  // copias independientes para que editar uno no afecte al otro
+  DESP_PH:JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
+  DESP_LLAY:JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
+};
 var EETT_LIVE={};
 ALL_PRODUCTS.forEach(function(p){
   EETT_LIVE[p.value]=EETT_DEFAULTS[p.value]||buildEmptySpec(p.value);
@@ -773,6 +842,8 @@ var EETT_PRODUCTS=ARENA_PRODUCTS.map(function(p){
   return{key:p.value,label:p.value==='A36'?'A36 — TLH (Lirquen / Cristalerias)':p.label,planta:'Arenas'};
 }).concat(CUARZO_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Cuarzo'};
+})).concat(DESPACHO_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.label,planta:'Despachos'};
 }));
 async function loadEETT(){
   try{
@@ -859,6 +930,21 @@ function buildDbRow(d,user){
   };
 }
 
+/* Variante para despachos: agrega guia/lote/hora_salida (requiere
+   columnas creadas con supabase-despachos-setup.sql) */
+function buildDbRowDespacho(d,user){
+  var row=buildDbRow(d,user);
+  row.guia=d.guia||null;
+  row.lote=d.lote||null;
+  row.hora_salida=d.horaSalida||null;
+  return row;
+}
+async function sendDespachoToSupabase(data,user){
+  var row=buildDbRowDespacho(data,user);
+  var res=await supabase.from('ensayos').insert([row]);
+  if(res.error)throw res.error;
+}
+
 function dbToRow(r){
   var q=r.quimica||{};
   var row={
@@ -888,6 +974,9 @@ function dbToRow(r){
     K2O_Na2O:(parseDecimal(q.k2o)||0)+(parseDecimal(q.na2o)||0),
     Observaciones:r.observaciones,
     EnviadoPor:r.enviado_por,
+    Guia:r.guia,
+    Lote:r.lote,
+    HoraSalida:r.hora_salida,
     Timestamp:r.created_at,
     status:'sent',
   };
@@ -919,7 +1008,9 @@ async function sendAlertaEmail(data,violations,user){
       tipoMuestra:data.tipoMuestra||'',
       enviadoPor:user?user.email:'',
       violaciones:violations,
-      recomendacion:esAcopio?'ACOPIO FUERA DE NORMA':'Se recomienda cambio a cono de emergencia.',
+      recomendacion:esAcopio?'ACOPIO FUERA DE NORMA'
+        :data.tipoMuestra==='Despacho'?'DESPACHO FUERA DE NORMA — revisar antes de enviar al cliente'
+        :'Se recomienda cambio a cono de emergencia.',
       noAptoDespacho:humViol,
     }});
   }catch(e){console.error('Error enviando alerta por correo:',e);}
@@ -1404,6 +1495,8 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
             <div style={{fontWeight:800,color:'#c53030',fontSize:'.95rem',marginBottom:8}}>
               {data.tipoMuestra==='Acopio'
                 ?'🚨 ACOPIO FUERA DE NORMA'
+                :data.tipoMuestra==='Despacho'
+                ?'🚨 DESPACHO FUERA DE NORMA — revisar antes de enviar al cliente'
                 :'🚨 PARAMETROS FUERA DE NORMA — Se recomienda cambio a cono de emergencia'}
             </div>
             {violations.some(function(v){return v.param==='Humedad';})&&(
@@ -1626,7 +1719,225 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
 var buildOdError = buildDbError;
 
 /* ── PLANTA FORM (shared by Arenas + Cuarzo) ── */
-function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel}){
+/* ── FORMULARIO DESPACHOS ARENA PREMIUM ──
+   A diferencia de los ensayos de planta, aqui se ingresan los %
+   directos por tamiz (no pesos en gramos) mas PAN, y los datos del
+   despacho: fecha, hora de salida, guia y lote. */
+function DespachoForm({account,producto,onBack,onSuccess}){
+  var prodObj=DESPACHO_PRODUCTS.find(function(p){return p.value===producto;});
+  var prodLabel=prodObj?prodObj.label:producto;
+  var sieves=SIEVE_CONFIG[producto]||[];
+
+  var[fecha,setFecha]=useState(today());
+  var[horaSalida,setHoraSalida]=useState('');
+  var[guia,setGuia]=useState('');
+  var[lote,setLote]=useState('');
+  var[gv,setGv]=useState(Array(sieves.length).fill(''));
+  var[pan,setPan]=useState('');
+  var[pctHumedad,setPctHumedad]=useState('');
+  var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
+
+  var specs=getSpecs(producto);
+  var qspec=(specs&&specs.quimica)||{};
+  var hspec=specs?specs.humedad:null;
+
+  function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+
+  var suma=gv.reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0)
+    +(isNaN(parseDecimal(pan))?0:parseDecimal(pan));
+  var sumaOk=Math.abs(suma-100)<=0.5;
+  var gc=useMemo(function(){return calcGranu(producto,gv,'100');},[producto,gv]);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha de despacho requerida';
+    if(!horaSalida)e.horaSalida='Hora de salida requerida';
+    if(!guia)e.guia='Numero de guia requerido';
+    var anyG=gv.some(function(v){return v!=='';})||pan!=='';
+    if(!anyG)e.granu='Ingrese la granulometria';
+    else if(!sumaOk)e.granu='La suma de la granulometria debe ser 100% (actual: '+fmt(suma,2)+'%)';
+    if(!pctHumedad)e.pctHumedad='Humedad requerida';
+    if(!quimica.sio2)e.sio2='SiO₂ requerido';
+    if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
+    if(!quimica.fe2o3)e.fe2o3='Fe₂O₃ requerido';
+    if(!quimica.cao)e.cao='CaO requerido';
+    if(!quimica.mgo)e.mgo='MgO requerido';
+    if(!quimica.k2o)e.k2o='K₂O requerido';
+    if(!quimica.na2o)e.na2o='Na₂O requerido';
+    if(!quimica.tio2)e.tio2='TiO₂ requerido';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:producto,productoLabel:prodLabel,
+      tipoMuestra:'Despacho',numAcopio:'',
+      pesoInicial:'100',pesoFinal:'100',granu:gv,pesoFondo:parseDecimal(pan)||0,
+      pctHumedad:pctHumedad,quimica:quimica,observaciones:'',
+      guia:guia,lote:lote,horaSalida:horaSalida,
+    };
+    addPending(data);
+    setSendError(null);
+    var violations=collectViolations(data,gc);
+    if(violations.length)sendAlertaEmail(data,violations,account);
+    try{
+      await sendDespachoToSupabase(data,account);
+      delPending(data.id);
+      setSending(false);
+      setReportModal({data:data,gc:gc,violations:violations,msg:'Despacho registrado exitosamente.'});
+    }catch(err){
+      console.error(err);
+      setSending(false);
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:gc,violations:violations,msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendDespachoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Despacho registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);
+      setRetrying(false);
+      setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Despacho guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
+  }
+
+  var errList=Object.values(errors);
+  var sumaColor=suma===0?'var(--text-muted)':sumaOk?'var(--success)':'var(--error)';
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div>
+          <h2>Despachos Arena Premium</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{prodLabel}</div>
+        </div>
+      </div>
+
+      {errList.length>0&&(
+        <div className="err-box">
+          <strong>Corrija los siguientes errores:</strong>
+          <ul>{errList.map(function(er,i){return <li key={i}>{er}</li>;})}</ul>
+        </div>
+      )}
+
+      <SecCard title="Datos del Despacho" icon="&#128666;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaDesp" label="Fecha de despacho" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaSalida" label="Hora de salida" type="time" required value={horaSalida}
+            onChange={function(e){setHoraSalida(e.target.value);}} error={errors.horaSalida}/>
+        </div>
+        <div className="fg fg-2">
+          <Field name="guia" label="Guia de despacho" required value={guia}
+            onChange={function(e){setGuia(e.target.value);}} error={errors.guia} placeholder="N° de guia"/>
+          <Field name="lote" label="Lote" value={lote}
+            onChange={function(e){setLote(e.target.value);}} placeholder="Lote (opcional)"/>
+        </div>
+      </SecCard>
+
+      <SecCard title={'Analisis Granulometrico (%) — '+prodLabel} icon="&#128300;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return(
+              <Field key={s.us} name={'g'+i} label={s.us+' ('+s.mm+' mm)'} type="decimal"
+                value={gv[i]} onChange={function(e){updGv(i,e.target.value);}} placeholder="0,00"/>
+            );
+          })}
+          <Field name="pan" label="PAN" type="decimal" value={pan}
+            onChange={function(e){setPan(e.target.value);}} placeholder="0,00"/>
+          <div className="field">
+            <label>SUMA (%)<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" value={suma?fmt(suma,2):''}
+              style={{fontWeight:700,color:sumaColor}}/>
+            <span className="fhint" style={{color:sumaColor}}>
+              {suma===0?'Debe sumar 100%':sumaOk?'✓ Suma correcta':'Debe sumar 100% ± 0,5'}
+            </span>
+          </div>
+        </div>
+        {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors.granu}
+        </div>}
+      </SecCard>
+
+      <SecCard title="Humedad" icon="&#128167;">
+        <div style={{maxWidth:240}}>
+          <Field name="pctHumedadD" label="% Humedad" type="decimal" required value={pctHumedad}
+            onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"
+            specHint={hspec&&hspec.max!=null?'max '+fmt(hspec.max,1)+'%':null}
+            specSemVal={hspec&&hspec.max!=null?calcSemaforo(parseDecimal(pctHumedad),null,hspec.max):'info'}/>
+        </div>
+      </SecCard>
+
+      <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
+        <div className="fg-quim">
+          {[
+            {k:'sio2',l:'SiO₂ (%)',sk:'SiO2'},{k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
+            {k:'fe2o3',l:'Fe₂O₃ (%)',sk:'Fe2O3'},{k:'cao',l:'CaO (%)',sk:'CaO'},
+            {k:'mgo',l:'MgO (%)',sk:'MgO'},{k:'k2o',l:'K₂O (%)',sk:'K2O'},
+            {k:'na2o',l:'Na₂O (%)',sk:'Na2O'},{k:'tio2',l:'TiO₂ (%)',sk:'TiO2'},
+          ].map(function(f){
+            return(
+              <Field key={f.k} name={f.k+'D'} label={f.l} type="decimal" required value={quimica[f.k]}
+                onChange={function(e){var v=e.target.value;setQuimica(function(p){var n=Object.assign({},p);n[f.k]=v;return n;});}}
+                error={errors[f.k]} placeholder="0,00"
+                specHint={specChemHint(qspec[f.sk])} specSemVal={specSem(quimica[f.k],qspec[f.sk])}/>
+            );
+          })}
+          <div className="field">
+            <label>Na₂O + K₂O (%)<span className="calc-badge">Calculado</span></label>
+            {(function(){
+              var v=(parseDecimal(quimica.k2o)||0)+(parseDecimal(quimica.na2o)||0);
+              var kns=qspec.K2O_Na2O;
+              var sem=kns?calcSemaforo(v,kns.min,kns.max):'info';
+              return <input type="text" readOnly className="f-ro" placeholder="—"
+                value={(quimica.k2o||quimica.na2o)?fmt(v):''}
+                style={sem==='error'?{background:'rgba(197,48,48,.07)'}:{}}/>;
+            })()}
+          </div>
+        </div>
+      </SecCard>
+
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Despacho'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel,extraGroup}){
   var[view,setView]=useState('form');
   var[sending,setSending]=useState(false);
   var[reportModal,setReportModal]=useState(null);
@@ -1796,6 +2107,24 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
             </button>
           );
         })}
+        {extraGroup&&(
+          <>
+            <div style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:10,margin:'6px 0 0'}}>
+              <div style={{flex:1,height:1,background:'var(--border)'}}/>
+              <span style={{fontSize:'.78rem',fontWeight:700,color:'var(--text-secondary)',textTransform:'uppercase',letterSpacing:'.05em'}}>{extraGroup.label}</span>
+              <div style={{flex:1,height:1,background:'var(--border)'}}/>
+            </div>
+            {extraGroup.products.map(function(p){
+              return(
+                <button key={p.value} className="prod-btn"
+                  style={{borderColor:'#276749'}}
+                  onClick={function(){extraGroup.onPick(p.value);}}>
+                  🚚 {p.label.replace('Despacho ','')}
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {!producto&&(
@@ -1943,9 +2272,15 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
 }
 
 function ArenasForm({account,onBack,onSuccess}){
+  var[desp,setDesp]=useState(null);
+  if(desp){
+    return <DespachoForm account={account} producto={desp}
+      onBack={function(){setDesp(null);}} onSuccess={onSuccess}/>;
+  }
   return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
     plantaLabel="Planta Arenas" products={ARENA_PRODUCTS}
-    lsGet={getPending} lsAdd={addPending} lsDel={delPending}/>;
+    lsGet={getPending} lsAdd={addPending} lsDel={delPending}
+    extraGroup={{label:'Despachos Arena Premium',products:DESPACHO_PRODUCTS,onPick:setDesp}}/>;
 }
 
 function CuarzoForm({account,onBack,onSuccess}){
@@ -3340,7 +3675,7 @@ function EettEditor({account}){
       <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Especificaciones Técnicas (EETT)</div>
       <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:12}}>
         <div style={{display:'flex',gap:0,border:'1.5px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
-          {['Arenas','Cuarzo'].map(function(pl){
+          {['Arenas','Cuarzo','Despachos'].map(function(pl){
             return(
               <button key={pl} onClick={function(){pickPlanta(pl);}} style={{
                 padding:'8px 16px',border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',
