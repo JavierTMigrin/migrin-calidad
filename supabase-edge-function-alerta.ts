@@ -22,8 +22,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   try {
-    const { producto, fecha, turno, analista, enviadoPor, violaciones } =
-      await req.json();
+    const {
+      producto, fecha, turno, analista, tipoMuestra, enviadoPor,
+      violaciones, recomendacion, noAptoDespacho,
+    } = await req.json();
+
+    const titulo = recomendacion || 'Se recomienda cambio a cono de emergencia.';
 
     const filas = (violaciones || [])
       .map(
@@ -43,11 +47,13 @@ Deno.serve(async (req) => {
           <h2 style="margin:0">🚨 ALERTA — Parametros fuera de norma</h2>
         </div>
         <div style="border:1px solid #ddd;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-          <p style="font-size:15px"><b>Se recomienda cambio a cono de emergencia.</b></p>
+          <p style="font-size:15px"><b>${titulo}</b></p>
+          ${noAptoDespacho ? '<p style="font-size:14px;color:#c53030"><b>⛔ Humedad fuera de limite — producto NO APTO para despacho.</b></p>' : ''}
           <table style="font-size:14px;margin-bottom:16px">
             <tr><td style="padding:2px 12px 2px 0;color:#777">Producto:</td><td><b>${producto}</b></td></tr>
             <tr><td style="padding:2px 12px 2px 0;color:#777">Fecha muestreo:</td><td>${fecha}</td></tr>
             <tr><td style="padding:2px 12px 2px 0;color:#777">Turno:</td><td>${turno || '—'}</td></tr>
+            <tr><td style="padding:2px 12px 2px 0;color:#777">Tipo muestra:</td><td>${tipoMuestra || '—'}</td></tr>
             <tr><td style="padding:2px 12px 2px 0;color:#777">Analista:</td><td>${analista}</td></tr>
             <tr><td style="padding:2px 12px 2px 0;color:#777">Enviado por:</td><td>${enviadoPor}</td></tr>
           </table>
@@ -77,7 +83,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: 'Alertas Calidad MIGRIN <onboarding@resend.dev>',
         to: DESTINATARIOS,
-        subject: `🚨 FUERA DE NORMA — ${producto} (${fecha})`,
+        subject: `🚨 ${tipoMuestra === 'Acopio' ? 'ACOPIO FUERA DE NORMA' : 'FUERA DE NORMA'} — ${producto} (${fecha})`,
         html,
       }),
     });

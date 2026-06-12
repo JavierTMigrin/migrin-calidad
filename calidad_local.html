@@ -835,13 +835,18 @@ async function sendToSupabase(data,user){
    No lanza errores: si el correo falla, el envio del ensayo no se ve afectado. */
 async function sendAlertaEmail(data,violations,user){
   try{
+    var esAcopio=data.tipoMuestra==='Acopio';
+    var humViol=violations.some(function(v){return v.param==='Humedad';});
     await supabase.functions.invoke('quick-processor',{body:{
       producto:data.productoLabel||data.producto,
       fecha:data.fecha,
       turno:data.turno,
       analista:data.analista,
+      tipoMuestra:data.tipoMuestra||'',
       enviadoPor:user?user.email:'',
       violaciones:violations,
+      recomendacion:esAcopio?'ACOPIO FUERA DE NORMA':'Se recomienda cambio a cono de emergencia.',
+      noAptoDespacho:humViol,
     }});
   }catch(e){console.error('Error enviando alerta por correo:',e);}
 }
@@ -1328,8 +1333,15 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
         {violations&&violations.length>0&&(
           <div style={{padding:'14px 20px',background:'#fff5f5',borderBottom:'3px solid #c53030'}}>
             <div style={{fontWeight:800,color:'#c53030',fontSize:'.95rem',marginBottom:8}}>
-              🚨 PARAMETROS FUERA DE NORMA — Se recomienda cambio a cono de emergencia
+              {data.tipoMuestra==='Acopio'
+                ?'🚨 ACOPIO FUERA DE NORMA'
+                :'🚨 PARAMETROS FUERA DE NORMA — Se recomienda cambio a cono de emergencia'}
             </div>
+            {violations.some(function(v){return v.param==='Humedad';})&&(
+              <div style={{fontWeight:700,color:'#c53030',fontSize:'.85rem',marginBottom:8}}>
+                ⛔ Humedad fuera de limite — producto NO APTO para despacho.
+              </div>
+            )}
             <table style={{width:'100%',fontSize:'.8rem',borderCollapse:'collapse'}}>
               <thead>
                 <tr style={{textAlign:'left',color:'#777'}}>
