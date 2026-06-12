@@ -1,0 +1,66 @@
+==============================================================
+ CONTROL DE CALIDAD MIGRIN - INSTALAR LA APP EN EL CELULAR
+==============================================================
+
+Direccion de la app:
+https://javiertmigrin.github.io/migrin-calidad/calidad.html
+
+La app se instala desde el navegador (no se descarga de Play
+Store ni App Store). Queda con el logo MIGRIN en la pantalla
+de inicio y se abre a pantalla completa, como cualquier app.
+
+--------------------------------------------------------------
+ ANDROID (Chrome)
+--------------------------------------------------------------
+1. Abrir Chrome y entrar a la direccion de la app.
+2. Iniciar sesion normalmente (solo la primera vez).
+3. Tocar el menu de los 3 puntos (arriba a la derecha).
+4. Tocar "Instalar aplicacion"
+   (si no aparece, tocar "Agregar a la pantalla principal").
+5. Confirmar tocando "Instalar" o "Agregar".
+6. Listo: el icono MIGRIN queda en la pantalla de inicio.
+
+--------------------------------------------------------------
+ IPHONE / IPAD (Safari)
+--------------------------------------------------------------
+IMPORTANTE: en iPhone/iPad SOLO funciona desde Safari
+(no sirve Chrome).
+
+1. Abrir Safari y entrar a la direccion de la app.
+2. Iniciar sesion normalmente (solo la primera vez).
+3. Tocar el boton COMPARTIR: el cuadrado con una flecha
+   hacia arriba (abajo al centro de la pantalla).
+4. Deslizar la lista hacia abajo y tocar
+   "Añadir a pantalla de inicio".
+5. Tocar "Añadir" (arriba a la derecha).
+6. Listo: el icono MIGRIN queda en la pantalla de inicio.
+
+--------------------------------------------------------------
+ COMPUTADOR (Chrome o Edge)
+--------------------------------------------------------------
+1. Abrir la direccion de la app.
+2. En la barra de direcciones (lado derecho) aparece un
+   icono de instalar (un monitor con una flecha).
+3. Hacer clic y confirmar "Instalar".
+
+--------------------------------------------------------------
+ PREGUNTAS FRECUENTES
+--------------------------------------------------------------
+- "No me aparece la opcion Instalar en Android"
+  Recargar la pagina una vez y volver a abrir el menu.
+  Si solo aparece "Agregar a la pantalla principal",
+  usar esa opcion: funciona exactamente igual.
+
+- "Se me olvido la clave"
+  Avisar al administrador (jtorres@migrin.cl) para
+  restablecerla.
+
+- "Hice cambios y no se ven"
+  Cerrar la app por completo y volver a abrirla. Si sigue
+  igual, abrir en el navegador y recargar manteniendo
+  presionado el boton de recargar > "Vaciar cache".
+
+- La app funciona sin señal para REVISAR lo ya cargado;
+  los envios quedan como "Pendiente" y se mandan solos
+  al volver la conexion.
+==============================================================
