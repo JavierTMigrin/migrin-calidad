@@ -35,27 +35,38 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   cursor:pointer;font-family:'Inter',sans-serif;min-height:40px;transition:background .2s}
 .btn-hdr:hover{background:rgba(255,255,255,.22)}
 .main{max-width:1080px;margin:0 auto;padding:22px 14px 40px}
-.home-intro{text-align:center;margin-bottom:28px}
-.home-intro h2{font-size:1.4rem;font-weight:700;color:var(--primary);margin-bottom:6px}
-.home-intro p{color:var(--text-secondary);font-size:.9rem}
-.modules-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.home-intro{text-align:center;margin-bottom:30px;padding-top:8px}
+.home-intro h2{font-size:1.55rem;font-weight:800;color:var(--primary);margin-bottom:6px;letter-spacing:-.02em}
+.home-intro p{color:var(--text-secondary);font-size:.92rem}
+.modules-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 @media(min-width:700px){.modules-grid{grid-template-columns:repeat(3,1fr)}}
-.mod-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
-  padding:20px 16px;cursor:pointer;transition:transform .2s,box-shadow .2s;
-  border:2px solid transparent;position:relative;min-height:76px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
-.mod-card.active{border-color:var(--primary)}
-.mod-card.active:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(26,82,118,.18)}
-.mod-card.disabled{opacity:.58;cursor:not-allowed}
-.mod-label{font-weight:700;font-size:.95rem;color:var(--text)}
+.mod-card{background:var(--card);border-radius:16px;box-shadow:0 2px 8px rgba(15,40,60,.06);
+  padding:26px 18px 22px;cursor:pointer;transition:transform .22s,box-shadow .22s,border-color .22s;
+  border:1.5px solid var(--border);position:relative;min-height:128px;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center}
+.mod-card.active::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,#1a5276,#2980b9,#5dade2)}
+.mod-card.active{border-color:transparent;box-shadow:0 3px 14px rgba(26,82,118,.10)}
+.mod-card.active:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(26,82,118,.20)}
+.mod-card.disabled{opacity:.55;cursor:not-allowed;background:#fafbfc}
+.mod-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  font-size:25px;background:linear-gradient(135deg,var(--primary-xlight),#e3eef7);flex-shrink:0}
+.mod-card.active .mod-icon{background:linear-gradient(135deg,#1a5276,#2980b9);
+  box-shadow:0 4px 10px rgba(26,82,118,.28)}
+.mod-label{font-weight:800;font-size:.98rem;color:var(--text);letter-spacing:-.01em}
+.mod-desc{font-size:.74rem;color:var(--text-muted);line-height:1.35}
 .prod-mosaic{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px}
 @media(min-width:580px){.prod-mosaic{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:900px){.prod-mosaic{grid-template-columns:repeat(4,1fr)}}
-.prod-btn{padding:14px 18px;background:#fff;border:2px solid var(--border);
-  border-radius:var(--radius-sm);cursor:pointer;text-align:center;font-family:'Inter',sans-serif;
-  font-size:.9rem;font-weight:700;color:var(--text);transition:all .2s;min-height:52px;line-height:1.3}
-.prod-btn:hover{border-color:var(--primary-light);background:var(--primary-xlight);color:var(--primary)}
-.prod-btn.sel{border-color:var(--primary);background:var(--primary-xlight);color:var(--primary-dark);border-width:3px}
+.prod-btn{position:relative;padding:15px 18px;background:#fff;border:1.5px solid var(--border);
+  border-radius:12px;cursor:pointer;text-align:center;font-family:'Inter',sans-serif;
+  font-size:.9rem;font-weight:700;color:var(--text);transition:all .18s;min-height:54px;line-height:1.3;
+  box-shadow:0 1px 3px rgba(15,40,60,.05)}
+.prod-btn:hover{border-color:var(--primary-light);color:var(--primary);
+  transform:translateY(-2px);box-shadow:0 6px 16px rgba(26,82,118,.13)}
+.prod-btn.sel{background:linear-gradient(135deg,#1a5276,#2471a3);color:#fff;border-color:#1a5276;
+  box-shadow:0 6px 18px rgba(26,82,118,.32)}
+.prod-btn.sel::after{content:'✓';position:absolute;top:5px;right:9px;font-size:.72rem;opacity:.9}
 .prod-no-sel{text-align:center;padding:32px 16px;color:var(--text-muted);font-size:.92rem;
   background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px;
   border:1.5px dashed var(--border)}
@@ -758,9 +769,11 @@ var EETT_LIVE={};
 ALL_PRODUCTS.forEach(function(p){
   EETT_LIVE[p.value]=EETT_DEFAULTS[p.value]||buildEmptySpec(p.value);
 });
-var EETT_PRODUCTS=ALL_PRODUCTS.map(function(p){
-  return{key:p.value,label:p.value==='A36'?'A36 — TLH (Lirquen / Cristalerias)':p.label};
-});
+var EETT_PRODUCTS=ARENA_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.value==='A36'?'A36 — TLH (Lirquen / Cristalerias)':p.label,planta:'Arenas'};
+}).concat(CUARZO_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.label,planta:'Cuarzo'};
+}));
 async function loadEETT(){
   try{
     var res=await supabase.from('especificaciones').select('*');
@@ -3200,6 +3213,7 @@ function eettFromDraft(o){
   var r={};Object.keys(o).forEach(function(k){r[k]=eettFromDraft(o[k]);});return r;
 }
 function EettEditor({account}){
+  var[planta,setPlanta]=useState('Arenas');
   var[sel,setSel]=useState('');
   var[draft,setDraft]=useState(null);
   var[saving,setSaving]=useState(false);
@@ -3208,6 +3222,10 @@ function EettEditor({account}){
   function pick(k){
     setSel(k);setMsg(null);
     setDraft(k?eettToDraft(EETT_LIVE[k]):null);
+  }
+  function pickPlanta(p){
+    setPlanta(p);
+    pick('');
   }
   function setVal(path,value){
     setDraft(function(prev){
@@ -3320,11 +3338,25 @@ function EettEditor({account}){
   return(
     <div style={{marginTop:18}}>
       <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Especificaciones Técnicas (EETT)</div>
-      <div style={{marginBottom:12}}>
+      <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:12}}>
+        <div style={{display:'flex',gap:0,border:'1.5px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
+          {['Arenas','Cuarzo'].map(function(pl){
+            return(
+              <button key={pl} onClick={function(){pickPlanta(pl);}} style={{
+                padding:'8px 16px',border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',
+                fontWeight:700,fontSize:'.82rem',
+                background:planta===pl?'var(--primary)':'#fff',
+                color:planta===pl?'#fff':'var(--text-secondary)',
+              }}>{pl}</button>
+            );
+          })}
+        </div>
         <select value={sel} onChange={function(e){pick(e.target.value);}}
-          style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}>
+          style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif',minWidth:230}}>
           <option value="">— Seleccione producto —</option>
-          {EETT_PRODUCTS.map(function(p){return <option key={p.key} value={p.key}>{p.label}</option>;})}
+          {EETT_PRODUCTS.filter(function(p){return p.planta===planta;}).map(function(p){
+            return <option key={p.key} value={p.key}>{p.label}</option>;
+          })}
         </select>
       </div>
       {draft&&(
@@ -3496,12 +3528,12 @@ function SettingsScreen({account,onBack,onLogout}){
 
 /* ── HOME SCREEN ── */
 const MODULES=[
-  {id:'secado-peral',label:'Secado Peral',active:false},
-  {id:'lavado-peral',label:'Lavado Peral',active:false},
-  {id:'secado-turco',label:'Secado Turco',active:false},
-  {id:'lavado-turco',label:'Lavado Turco',active:false},
-  {id:'arenas',label:'Arenas',active:true},
-  {id:'cuarzo',label:'Cuarzo',active:true},
+  {id:'arenas',label:'Arenas',icon:'⏳',desc:'Granulometria, quimica y humedad',active:true},
+  {id:'cuarzo',label:'Cuarzo',icon:'💎',desc:'Granulometria, quimica y humedad',active:true},
+  {id:'secado-peral',label:'Secado Peral',icon:'♨️',desc:'Control de secado',active:false},
+  {id:'lavado-peral',label:'Lavado Peral',icon:'💧',desc:'Control de lavado',active:false},
+  {id:'secado-turco',label:'Secado Turco',icon:'♨️',desc:'Control de secado',active:false},
+  {id:'lavado-turco',label:'Lavado Turco',icon:'💧',desc:'Control de lavado',active:false},
 ];
 
 function HomeScreen({onSelect,isViewer}){
@@ -3521,7 +3553,9 @@ function HomeScreen({onSelect,isViewer}){
                 tabIndex={m.active?0:undefined}
                 onKeyDown={m.active?function(e){if(e.key==='Enter')onSelect(m.id);}:undefined}>
                 {!m.active&&<span className="badge-soon">Proximamente</span>}
+                <div className="mod-icon"><span style={{filter:m.active?'none':'grayscale(1)'}}>{m.icon}</span></div>
                 <div className="mod-label">{m.label}</div>
+                <div className="mod-desc">{m.desc}</div>
               </div>
             );
           })}
