@@ -56,8 +56,10 @@ de Supabase automáticamente).
 | v_tt_fierrillo_casillero | Fierrillo Casillero |
 | v_ensayos_todos | Todos los registros (granu/química en JSON) |
 
-Columnas: `t_18`, `t_20`... = peso retenido por tamiz (g);
-`sio2`...`tio2` = química (%); el resto son los campos del formulario.
+Columnas: `folio` = N° de muestra correlativo; `rp_18`, `rp_20`... =
+retenido parcial por tamiz (%, masa ÷ peso final × 100, igual que la app);
+en Cilindro la salida es `sal_rp_*`; `sio2`...`tio2` = química (%);
+el resto son los campos del formulario.
 
 ## Filtros útiles (en la URL)
 
