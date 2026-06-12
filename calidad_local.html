@@ -325,6 +325,12 @@ const CALIM_SIEVES=[
   {us:'#16',mm:'1,180'},{us:'#20',mm:'0,850'},
   {us:'#100',mm:'0,150'},
 ];
+const TURCO_SIEVES=[ // banda estandar Lavado Turco (#16 a #270, PAN=fondo)
+  {us:'#16',mm:'1,180'},{us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+  {us:'#30',mm:'0,600'},{us:'#40',mm:'0,425'},{us:'#50',mm:'0,300'},
+  {us:'#70',mm:'0,212'},{us:'#100',mm:'0,150'},{us:'#140',mm:'0,106'},
+  {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
+];
 const SIEVE_CONFIG={
   // ── ARENAS ──
   'A36':[
@@ -400,6 +406,27 @@ const SIEVE_CONFIG={
     {us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
   ],
   'MPRIMA':[], // materias primas: solo quimica
+  // ── LAVADO TURCO ──
+  'TT_TLH':     TURCO_SIEVES,
+  'TT_ALIM':    TURCO_SIEVES,
+  'TT_CILINDRO':TURCO_SIEVES,
+  'TT_AMINAS':  TURCO_SIEVES,
+  'TT_FIERRC':  TURCO_SIEVES,
+  'TT_LODO':[
+    {us:'#40',mm:'0,425'},{us:'#50',mm:'0,300'},{us:'#80',mm:'0,180'},
+    {us:'#100',mm:'0,150'},{us:'#120',mm:'0,125'},{us:'#200',mm:'0,075'},
+  ],
+  'TT_GMINA':[
+    {us:'#4',mm:'4,750'},{us:'#6',mm:'3,350'},{us:'#8',mm:'2,360'},
+    {us:'#12',mm:'1,680'},{us:'#16',mm:'1,180'},{us:'#18',mm:'1,000'},
+    {us:'#30',mm:'0,600'},
+  ],
+  'TT_GRANOS':[ // conteo de granos/arcillas
+    {us:'#16',mm:'1,180'},{us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+  ],
+  'TT_ARCILLAS':[],
+  'TT_FLOC':[],
+  'TT_AMCRIST':[],
   // ── CUARZO ──
   'CALIM':  CALIM_SIEVES,
   'CTLH':   CALIM_SIEVES,
@@ -441,6 +468,17 @@ const PRODUCT_CONFIG={
   'DESP_LLAY':{quimica:true, humedad:true, tipoMuestra:false},
   'CGRANOS':  {quimica:false,humedad:false,tipoMuestra:false},
   'MPRIMA':   {quimica:true, humedad:false,tipoMuestra:false},
+  'TT_TLH':     {quimica:true, humedad:true, tipoMuestra:false},
+  'TT_ALIM':    {quimica:true, humedad:false,tipoMuestra:false},
+  'TT_CILINDRO':{quimica:false,humedad:false,tipoMuestra:false},
+  'TT_AMINAS':  {quimica:true, humedad:false,tipoMuestra:false},
+  'TT_FIERRC':  {quimica:true, humedad:false,tipoMuestra:false},
+  'TT_LODO':    {quimica:false,humedad:false,tipoMuestra:false},
+  'TT_GMINA':   {quimica:true, humedad:false,tipoMuestra:false},
+  'TT_GRANOS':  {quimica:false,humedad:false,tipoMuestra:false},
+  'TT_ARCILLAS':{quimica:false,humedad:false,tipoMuestra:false},
+  'TT_FLOC':    {quimica:false,humedad:false,tipoMuestra:false},
+  'TT_AMCRIST': {quimica:true, humedad:false,tipoMuestra:false},
   'CALIM':  {quimica:true, humedad:true, tipoMuestra:false},
   'CTLH':   {quimica:true, humedad:true, tipoMuestra:false},
   'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
@@ -454,6 +492,10 @@ const GRANU_TITLE={
   UTACK:'Under Tack 222',MESP:'Muestras Especiales',LODOSA:'Lodos Arenas',
   DESP_PH:'Despacho Padre Hurtado',DESP_LIR:'Despacho Lirquen',DESP_LLAY:'Despacho Llay-Llay',
   CGRANOS:'Control de Granos',MPRIMA:'Materias Primas Las Piedras',
+  TT_TLH:'TLH Turco',TT_ALIM:'Alimentacion TLH',TT_CILINDRO:'Cilindro',
+  TT_AMINAS:'Arenas Minas',TT_FIERRC:'Fierrillo Casillero',TT_LODO:'Lodo',
+  TT_GMINA:'Grano Mina',TT_GRANOS:'Control Granos Produccion',
+  TT_ARCILLAS:'% Arcillas',TT_FLOC:'Floculante',TT_AMCRIST:'Arena Mina Cristaleria',
   CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
 };
 
@@ -820,7 +862,35 @@ const MPRIMA_IDENTIFICACIONES=[
 const ACOPIOS_PRODUCCION=[
   'Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia',
 ].map(function(n){return{value:n,label:n};});
-const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS);
+const LAVTURCO_PRODUCTS=[
+  {value:'TT_TLH',     label:'TLH Turco'},
+  {value:'TT_ALIM',    label:'Alimentacion TLH'},
+  {value:'TT_GRANOS',  label:'Control Granos Produccion'},
+  {value:'TT_ARCILLAS',label:'% Arcillas'},
+  {value:'TT_AMINAS',  label:'Arenas Minas'},
+  {value:'TT_CILINDRO',label:'Cilindro'},
+  {value:'TT_FLOC',    label:'Floculante'},
+  {value:'TT_LODO',    label:'Lodo'},
+  {value:'TT_GMINA',   label:'Grano Mina'},
+  {value:'TT_AMCRIST', label:'Arena Mina Cristaleria'},
+  {value:'TT_FIERRC',  label:'Fierrillo Casillero'},
+];
+const TURNOS_ABC=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'},{value:'C',label:'Turno C'}];
+const ACOPIOS_TURCO=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8']
+  .map(function(n){return{value:n,label:n};});
+const PUNTOS_MUESTREO_TURCO=[
+  {value:'Correa',label:'Correa'},
+  {value:'Cortador',label:'Cortador'},
+  {value:'Zona Segura Patas',label:'Zona Segura Patas'},
+];
+const MEZCLA_COMPONENTES=['banco','amarilla','blanca','grancilla'];
+/* EETT por defecto Lodo: +#120 (ret. acumulado) max 10% */
+const SPECS_TT_LODO={
+  granulometria:{
+    '#120':{retMax:10,retMin:null,pasMax:null,pasMin:null},
+  },
+};
+const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS);
 
 /* ── EETT EDITABLES ──
    Registro en vivo de especificaciones por producto. Los SPECS_* de
@@ -855,6 +925,7 @@ var EETT_DEFAULTS={
   // copias independientes para que editar uno no afecte al otro
   DESP_PH:JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
   DESP_LLAY:JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
+  TT_LODO:SPECS_TT_LODO,
 };
 var EETT_LIVE={};
 ALL_PRODUCTS.forEach(function(p){
@@ -868,6 +939,8 @@ var EETT_PRODUCTS=ARENA_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Despachos'};
 })).concat(OTROS_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Arenas'};
+})).concat(LAVTURCO_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.label,planta:'Turco'};
 }));
 async function loadEETT(){
   try{
@@ -881,6 +954,11 @@ async function loadEETT(){
 }
 const TURNOS=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'}];
 const ANALISTAS_DEFAULT=[{value:'Camila Opazo',label:'Camila Opazo'},{value:'Ximena Gutierrez',label:'Ximena Gutierrez'}];
+const ANALISTAS_TURCO_DEFAULT=[
+  {value:'Lilina Peñailillo',label:'Lilina Peñailillo'},
+  {value:'Oscarli Meteran',label:'Oscarli Meteran'},
+  {value:'Romina Sepulveda',label:'Romina Sepulveda'},
+];
 
 function parseDecimal(s){
   if(s===null||s===undefined||s==='')return NaN;
@@ -969,6 +1047,16 @@ async function sendDespachoToSupabase(data,user){
   if(res.error)throw res.error;
 }
 
+/* Variante para Lavado Turco: agrega extra (JSONB) y hora de muestreo
+   (requiere supabase-turco-setup.sql) */
+async function sendTurcoToSupabase(data,user){
+  var row=buildDbRow(data,user);
+  if(data.extra!==undefined)row.extra=data.extra;
+  if(data.horaSalida)row.hora_salida=data.horaSalida;
+  var res=await supabase.from('ensayos').insert([row]);
+  if(res.error)throw res.error;
+}
+
 function dbToRow(r){
   var q=r.quimica||{};
   var row={
@@ -1001,6 +1089,7 @@ function dbToRow(r){
     Guia:r.guia,
     Lote:r.lote,
     HoraSalida:r.hora_salida,
+    Extra:r.extra||null,
     Timestamp:r.created_at,
     status:'sent',
   };
@@ -1063,10 +1152,17 @@ async function deleteEnsayo(id,user){
   if(res.error)throw res.error;
 }
 
-async function loadAnalistas(){
-  var res=await supabase.from('analistas').select('nombre').eq('activo',true).order('nombre');
-  if(res.error||!res.data||!res.data.length)return ANALISTAS_DEFAULT;
-  return res.data.map(function(a){return{value:a.nombre,label:a.nombre};});
+/* planta: 'Arenas' (incluye Cuarzo) o 'Turco'. Si la columna planta no
+   existe aun en la BD, las filas sin planta se tratan como Arenas. */
+async function loadAnalistas(planta){
+  var res=await supabase.from('analistas').select('*').eq('activo',true).order('nombre');
+  if(res.error||!res.data||!res.data.length)return planta==='Turco'?ANALISTAS_TURCO_DEFAULT:ANALISTAS_DEFAULT;
+  var list=res.data.filter(function(a){
+    var pl=a.planta||'Arenas';
+    return !planta||pl===planta;
+  });
+  if(!list.length)return planta==='Turco'?ANALISTAS_TURCO_DEFAULT:ANALISTAS_DEFAULT;
+  return list.map(function(a){return{value:a.nombre,label:a.nombre};});
 }
 
 function buildDbError(err){
@@ -2164,12 +2260,870 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
   );
 }
 
+/* ════════ LAVADO TURCO ════════ */
+
+/* Config por producto del formulario generico de ensayo Turco */
+var TT_FORM_CFG={
+  TT_TLH:    {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
+  TT_ALIM:   {granu:true,quimica:true,mezcla:true,analista:true},
+  TT_GMINA:  {granu:true,quimica:true,sector:true,hora:true,analista:true},
+  TT_AMINAS: {granu:true,quimica:true,tipoArena:true,pctArcilla:true},
+  TT_FIERRC: {granu:true,quimica:true},
+  TT_AMCRIST:{quimica:true,tipoArena:true},
+};
+
+var TT_QUIM_FIELDS=[
+  {k:'sio2',l:'SiO₂ (%)',sk:'SiO2'},{k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
+  {k:'fe2o3',l:'Fe₂O₃ (%)',sk:'Fe2O3'},{k:'cao',l:'CaO (%)',sk:'CaO'},
+  {k:'mgo',l:'MgO (%)',sk:'MgO'},{k:'k2o',l:'K₂O (%)',sk:'K2O'},
+  {k:'na2o',l:'Na₂O (%)',sk:'Na2O'},{k:'tio2',l:'TiO₂ (%)',sk:'TiO2'},
+];
+
+function TurcoPageHdr({onBack,sub}){
+  return(
+    <div className="page-hdr">
+      <button className="back-btn" onClick={onBack}>&#8592;</button>
+      <div>
+        <h2>Lavado Turco</h2>
+        <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+function TurcoErrBox({errors}){
+  var errList=Object.values(errors);
+  if(!errList.length)return null;
+  return(
+    <div className="err-box">
+      <strong>Corrija los siguientes errores:</strong>
+      <ul>{errList.map(function(er,i){return <li key={i}>{er}</li>;})}</ul>
+    </div>
+  );
+}
+
+function TurcoQuimicaCard({quimica,setQuimica,errors,qspec}){
+  return(
+    <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
+      <div className="fg-quim">
+        {TT_QUIM_FIELDS.map(function(f){
+          return(
+            <Field key={f.k} name={f.k+'TT'} label={f.l} type="decimal" required value={quimica[f.k]}
+              onChange={function(e){var v=e.target.value;setQuimica(function(p){var n=Object.assign({},p);n[f.k]=v;return n;});}}
+              error={errors[f.k]} placeholder="0,00"
+              specHint={specChemHint(qspec[f.sk])} specSemVal={specSem(quimica[f.k],qspec[f.sk])}/>
+          );
+        })}
+      </div>
+    </SecCard>
+  );
+}
+
+function validaQuimica(quimica,e){
+  TT_QUIM_FIELDS.forEach(function(f){
+    if(!quimica[f.k])e[f.k]=f.l.replace(' (%)','')+' requerido';
+  });
+}
+
+/* Formulario generico de ensayo Turco (TLH, Alimentacion, Grano Mina,
+   Arenas Minas, Fierrillo Casillero, Arena Mina Cristaleria) */
+function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
+  var cfg=TT_FORM_CFG[producto]||{};
+  var prodObj=LAVTURCO_PRODUCTS.find(function(p){return p.value===producto;});
+  var prodLabel=prodObj?prodObj.label:producto;
+
+  var[analistasList,setAnalistasList]=useState(ANALISTAS_TURCO_DEFAULT);
+  useEffect(function(){if(cfg.analista)loadAnalistas('Turco').then(setAnalistasList).catch(function(){});},[]);
+
+  var[fecha,setFecha]=useState(today());
+  var[hora,setHora]=useState(nowTime());
+  var[turno,setTurno]=useState('');
+  var[analista,setAnalista]=useState('');
+  var[acopio,setAcopio]=useState('');
+  var[sector,setSector]=useState('');
+  var[tipoArena,setTipoArena]=useState('');
+  var[pctArcilla,setPctArcilla]=useState('');
+  var[mezcla,setMezcla]=useState({banco:'',amarilla:'',blanca:'',grancilla:''});
+  var[pesoInicial,setPesoInicial]=useState('');
+  var[pesoFinal,setPesoFinal]=useState('');
+  var[gv,setGv]=useState(Array((SIEVE_CONFIG[producto]||[]).length).fill(''));
+  var[pctHumedad,setPctHumedad]=useState('');
+  var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
+
+  var specs=getSpecs(producto);
+  var qspec=(specs&&specs.quimica)||{};
+  var hspec=specs?specs.humedad:null;
+  var gc=useMemo(function(){return calcGranu(producto,gv,pesoFinal);},[producto,gv,pesoFinal]);
+  function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+  function updMezcla(k,v){
+    var clean=v.replace(/[^0-9]/g,'');
+    setMezcla(function(p){var n=Object.assign({},p);n[k]=clean;return n;});
+  }
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(cfg.hora&&!hora)e.hora='Hora requerida';
+    if(cfg.analista&&!analista)e.analista='Analista requerido';
+    if(cfg.acopio&&!acopio)e.acopio='Seleccione el acopio';
+    if(cfg.sector&&!sector)e.sector='Sector requerido';
+    if(cfg.tipoArena&&!tipoArena)e.tipoArena='Tipo de arena requerido';
+    if(cfg.granu){
+      var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
+      if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
+      if(!pesoFinal)e.pesoFinal='Peso final requerido';
+      else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
+        e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+      if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+    }
+    if(cfg.humedad&&!pctHumedad)e.pctHumedad='Humedad requerida';
+    if(cfg.quimica)validaQuimica(quimica,e);
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var extra={};
+    if(cfg.hora)extra.hora=hora;
+    if(cfg.sector)extra.sector=sector;
+    if(cfg.tipoArena)extra.tipoArena=tipoArena;
+    if(cfg.pctArcilla&&pctArcilla)extra.pctArcilla=pctArcilla;
+    if(cfg.mezcla)extra.mezcla=mezcla;
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:cfg.analista?turno:'',analista:cfg.analista?analista:(account?account.email:''),
+      producto:producto,productoLabel:prodLabel,
+      tipoMuestra:'',numAcopio:cfg.acopio?acopio:'',
+      pesoInicial:cfg.granu?pesoInicial:'',pesoFinal:cfg.granu?pesoFinal:'',
+      granu:cfg.granu?gv:[],pesoFondo:cfg.granu?gc.fondPeso:null,
+      pctHumedad:cfg.humedad?pctHumedad:'',
+      quimica:cfg.quimica?quimica:{},observaciones:'',
+      extra:extra,horaSalida:cfg.hora?hora:'',
+    };
+    addPending(data);
+    setSendError(null);
+    var violations=cfg.granu||cfg.quimica?collectViolations(data,gc):[];
+    if(violations.length)sendAlertaEmail(data,violations,account);
+    try{
+      await sendTurcoToSupabase(data,account);
+      delPending(data.id);
+      setSending(false);
+      if(cfg.granu)setReportModal({data:data,gc:gc,violations:violations,msg:'Registro enviado exitosamente.'});
+      else onSuccess('Registro enviado exitosamente.');
+    }catch(err){
+      console.error(err);
+      setSending(false);
+      if(cfg.granu){
+        setSendError(buildDbError(err));
+        setReportModal({data:data,gc:gc,violations:violations,msg:''});
+      }else onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro enviado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
+  }
+
+  return(
+    <div>
+      <TurcoPageHdr onBack={onBack} sub={prodLabel}/>
+      <TurcoErrBox errors={errors}/>
+
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaTT" label="Fecha de muestreo" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          {cfg.hora
+            ?<Field name="horaTT" label="Hora" type="time" required value={hora}
+              onChange={function(e){setHora(e.target.value);}} error={errors.hora}/>
+            :<div className="field">
+              <label style={{fontSize:'.82rem',fontWeight:600,color:'var(--text-secondary)'}}>Hora de envio</label>
+              <input type="text" value="Se registra automaticamente al enviar" readOnly className="f-ro"/>
+            </div>}
+        </div>
+        {cfg.analista&&(
+          <div className="fg fg-2" style={{marginBottom:14}}>
+            <Sel name="turnoTT" label="Turno" options={TURNOS_ABC} value={turno}
+              onChange={function(e){setTurno(e.target.value);}}/>
+            <Sel name="analistaTT" label="Analista" required options={analistasList} value={analista}
+              onChange={function(e){setAnalista(e.target.value);}} error={errors.analista}/>
+          </div>
+        )}
+        <div className="fg fg-2">
+          {cfg.acopio&&(
+            <Sel name="acopioTT" label="Acopio" required options={ACOPIOS_TURCO} value={acopio}
+              onChange={function(e){setAcopio(e.target.value);}} error={errors.acopio}/>
+          )}
+          {cfg.sector&&(
+            <Field name="sectorTT" label="Sector" required value={sector}
+              onChange={function(e){setSector(e.target.value);}} error={errors.sector} placeholder="Sector"/>
+          )}
+          {cfg.tipoArena&&(
+            <Field name="tipoArenaTT" label="Tipo de Arena" required value={tipoArena}
+              onChange={function(e){setTipoArena(e.target.value);}} error={errors.tipoArena} placeholder="Tipo de arena"/>
+          )}
+          {cfg.pctArcilla&&(
+            <Field name="pctArcillaTT" label="% Arcilla" type="decimal" value={pctArcilla}
+              onChange={function(e){setPctArcilla(e.target.value);}} placeholder="0,00"/>
+          )}
+        </div>
+      </SecCard>
+
+      {cfg.mezcla&&(
+        <SecCard title="Mezcla" icon="&#129514;">
+          <div className="fg fg-2">
+            <Field name="mzBanco" label="Banco" value={mezcla.banco}
+              onChange={function(e){updMezcla('banco',e.target.value);}} placeholder="0"/>
+            <Field name="mzAmarilla" label="Amarilla" value={mezcla.amarilla}
+              onChange={function(e){updMezcla('amarilla',e.target.value);}} placeholder="0"/>
+            <Field name="mzBlanca" label="Blanca" value={mezcla.blanca}
+              onChange={function(e){updMezcla('blanca',e.target.value);}} placeholder="0"/>
+            <Field name="mzGrancilla" label="Grancilla" value={mezcla.grancilla}
+              onChange={function(e){updMezcla('grancilla',e.target.value);}} placeholder="0"/>
+          </div>
+        </SecCard>
+      )}
+
+      {cfg.granu&&(
+        <>
+          <SecCard title="Pesos" icon="&#9878;&#65039;">
+            <div className="fg fg-2">
+              <Field name="piTT" label="Peso Inicial (g)" type="decimal" required value={pesoInicial}
+                onChange={function(e){setPesoInicial(e.target.value);}} error={errors.pesoInicial} placeholder="0,00"/>
+              <Field name="pfTT" label="Peso Final (g)" type="decimal" required value={pesoFinal}
+                onChange={function(e){setPesoFinal(e.target.value);}} error={errors.pesoFinal} placeholder="0,00"/>
+            </div>
+          </SecCard>
+          <SecCard title={'Granulometria — '+prodLabel} icon="&#128300;">
+            <GranuTable producto={producto} pesoFinal={pesoFinal} values={gv} onChange={updGv}/>
+            {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+              Aviso: {errors.granu}
+            </div>}
+          </SecCard>
+        </>
+      )}
+
+      {cfg.humedad&&(
+        <SecCard title="Humedad" icon="&#128167;">
+          <div style={{maxWidth:240}}>
+            <Field name="humTT" label="% Humedad" type="decimal" required value={pctHumedad}
+              onChange={function(e){setPctHumedad(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"
+              specHint={hspec&&hspec.max!=null?'max '+fmt(hspec.max,1)+'%':null}
+              specSemVal={hspec&&hspec.max!=null?calcSemaforo(parseDecimal(pctHumedad),null,hspec.max):'info'}/>
+          </div>
+        </SecCard>
+      )}
+
+      {cfg.quimica&&<TurcoQuimicaCard quimica={quimica} setQuimica={setQuimica} errors={errors} qspec={qspec}/>}
+
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Control de Granos de Produccion (Turco): conteo de granos y arcillas */
+function TurcoGranosForm({account,onBack,onSuccess}){
+  var sieves=SIEVE_CONFIG['TT_GRANOS']||[];
+  var[fecha,setFecha]=useState(today());
+  var[hora,setHora]=useState(nowTime());
+  var[acopio,setAcopio]=useState('');
+  var[punto,setPunto]=useState('');
+  var[granos,setGranos]=useState(Array(sieves.length).fill(''));
+  var[arcillas,setArcillas]=useState(Array(sieves.length).fill(''));
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function updInt(setter){
+    return function(i,v){
+      var clean=v.replace(/[^0-9]/g,'');
+      setter(function(p){var n=p.slice();n[i]=clean;return n;});
+    };
+  }
+  var updG=updInt(setGranos),updA=updInt(setArcillas);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!hora)e.hora='Hora requerida';
+    if(!acopio)e.acopio='Seleccione el acopio en produccion';
+    if(!punto)e.punto='Seleccione el punto de muestreo';
+    if(!granos.some(function(v){return v!=='';})&&!arcillas.some(function(v){return v!=='';}))
+      e.granos='Ingrese al menos un conteo de granos o arcillas';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'TT_GRANOS',productoLabel:'Control Granos Produccion',
+      tipoMuestra:punto,numAcopio:acopio,
+      pesoInicial:'',pesoFinal:'',granu:granos,pesoFondo:null,
+      pctHumedad:'',quimica:{},observaciones:'',
+      extra:{hora:hora,punto:punto,arcillas:arcillas},horaSalida:hora,
+    };
+    addPending(data);
+    try{
+      await sendTurcoToSupabase(data,account);
+      delPending(data.id);setSending(false);
+      onSuccess('Control de granos registrado exitosamente.');
+    }catch(err){
+      console.error(err);setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+
+  return(
+    <div>
+      <TurcoPageHdr onBack={onBack} sub="Control Granos Produccion"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Parametros Iniciales" icon="&#128203;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaTG" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaTG" label="Hora" type="time" required value={hora}
+            onChange={function(e){setHora(e.target.value);}} error={errors.hora}/>
+        </div>
+        <div className="fg fg-2">
+          <Sel name="acopioTG" label="Acopio en produccion" required options={ACOPIOS_TURCO}
+            value={acopio} onChange={function(e){setAcopio(e.target.value);}} error={errors.acopio}/>
+          <Sel name="puntoTG" label="Punto de muestreo" required options={PUNTOS_MUESTREO_TURCO}
+            value={punto} onChange={function(e){setPunto(e.target.value);}} error={errors.punto}/>
+        </div>
+      </SecCard>
+      <SecCard title="Cantidad de Granos" icon="&#129514;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return <Field key={s.us} name={'tg'+i} label={'Malla '+s.us+' ('+s.mm+' mm)'}
+              value={granos[i]} onChange={function(e){updG(i,e.target.value);}} placeholder="0"/>;
+          })}
+        </div>
+      </SecCard>
+      <SecCard title="Cantidad de Arcillas" icon="&#129521;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return <Field key={s.us} name={'ta'+i} label={'Malla '+s.us+' ('+s.mm+' mm)'}
+              value={arcillas[i]} onChange={function(e){updA(i,e.target.value);}} placeholder="0"/>;
+          })}
+        </div>
+        {errors.granos&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors.granos}
+        </div>}
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Control'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Control % Arcillas */
+function TurcoArcillasForm({account,onBack,onSuccess}){
+  var[fecha,setFecha]=useState(today());
+  var[tipoArena,setTipoArena]=useState('');
+  var[temperatura,setTemperatura]=useState('');
+  var[lectura1,setLectura1]=useState('');
+  var[lectura2,setLectura2]=useState('');
+  var[pctArena,setPctArena]=useState('');
+  var[pctArcillas,setPctArcillas]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!tipoArena)e.tipoArena='Tipo de arena requerido';
+    if(!lectura1)e.lectura1='Lectura 1 requerida';
+    if(!lectura2)e.lectura2='Lectura 2 requerida';
+    if(!pctArcillas)e.pctArcillas='% Arcillas requerido';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'TT_ARCILLAS',productoLabel:'% Arcillas',
+      tipoMuestra:tipoArena,numAcopio:'',
+      pesoInicial:'',pesoFinal:'',granu:[],pesoFondo:null,
+      pctHumedad:'',quimica:{},observaciones:'',
+      extra:{tipoArena:tipoArena,temperatura:temperatura,lectura1:lectura1,lectura2:lectura2,
+             pctArena:pctArena,pctArcillas:pctArcillas},
+    };
+    addPending(data);
+    try{
+      await sendTurcoToSupabase(data,account);
+      delPending(data.id);setSending(false);
+      onSuccess('Control % arcillas registrado exitosamente.');
+    }catch(err){
+      console.error(err);setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+
+  return(
+    <div>
+      <TurcoPageHdr onBack={onBack} sub="% Arcillas"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Control % Arcillas" icon="&#129521;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaAR" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="tipoAR" label="Tipo de Arena" required value={tipoArena}
+            onChange={function(e){setTipoArena(e.target.value);}} error={errors.tipoArena} placeholder="Tipo de arena"/>
+        </div>
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="tempAR" label="Temperatura (F°)" type="decimal" value={temperatura}
+            onChange={function(e){setTemperatura(e.target.value);}} placeholder="0,0"/>
+          <div/>
+        </div>
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="lec1AR" label="Lectura 1" type="decimal" required value={lectura1}
+            onChange={function(e){setLectura1(e.target.value);}} error={errors.lectura1} placeholder="0,00"/>
+          <Field name="lec2AR" label="Lectura 2" type="decimal" required value={lectura2}
+            onChange={function(e){setLectura2(e.target.value);}} error={errors.lectura2} placeholder="0,00"/>
+        </div>
+        <div className="fg fg-2">
+          <Field name="pArenaAR" label="% Arena" type="decimal" value={pctArena}
+            onChange={function(e){setPctArena(e.target.value);}} placeholder="0,00"/>
+          <Field name="pArcAR" label="% Arcillas" type="decimal" required value={pctArcillas}
+            onChange={function(e){setPctArcillas(e.target.value);}} error={errors.pctArcillas} placeholder="0,00"/>
+        </div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Control'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Cilindro: doble granulometria (entrada y salida) en gramos */
+function TurcoCilindroForm({account,onBack,onSuccess}){
+  var sieves=SIEVE_CONFIG['TT_CILINDRO']||[];
+  var[fecha,setFecha]=useState(today());
+  var[gvE,setGvE]=useState(Array(sieves.length).fill(''));
+  var[panE,setPanE]=useState('');
+  var[gvS,setGvS]=useState(Array(sieves.length).fill(''));
+  var[panS,setPanS]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function upd(setter){return function(i,v){setter(function(p){var n=p.slice();n[i]=v;return n;});};}
+  var updE=upd(setGvE),updS=upd(setGvS);
+  function total(arr,pan){
+    var t=arr.reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0);
+    var pn=parseDecimal(pan);return t+(isNaN(pn)?0:pn);
+  }
+  var totE=total(gvE,panE),totS=total(gvS,panS);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!gvE.some(function(v){return v!=='';}))e.entrada='Ingrese la granulometria de entrada';
+    if(!gvS.some(function(v){return v!=='';}))e.salida='Ingrese la granulometria de salida';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'TT_CILINDRO',productoLabel:'Cilindro',
+      tipoMuestra:'Entrada',numAcopio:'',
+      pesoInicial:'',pesoFinal:String(totE).replace('.',','),granu:gvE,pesoFondo:parseDecimal(panE)||0,
+      pctHumedad:'',quimica:{},observaciones:'',
+      extra:{salidaGranu:gvS,salidaPan:panS,totalEntrada:totE,totalSalida:totS},
+    };
+    addPending(data);
+    try{
+      await sendTurcoToSupabase(data,account);
+      delPending(data.id);setSending(false);
+      onSuccess('Registro de cilindro enviado exitosamente.');
+    }catch(err){
+      console.error(err);setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+
+  function granuGrid(label,arr,updFn,pan,setPan,tot,errKey){
+    return(
+      <SecCard title={label} icon="&#128300;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return <Field key={s.us} name={errKey+i} label={s.us+' ('+s.mm+' mm) g'} type="decimal"
+              value={arr[i]} onChange={function(e){updFn(i,e.target.value);}} placeholder="0,00"/>;
+          })}
+          <Field name={errKey+'pan'} label="PAN (g)" type="decimal" value={pan}
+            onChange={function(e){setPan(e.target.value);}} placeholder="0,00"/>
+          <div className="field">
+            <label>TOTAL (g)<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" value={tot?fmt(tot,2):''} style={{fontWeight:700}}/>
+          </div>
+        </div>
+        {errors[errKey]&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors[errKey]}
+        </div>}
+      </SecCard>
+    );
+  }
+
+  return(
+    <div>
+      <TurcoPageHdr onBack={onBack} sub="Cilindro — Entrada y Salida"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div style={{maxWidth:240}}>
+          <Field name="fechaCI" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+        </div>
+      </SecCard>
+      {granuGrid('Entrada Cilindro (g)',gvE,updE,panE,setPanE,totE,'entrada')}
+      {granuGrid('Salida Cilindro (g)',gvS,updS,panS,setPanS,totS,'salida')}
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Cilindro'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Floculante: cumple si dilucion entre 0,004 y 0,016 g */
+function TurcoFloculanteForm({account,onBack,onSuccess}){
+  var[fecha,setFecha]=useState(today());
+  var[horario,setHorario]=useState(nowTime());
+  var[solucion,setSolucion]=useState('');
+  var[flocMadre,setFlocMadre]=useState('');
+  var[flocDil,setFlocDil]=useState('');
+  var[concMadre,setConcMadre]=useState('');
+  var[concDil,setConcDil]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  var dil=parseDecimal(flocDil);
+  var estado=isNaN(dil)||flocDil===''?null:(dil>=0.004&&dil<=0.016)?'CUMPLE':'NO CUMPLE';
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!horario)e.horario='Horario requerido';
+    if(!solucion)e.solucion='Solucion (mL) requerida';
+    if(!flocMadre)e.flocMadre='Floculante madre requerido';
+    if(!flocDil)e.flocDil='Floculante dilucion requerido';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'TT_FLOC',productoLabel:'Floculante',
+      tipoMuestra:'',numAcopio:'',
+      pesoInicial:'',pesoFinal:'',granu:[],pesoFondo:null,
+      pctHumedad:'',quimica:{},
+      observaciones:estado?estado+' — dilucion '+flocDil+' g':'',
+      extra:{horario:horario,solucionMl:solucion,flocMadreG:flocMadre,flocDilG:flocDil,
+             concMadreGl:concMadre,concDilGl:concDil,estado:estado},
+      horaSalida:horario,
+    };
+    addPending(data);
+    if(estado==='NO CUMPLE'){
+      sendAlertaEmail(data,[{param:'Floculante dilucion',valor:flocDil+' g',limite:'0,004 – 0,016 g',spec:''}],account);
+    }
+    try{
+      await sendTurcoToSupabase(data,account);
+      delPending(data.id);setSending(false);
+      onSuccess(estado==='NO CUMPLE'
+        ?'Registro enviado — ATENCION: floculante NO CUMPLE (se envio alerta).'
+        :'Registro de floculante enviado exitosamente.');
+    }catch(err){
+      console.error(err);setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+
+  var estadoColor=estado==='CUMPLE'?'var(--success)':estado==='NO CUMPLE'?'var(--error)':'var(--text-muted)';
+
+  return(
+    <div>
+      <TurcoPageHdr onBack={onBack} sub="Floculante"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Control de Floculante" icon="&#129524;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaFL" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaFL" label="Horario" type="time" required value={horario}
+            onChange={function(e){setHorario(e.target.value);}} error={errors.horario}/>
+        </div>
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="solFL" label="Solucion (mL)" type="decimal" required value={solucion}
+            onChange={function(e){setSolucion(e.target.value);}} error={errors.solucion} placeholder="0"/>
+          <Field name="madreFL" label="Floculante Madre (g)" type="decimal" required value={flocMadre}
+            onChange={function(e){setFlocMadre(e.target.value);}} error={errors.flocMadre} placeholder="0,000"/>
+        </div>
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="dilFL" label="Floculante Dilucion (g)" type="decimal" required value={flocDil}
+            onChange={function(e){setFlocDil(e.target.value);}} error={errors.flocDil} placeholder="0,000"
+            specHint="0,004 – 0,016 g"
+            specSemVal={estado===null?'info':estado==='CUMPLE'?'ok':'error'}/>
+          <div className="field">
+            <label>Observaciones<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" placeholder="—"
+              value={estado||''} style={{fontWeight:800,color:estadoColor}}/>
+          </div>
+        </div>
+        <div className="fg fg-2">
+          <Field name="cmFL" label="Concentracion floculante madre (g/lt)" type="decimal" value={concMadre}
+            onChange={function(e){setConcMadre(e.target.value);}} placeholder="0,00"/>
+          <Field name="cdFL" label="Concentracion dilucion madre (g/lt)" type="decimal" value={concDil}
+            onChange={function(e){setConcDil(e.target.value);}} placeholder="0,00"/>
+        </div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Floculante'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Lodo: granulometria en gramos + controles -#100 y +#120 (max 10%) */
+function TurcoLodoForm({account,onBack,onSuccess}){
+  var sieves=SIEVE_CONFIG['TT_LODO']||[];
+  var[fecha,setFecha]=useState(today());
+  var[gv,setGv]=useState(Array(sieves.length).fill(''));
+  var[pan,setPan]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
+
+  function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+  var sumG=gv.reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0);
+  var panN=parseDecimal(pan);
+  var total=sumG+(isNaN(panN)?0:panN);
+  var gc=useMemo(function(){return calcGranu('TT_LODO',gv,String(total).replace('.',','));},[gv,total]);
+  // controles especiales
+  var idx100=sieves.findIndex(function(s){return s.us==='#100';});
+  var idx120=sieves.findIndex(function(s){return s.us==='#120';});
+  var rows=gc.rows.filter(function(r){return !r.isFondo;});
+  var acum100=idx100>=0&&rows[idx100]?rows[idx100].pctA:null;
+  var acum120=idx120>=0&&rows[idx120]?rows[idx120].pctA:null;
+  var menos100=acum100!=null&&total>0?100-acum100:null;
+  var mas120=acum120!=null&&total>0?acum120:null;
+  var mas120Mal=mas120!=null&&mas120>10;
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!gv.some(function(v){return v!=='';}))e.granu='Ingrese la granulometria';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'TT_LODO',productoLabel:'Lodo',
+      tipoMuestra:'',numAcopio:'',
+      pesoInicial:'',pesoFinal:String(total).replace('.',','),granu:gv,pesoFondo:isNaN(panN)?0:panN,
+      pctHumedad:'',quimica:{},observaciones:'',
+      extra:{menos100:menos100,mas120:mas120},
+    };
+    addPending(data);
+    setSendError(null);
+    var violations=collectViolations(data,gc);
+    if(violations.length)sendAlertaEmail(data,violations,account);
+    try{
+      await sendTurcoToSupabase(data,account);
+      delPending(data.id);setSending(false);
+      setReportModal({data:data,gc:gc,violations:violations,msg:'Registro de lodo enviado exitosamente.'});
+    }catch(err){
+      console.error(err);setSending(false);
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:gc,violations:violations,msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro de lodo enviado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
+  }
+
+  function chip(label,val,bad){
+    return(
+      <div style={{padding:'10px 16px',borderRadius:10,minWidth:130,textAlign:'center',
+        background:bad?'#fff5f5':'#f7fafc',border:'1.5px solid '+(bad?'#c53030':'var(--border)')}}>
+        <div style={{fontSize:'.74rem',fontWeight:700,color:'var(--text-secondary)'}}>{label}</div>
+        <div style={{fontSize:'1.1rem',fontWeight:800,color:bad?'#c53030':'var(--text)'}}>
+          {val!=null?fmt(val,2)+' %':'—'}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <TurcoPageHdr onBack={onBack} sub="Lodo"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div style={{maxWidth:240}}>
+          <Field name="fechaLO" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+        </div>
+      </SecCard>
+      <SecCard title="Analisis Granulometrico (g)" icon="&#128300;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return <Field key={s.us} name={'lo'+i} label={s.us+' ('+s.mm+' mm) g'} type="decimal"
+              value={gv[i]} onChange={function(e){updGv(i,e.target.value);}} placeholder="0,00"/>;
+          })}
+          <Field name="loPan" label="PAN (g)" type="decimal" value={pan}
+            onChange={function(e){setPan(e.target.value);}} placeholder="0,00"/>
+          <div className="field">
+            <label>TOTAL (g)<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" value={total?fmt(total,2):''} style={{fontWeight:700}}/>
+          </div>
+        </div>
+        {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors.granu}
+        </div>}
+      </SecCard>
+      <SecCard title="Especificacion Especial" icon="&#128202;">
+        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          {chip('-#100 (pasante)',menos100,false)}
+          {chip('+#120 (ret. acum.)',mas120,mas120Mal)}
+        </div>
+        {mas120Mal&&(
+          <div style={{marginTop:10,color:'#c53030',fontWeight:700,fontSize:'.88rem'}}>
+            🚨 +#120 supera el 10% — fuera de norma
+          </div>
+        )}
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Lodo'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Pantalla principal Lavado Turco */
+function LavadoTurcoScreen({account,onBack,onSuccess}){
+  var[sel,setSel]=useState(null);
+  function back(){setSel(null);}
+  if(sel==='TT_GRANOS')return <TurcoGranosForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(sel==='TT_ARCILLAS')return <TurcoArcillasForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(sel==='TT_CILINDRO')return <TurcoCilindroForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(sel==='TT_FLOC')return <TurcoFloculanteForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(sel==='TT_LODO')return <TurcoLodoForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(sel)return <TurcoEnsayoForm account={account} producto={sel} onBack={back} onSuccess={onSuccess}/>;
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div><h2>Lavado Turco</h2></div>
+      </div>
+      <div className="prod-mosaic">
+        {LAVTURCO_PRODUCTS.map(function(p){
+          return(
+            <button key={p.value} className="prod-btn" onClick={function(){setSel(p.value);}}>
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="prod-no-sel">Selecciona un control para continuar</div>
+    </div>
+  );
+}
+
 function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,lsDel,extraGroups,otrosGroup}){
   var[view,setView]=useState('form');
   var[sending,setSending]=useState(false);
   var[reportModal,setReportModal]=useState(null);
   var[analistasList,setAnalistasList]=useState(ANALISTAS_DEFAULT);
-  useEffect(function(){loadAnalistas().then(setAnalistasList).catch(function(){});},[]);
+  useEffect(function(){loadAnalistas('Arenas').then(setAnalistasList).catch(function(){});},[]);
   var[fecha,setFecha]=useState(today());
   var[fechaEnvio,setFechaEnvio]=useState('');
   var[horaEnvio,setHoraEnvio]=useState('');
@@ -3449,6 +4403,7 @@ function HistoryScreen({account,onBack}){
 
   function getPlanta(r){
     var pk=r.ProductoKey||r.producto||'';
+    if(pk.indexOf('TT_')===0)return'Turco';
     return CUARZO_PRODUCTS.some(function(p){return p.value===pk;})?'Cuarzo':'Arenas';
   }
 
@@ -3950,7 +4905,7 @@ function EettEditor({account}){
       <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Especificaciones Técnicas (EETT)</div>
       <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:12}}>
         <div style={{display:'flex',gap:0,border:'1.5px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
-          {['Arenas','Cuarzo','Despachos'].map(function(pl){
+          {['Arenas','Cuarzo','Despachos','Turco'].map(function(pl){
             return(
               <button key={pl} onClick={function(){pickPlanta(pl);}} style={{
                 padding:'8px 16px',border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',
@@ -4000,6 +4955,7 @@ function SettingsScreen({account,onBack,onLogout}){
   var[toast,setToast]=useState(null);
   var[analistas,setAnalistas]=useState([]);
   var[newAnalista,setNewAnalista]=useState('');
+  var[newPlanta,setNewPlanta]=useState('Arenas');
   var[loadingAn,setLoadingAn]=useState(false);
 
   function refresh(){setPendA(getPending());setPendC(getPendingCuarzo());}
@@ -4014,7 +4970,13 @@ function SettingsScreen({account,onBack,onLogout}){
 
   async function addAnalista(){
     var n=newAnalista.trim();if(!n)return;
-    var res=await supabase.from('analistas').insert([{nombre:n}]);
+    var row={nombre:n};
+    row.planta=newPlanta; // requiere columna planta (supabase-turco-setup.sql)
+    var res=await supabase.from('analistas').insert([row]);
+    if(res.error&&res.error.message&&res.error.message.indexOf('planta')>=0){
+      // columna planta aun no existe: insertar sin ella
+      res=await supabase.from('analistas').insert([{nombre:n}]);
+    }
     if(res.error){setToast({msg:'Error: '+res.error.message,type:'error'});}
     else{setNewAnalista('');setToast({msg:'Analista agregado',type:'success'});fetchAnalistas();}
   }
@@ -4106,10 +5068,11 @@ function SettingsScreen({account,onBack,onLogout}){
               <>
                 <div style={{overflowX:'auto',marginBottom:12}}>
                   <table className="htbl">
-                    <thead><tr><th>Nombre</th><th>Estado</th><th></th></tr></thead>
+                    <thead><tr><th>Nombre</th><th>Planta</th><th>Estado</th><th></th></tr></thead>
                     <tbody>{analistas.map(function(a){return(
                       <tr key={a.id}>
                         <td>{a.nombre}</td>
+                        <td style={{fontSize:'.8rem',color:'var(--text-secondary)'}}>{a.planta||'Arenas'}</td>
                         <td><span className={'badge '+(a.activo?'badge-s':'badge-w')} style={{fontSize:'.75rem'}}>{a.activo?'Activo':'Inactivo'}</span></td>
                         <td><button className="btn btn-secondary" style={{padding:'3px 9px',fontSize:'.78rem'}}
                           onClick={function(){toggleAnalista(a.id,a.activo);}}>
@@ -4119,11 +5082,16 @@ function SettingsScreen({account,onBack,onLogout}){
                     );})}</tbody>
                   </table>
                 </div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
                   <input type="text" value={newAnalista}
                     onChange={function(e){setNewAnalista(e.target.value);}}
                     onKeyDown={function(e){if(e.key==='Enter')addAnalista();}}
-                    placeholder="Nombre del nuevo analista" style={{flex:1,padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}/>
+                    placeholder="Nombre del nuevo analista" style={{flex:1,minWidth:180,padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}/>
+                  <select value={newPlanta} onChange={function(e){setNewPlanta(e.target.value);}}
+                    style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}>
+                    <option value="Arenas">Arenas / Cuarzo</option>
+                    <option value="Turco">Turco</option>
+                  </select>
                   <button className="btn btn-primary" onClick={addAnalista}>Agregar</button>
                 </div>
               </>
@@ -4143,7 +5111,7 @@ const MODULES=[
   {id:'secado-peral',label:'Secado Peral',icon:'♨️',desc:'Control de secado',active:false},
   {id:'lavado-peral',label:'Lavado Peral',icon:'💧',desc:'Control de lavado',active:false},
   {id:'secado-turco',label:'Secado Turco',icon:'♨️',desc:'Control de secado',active:false},
-  {id:'lavado-turco',label:'Lavado Turco',icon:'💧',desc:'Control de lavado',active:false},
+  {id:'lavado-turco',label:'Lavado Turco',icon:'💧',desc:'TLH, minas, cilindro, floculante y mas',active:true},
 ];
 
 function HomeScreen({onSelect,isViewer}){
@@ -4310,9 +5278,11 @@ function App(){
           if(isViewer)return;
           if(id==='arenas')setScreen('arenas');
           else if(id==='cuarzo')setScreen('cuarzo');
+          else if(id==='lavado-turco')setScreen('lavado-turco');
         }}/>}
         {!isViewer&&screen==='arenas'&&<ArenasForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {!isViewer&&screen==='cuarzo'&&<CuarzoForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
+        {!isViewer&&screen==='lavado-turco'&&<LavadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
