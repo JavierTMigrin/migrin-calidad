@@ -3649,12 +3649,12 @@ function App(){
     );
   }
 
-  var logoUrl='data:image/svg+xml;charset=utf8,%3Csvg xmlns%3D\'http%3A//www.w3.org/2000/svg\' viewBox%3D\'0 0 140 44\'%3E%3Crect width%3D\'140\' height%3D\'44\' fill%3D\'%231a5276\'/%3E%3Ctext x%3D\'12\' y%3D\'30\' font-family%3D\'Arial\' font-size%3D\'20\' font-weight%3D\'800\' fill%3D\'white\'%3EMIGRIN%3C/text%3E%3C/svg%3E';
+  var logoUrl='logo.png';
 
   var header=(
     <header className="app-header">
       <div className="hdr-brand">
-        <img src={logoUrl} alt="MIGRIN" style={{height:42,objectFit:'contain'}}
+        <img src={logoUrl} alt="MIGRIN" style={{height:46,width:46,objectFit:'contain',background:'#fff',borderRadius:10,padding:3}}
           onError={function(e){e.target.style.display='none';}}/>
         <div>
           <div className="hdr-title">Control de Calidad</div>
