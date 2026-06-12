@@ -524,28 +524,65 @@ function getSpecs(producto){
   return null;
 }
 
+/* ── EETT EDITABLES ──
+   Los objetos SPECS_* de arriba son los valores por defecto.
+   Si existe un override en la tabla `especificaciones` de Supabase,
+   se fusiona en memoria al iniciar la app (mutacion in-place, asi
+   toda la logica que referencia SPECS_* ve los valores editados). */
+var EETT_LIVE={
+  A36:SPECS_A36,A38:SPECS_A38,
+  VERALTA:SPECS_VERALTA,VERBAJA:SPECS_VERBAJA,
+  CTLH:SPECS_CTLH,CDLK:SPECS_CDLK,
+};
+const EETT_PRODUCTS=[
+  {key:'A36',label:'A36 — TLH (Lirquen / Cristalerias)'},
+  {key:'A38',label:'A38 — Fierrillo'},
+  {key:'VERALTA',label:'Veralia Alta Hierro'},
+  {key:'VERBAJA',label:'Veralia Baja Hierro'},
+  {key:'CTLH',label:'TLH Cuarzo (A-37)'},
+  {key:'CDLK',label:'DLK'},
+];
+async function loadEETT(){
+  try{
+    var res=await supabase.from('especificaciones').select('*');
+    if(res.error||!res.data)return;
+    res.data.forEach(function(r){
+      var live=EETT_LIVE[r.producto_key];
+      if(live&&r.specs)Object.keys(r.specs).forEach(function(k){live[k]=r.specs[k];});
+    });
+  }catch(e){console.error('Error cargando EETT:',e);}
+}
+
 function getDashboardControles(prod){
   var ps=getSpecs(prod);
   var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
   var ci=0;function nc(){return cols[ci++%cols.length];}
-  if(prod==='A36')return[
-    {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:null,limMax:2},
-    {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:86,limMax:null},
-    {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:95,limMax:null},
-    {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:0.290},
-    {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
-  ];
-  if(prod==='A38')return[
-    {key:'_plusG40',field:null,label:'+#40 (%)',color:nc(),limMin:null,limMax:10},
-    {key:'#400',field:'pctPas',label:'-#400 Pas.(%)',color:nc(),limMin:null,limMax:5},
-    {key:'#16',field:'pctP',label:'Ret.P #16 (%)',color:nc(),limMin:null,limMax:0},
-    {key:'#45',field:'pctP',label:'Ret.P #45 (%)',color:nc(),limMin:null,limMax:13},
-    {key:'#60',field:'pctP',label:'Ret.P #60 (%)',color:nc(),limMin:null,limMax:27},
-    {key:'#100',field:'pctP',label:'Ret.P #100 (%)',color:nc(),limMin:null,limMax:22},
-    {key:'_d50',field:null,label:'D50 (mm)',color:nc(),limMin:null,limMax:null},
-    {key:'_p80',field:null,label:'P80 (mm)',color:nc(),limMin:null,limMax:null},
-    {key:'_p20',field:null,label:'P20 (mm)',color:nc(),limMin:null,limMax:null},
-  ];
+  if(prod==='A36'){
+    var glir=SPECS_A36.LIRQUEN.granulometria||{};
+    function ga(us,f){var o=glir[us]||{};return o[f]==null?null:o[f];}
+    return[
+      {key:'#35',field:'pctA',label:'Ret.Acum #35',color:'#e53935',limMin:ga('#35','retAcumMin'),limMax:ga('#35','retAcumMax')},
+      {key:'#120',field:'pctA',label:'Ret.Acum #120',color:'#1a5276',limMin:ga('#120','retAcumMin'),limMax:ga('#120','retAcumMax')},
+      {key:'#170',field:'pctA',label:'Ret.Acum #170',color:'#276749',limMin:ga('#170','retAcumMin'),limMax:ga('#170','retAcumMax')},
+      {key:'_d50',field:null,label:'D50 (mm)',color:'#b7791f',limMin:null,limMax:SPECS_A36.LIRQUEN.d50Max==null?null:SPECS_A36.LIRQUEN.d50Max},
+      {key:'_p80',field:null,label:'P80 (mm)',color:'#8e44ad',limMin:null,limMax:null},
+    ];
+  }
+  if(prod==='A38'){
+    var g38d=SPECS_A38.granulometria||{};
+    function g8(us,f){var o=g38d[us]||{};return o[f]==null?null:o[f];}
+    return[
+      {key:'_plusG40',field:null,label:'+#40 (%)',color:nc(),limMin:null,limMax:g8('+#40','retAcumMax')},
+      {key:'#400',field:'pctPas',label:'-#400 Pas.(%)',color:nc(),limMin:null,limMax:g8('-#400','pasMax')},
+      {key:'#16',field:'pctP',label:'Ret.P #16 (%)',color:nc(),limMin:null,limMax:g8('#16','retMax')},
+      {key:'#45',field:'pctP',label:'Ret.P #45 (%)',color:nc(),limMin:null,limMax:g8('#45','retMax')},
+      {key:'#60',field:'pctP',label:'Ret.P #60 (%)',color:nc(),limMin:null,limMax:g8('#60','retMax')},
+      {key:'#100',field:'pctP',label:'Ret.P #100 (%)',color:nc(),limMin:null,limMax:g8('#100','retMax')},
+      {key:'_d50',field:null,label:'D50 (mm)',color:nc(),limMin:null,limMax:null},
+      {key:'_p80',field:null,label:'P80 (mm)',color:nc(),limMin:null,limMax:null},
+      {key:'_p20',field:null,label:'P20 (mm)',color:nc(),limMin:null,limMax:null},
+    ];
+  }
   if(prod==='ALIM')return[
     {key:'#35',field:'pctA',label:'Ret.Acum #35',color:nc(),limMin:null,limMax:null},
     {key:'#120',field:'pctA',label:'Ret.Acum #120',color:nc(),limMin:null,limMax:null},
@@ -643,32 +680,28 @@ function collectViolations(data,gc){
   var hum=parseDecimal(data.pctHumedad);
 
   if(producto==='A36'){
-    chk('Ret.Acum #18',sv('#18','pctA'),null,0,'%',2,'Lirquen');
-    chk('Ret.Acum #25',sv('#25','pctA'),null,0.4,'%',2,'Lirquen');
-    chk('Ret.Acum #35',sv('#35','pctA'),null,2.0,'%',2,'Lirquen');
-    chk('Ret.Acum #120',sv('#120','pctA'),86,null,'%',2,'Lirquen');
-    chk('Ret.Acum #170',sv('#170','pctA'),95,null,'%',2,'Lirquen');
-    chk('D50',d50,null,0.290,'mm',3,'Lirquen');
-    chkChem(SPECS_A36.LIRQUEN.quimica,'Lirquen');
-    chk('Ret.Acum #16',sv('#16','pctA'),null,0,'%',2,'Cristalerias');
-    chk('Ret.Acum #20',sv('#20','pctA'),null,0,'%',2,'Cristalerias');
-    chk('Ret.Acum #30',sv('#30','pctA'),null,0.1,'%',2,'Cristalerias');
-    chk('Pasante #100',sv('#100','pctPas'),null,1.5,'%',2,'Cristalerias');
-    chkChem(SPECS_A36.CRISTALERIAS.quimica,'Cristalerias');
+    Object.entries(SPECS_A36).forEach(function(se){
+      var sp=se[1],sname=sp.nombre||se[0];
+      Object.entries(sp.granulometria||{}).forEach(function(en){
+        var us=en[0],s=en[1];
+        chk('Ret.Acum '+us,sv(us,'pctA'),s.retAcumMin,s.retAcumMax,'%',2,sname);
+      });
+      if(sp.d50Max!=null)chk('D50',d50,null,sp.d50Max,'mm',3,sname);
+      chkChem(sp.quimica,sname);
+    });
     return out;
   }
   if(producto==='A38'){
+    var g38=SPECS_A38.granulometria||{};
     var pg=['#16','#18','#20','#30','#35','#40'];
     var pgVal=pg.reduce(function(acc,us){var v=sv(us,'pctP');return acc+(v!=null?v:0);},0);
-    chk('+#40',pgVal,null,10,'%',2,'');
-    chk('-#400 Pasante',sv('#400','pctPas'),null,5,'%',2,'');
-    chk('Ret.P #16',sv('#16','pctP'),null,0,'%',2,'');
-    chk('Ret.P #45',sv('#45','pctP'),null,13,'%',2,'');
-    chk('Ret.P #60',sv('#60','pctP'),null,27,'%',2,'');
-    chk('Ret.P #100',sv('#100','pctP'),null,22,'%',2,'');
-    chk('Ret.P #170',sv('#170','pctP'),null,28,'%',2,'');
-    chk('Ret.P #200',sv('#200','pctP'),null,21,'%',2,'');
-    chk('Ret.P #400',sv('#400','pctP'),null,22,'%',2,'');
+    if(g38['+#40'])chk('+#40',pgVal,g38['+#40'].retAcumMin,g38['+#40'].retAcumMax,'%',2,'');
+    if(g38['-#400'])chk('-#400 Pasante',sv('#400','pctPas'),g38['-#400'].pasMin,g38['-#400'].pasMax,'%',2,'');
+    Object.entries(g38).forEach(function(en){
+      var us=en[0],s=en[1];
+      if(us==='+#40'||us==='-#400')return;
+      if(s.retMax!=null||s.retMin!=null)chk('Ret.P '+us,sv(us,'pctP'),s.retMin,s.retMax,'%',2,'');
+    });
     chkChem(SPECS_A38.quimica,'');
     if(SPECS_A38.humedad)chk('Humedad',hum,null,SPECS_A38.humedad.max,'%',2,'');
     return out;
@@ -1180,39 +1213,34 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
     var humMax=prodSpecs&&prodSpecs.humedad?prodSpecs.humedad.max:null;
     var hum={name:'Humedad',val:parseDecimal(data.pctHumedad)||0,unit:'%',dec:2,
       limMin:null,limMax:humMax,limLabel:humMax!==null?'<= '+fmt(humMax,1)+' %':'—'};
-    if(isA36&&specKey){
-      if(specKey==='LIRQUEN')return[
-        {name:'Ret. Acum. #18',val:sv('#18','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
-        {name:'Ret. Acum. #25',val:sv('#25','pctA'),unit:'%',dec:2,limMin:null,limMax:0.4,limLabel:'<= 0,40 %'},
-        {name:'Ret. Acum. #35',val:sv('#35','pctA'),unit:'%',dec:2,limMin:null,limMax:2.0,limLabel:'<= 2,00 %'},
-        {name:'Ret. Acum. #120',val:sv('#120','pctA'),unit:'%',dec:2,limMin:86,limMax:null,limLabel:'>= 86,00 %'},
-        {name:'Ret. Acum. #170',val:sv('#170','pctA'),unit:'%',dec:2,limMin:95,limMax:null,limLabel:'>= 95,00 %'},
-        {name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:0.290,limLabel:'<= 0,290 mm'},
-        hum,
-      ];
-      if(specKey==='CRISTALERIAS')return[
-        {name:'Ret. Acum. #16',val:sv('#16','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
-        {name:'Ret. Acum. #20',val:sv('#20','pctA'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
-        {name:'Ret. Acum. #30',val:sv('#30','pctA'),unit:'%',dec:2,limMin:null,limMax:0.1,limLabel:'<= 0,10 %'},
-        {name:'Pasante #100',val:sv('#100','pctPas'),unit:'%',dec:2,limMin:null,limMax:1.5,limLabel:'<= 1,50 %'},
-        hum,
-      ];
+    if(isA36&&specKey&&SPECS_A36[specKey]){
+      var spA36=SPECS_A36[specKey];
+      var kpisA36=[];
+      Object.entries(spA36.granulometria||{}).forEach(function(en){
+        var us=en[0],s=en[1];
+        var ll=s.retAcumMax!=null?'<= '+fmt(s.retAcumMax,2)+' %':'>= '+fmt(s.retAcumMin,2)+' %';
+        kpisA36.push({name:'Ret. Acum. '+us,val:sv(us,'pctA'),unit:'%',dec:2,limMin:s.retAcumMin,limMax:s.retAcumMax,limLabel:ll});
+      });
+      if(spA36.d50Max!=null)kpisA36.push({name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:spA36.d50Max,limLabel:'<= '+fmt(spA36.d50Max,3)+' mm'});
+      kpisA36.push(hum);
+      return kpisA36;
     }
     if(data.producto==='A38'){
+      var g38=SPECS_A38.granulometria||{};
       var pg=['#16','#18','#20','#30','#35','#40'];
       var pgVal=pg.reduce(function(acc,us){var v=sv(us,'pctP');return acc+(v!=null?v:0);},0);
-      return[
-        {name:'+#40 (%)',val:pgVal,unit:'%',dec:2,limMin:null,limMax:10,limLabel:'<= 10,00 %'},
-        {name:'-#400 Pas.(%)',val:sv('#400','pctPas'),unit:'%',dec:2,limMin:null,limMax:5,limLabel:'<= 5,00 %'},
-        {name:'Ret.P #16 (%)',val:sv('#16','pctP'),unit:'%',dec:2,limMin:null,limMax:0,limLabel:'<= 0,00 %'},
-        {name:'Ret.P #45 (%)',val:sv('#45','pctP'),unit:'%',dec:2,limMin:null,limMax:13,limLabel:'<= 13,00 %'},
-        {name:'Ret.P #60 (%)',val:sv('#60','pctP'),unit:'%',dec:2,limMin:null,limMax:27,limLabel:'<= 27,00 %'},
-        {name:'Ret.P #100 (%)',val:sv('#100','pctP'),unit:'%',dec:2,limMin:null,limMax:22,limLabel:'<= 22,00 %'},
-        {name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
-        {name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
-        {name:'P20',val:p20,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
-        hum,
-      ];
+      var kpis38=[];
+      if(g38['+#40'])kpis38.push({name:'+#40 (%)',val:pgVal,unit:'%',dec:2,limMin:g38['+#40'].retAcumMin,limMax:g38['+#40'].retAcumMax,limLabel:'<= '+fmt(g38['+#40'].retAcumMax,2)+' %'});
+      if(g38['-#400'])kpis38.push({name:'-#400 Pas.(%)',val:sv('#400','pctPas'),unit:'%',dec:2,limMin:g38['-#400'].pasMin,limMax:g38['-#400'].pasMax,limLabel:'<= '+fmt(g38['-#400'].pasMax,2)+' %'});
+      ['#16','#45','#60','#100'].forEach(function(us){
+        var s=g38[us];if(!s||s.retMax==null)return;
+        kpis38.push({name:'Ret.P '+us+' (%)',val:sv(us,'pctP'),unit:'%',dec:2,limMin:s.retMin,limMax:s.retMax,limLabel:'<= '+fmt(s.retMax,2)+' %'});
+      });
+      kpis38.push({name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
+      kpis38.push({name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
+      kpis38.push({name:'P20',val:p20,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
+      kpis38.push(hum);
+      return kpis38;
     }
     if(prodSpecs&&prodSpecs.granulometria){
       var kpis=[];
@@ -3122,6 +3150,178 @@ function HistoryScreen({account,onBack}){
 }
 
 /* ── SETTINGS SCREEN ── */
+/* ── EDITOR DE EETT (solo admin) ── */
+var EETT_FIELD_LBL={
+  retMax:'Ret. máx %',retMin:'Ret. mín %',
+  pasMax:'Pasante máx %',pasMin:'Pasante mín %',
+  retAcumMax:'Ret.Acum máx %',retAcumMin:'Ret.Acum mín %',
+};
+function eettToDraft(o){
+  if(o===null||o===undefined)return'';
+  if(typeof o==='number')return String(o).replace('.',',');
+  if(typeof o==='string')return o;
+  var r={};Object.keys(o).forEach(function(k){r[k]=eettToDraft(o[k]);});return r;
+}
+function eettFromDraft(o){
+  if(typeof o==='string'){
+    var t=o.trim();
+    if(t==='')return null;
+    var n=parseFloat(t.replace(',','.'));
+    return isNaN(n)?o:n;
+  }
+  var r={};Object.keys(o).forEach(function(k){r[k]=eettFromDraft(o[k]);});return r;
+}
+function EettEditor({account}){
+  var[sel,setSel]=useState('');
+  var[draft,setDraft]=useState(null);
+  var[saving,setSaving]=useState(false);
+  var[msg,setMsg]=useState(null);
+
+  function pick(k){
+    setSel(k);setMsg(null);
+    setDraft(k?eettToDraft(EETT_LIVE[k]):null);
+  }
+  function setVal(path,value){
+    setDraft(function(prev){
+      var c=JSON.parse(JSON.stringify(prev));
+      var o=c;
+      for(var i=0;i<path.length-1;i++)o=o[path[i]];
+      o[path[path.length-1]]=value;
+      return c;
+    });
+  }
+  async function save(){
+    setSaving(true);setMsg(null);
+    var clean=eettFromDraft(draft);
+    var res=await supabase.from('especificaciones').upsert([{
+      producto_key:sel,specs:clean,
+      updated_by:account?account.email:'',
+      updated_at:new Date().toISOString(),
+    }]);
+    setSaving(false);
+    if(res.error){setMsg({t:'error',m:'Error al guardar: '+res.error.message});}
+    else{
+      var live=EETT_LIVE[sel];
+      Object.keys(clean).forEach(function(k){live[k]=clean[k];});
+      setMsg({t:'ok',m:'EETT guardada. Los nuevos limites ya estan activos.'});
+    }
+  }
+
+  var inputSt={width:90,padding:'5px 7px',borderRadius:5,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif',fontSize:'.8rem'};
+  var thSt={textAlign:'left',padding:'4px 8px',fontSize:'.76rem',color:'#777'};
+  var tdSt={padding:'3px 8px',fontSize:'.82rem'};
+
+  function renderGranu(g,base){
+    return(
+      <div style={{overflowX:'auto',marginBottom:12}}>
+        <table style={{borderCollapse:'collapse'}}>
+          <thead><tr><th style={thSt}>Tamiz</th><th style={thSt}>Limite</th><th style={thSt}>Valor (vacio = sin limite)</th></tr></thead>
+          <tbody>
+            {Object.keys(g).map(function(us){
+              return Object.keys(g[us]).map(function(f){
+                return(
+                  <tr key={us+f}>
+                    <td style={Object.assign({fontWeight:700},tdSt)}>{us}</td>
+                    <td style={tdSt}>{EETT_FIELD_LBL[f]||f}</td>
+                    <td style={tdSt}>
+                      <input style={inputSt} value={g[us][f]}
+                        onChange={function(e){setVal(base.concat([us,f]),e.target.value);}}/>
+                    </td>
+                  </tr>
+                );
+              });
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  function renderQuimica(q,base){
+    return(
+      <div style={{overflowX:'auto',marginBottom:12}}>
+        <table style={{borderCollapse:'collapse'}}>
+          <thead><tr><th style={thSt}>Elemento</th><th style={thSt}>Mín %</th><th style={thSt}>Máx %</th></tr></thead>
+          <tbody>
+            {Object.keys(q).map(function(el){
+              return(
+                <tr key={el}>
+                  <td style={Object.assign({fontWeight:700},tdSt)}>{el.replace('_','+')}</td>
+                  <td style={tdSt}><input style={inputSt} value={q[el].min}
+                    onChange={function(e){setVal(base.concat([el,'min']),e.target.value);}}/></td>
+                  <td style={tdSt}><input style={inputSt} value={q[el].max}
+                    onChange={function(e){setVal(base.concat([el,'max']),e.target.value);}}/></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  function renderSpec(sp,base,titulo){
+    return(
+      <div key={base.join('.')} style={{marginBottom:18,padding:'12px 14px',background:'#fafafa',borderRadius:8,border:'1px solid var(--border)'}}>
+        {titulo&&<div style={{fontWeight:800,fontSize:'.9rem',marginBottom:10,color:'var(--primary)'}}>{titulo}</div>}
+        {sp.granulometria&&<>
+          <div style={{fontWeight:700,fontSize:'.82rem',marginBottom:6}}>Granulometría</div>
+          {renderGranu(sp.granulometria,base.concat(['granulometria']))}
+        </>}
+        {sp.quimica&&<>
+          <div style={{fontWeight:700,fontSize:'.82rem',marginBottom:6}}>Química</div>
+          {renderQuimica(sp.quimica,base.concat(['quimica']))}
+        </>}
+        {sp.d50Max!==undefined&&(
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+            <span style={{fontWeight:700,fontSize:'.82rem'}}>D50 máx (mm):</span>
+            <input style={inputSt} value={sp.d50Max}
+              onChange={function(e){setVal(base.concat(['d50Max']),e.target.value);}}/>
+          </div>
+        )}
+        {sp.humedad&&(
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <span style={{fontWeight:700,fontSize:'.82rem'}}>Humedad máx (%):</span>
+            <input style={inputSt} value={sp.humedad.max}
+              onChange={function(e){setVal(base.concat(['humedad','max']),e.target.value);}}/>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  var isA36=sel==='A36';
+  return(
+    <div style={{marginTop:18}}>
+      <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Especificaciones Técnicas (EETT)</div>
+      <div style={{marginBottom:12}}>
+        <select value={sel} onChange={function(e){pick(e.target.value);}}
+          style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}>
+          <option value="">— Seleccione producto —</option>
+          {EETT_PRODUCTS.map(function(p){return <option key={p.key} value={p.key}>{p.label}</option>;})}
+        </select>
+      </div>
+      {draft&&(
+        <>
+          {isA36
+            ?Object.keys(draft).map(function(sk){
+              return renderSpec(draft[sk],[sk],draft[sk].nombre||sk);
+            })
+            :renderSpec(draft,[],null)}
+          {msg&&<div style={{margin:'8px 0',fontWeight:600,fontSize:'.85rem',color:msg.t==='ok'?'var(--success)':'var(--error)'}}>{msg.m}</div>}
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-primary" disabled={saving} onClick={save}>
+              {saving?'Guardando...':'Guardar EETT'}
+            </button>
+            <button className="btn btn-secondary" disabled={saving} onClick={function(){pick(sel);}}>Descartar cambios</button>
+          </div>
+          <div style={{fontSize:'.76rem',color:'#999',marginTop:8}}>
+            Los cambios afectan alertas, informes y graficos de control. Deja un campo vacio para quitar el limite.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsScreen({account,onBack,onLogout}){
   var[isAdmin,setIsAdmin]=useState(false);
   var[showPass,setShowPass]=useState(false);
@@ -3258,6 +3458,7 @@ function SettingsScreen({account,onBack,onLogout}){
                 </div>
               </>
             )}
+            <EettEditor account={account}/>
           </div>
         }
       </SecCard>
@@ -3353,6 +3554,8 @@ function App(){
   var isViewer=account&&account.user_metadata&&account.user_metadata.is_viewer===true&&account.user_metadata.is_admin!==true;
 
   useEffect(function(){
+    // Cargar overrides de EETT desde Supabase
+    loadEETT();
     // Recuperar sesion activa al cargar
     supabase.auth.getSession().then(function(res){
       if(res.data&&res.data.session)setAccount(res.data.session.user);
