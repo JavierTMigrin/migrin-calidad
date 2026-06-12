@@ -277,7 +277,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .kpi4-lim{font-size:.67rem;color:var(--text-muted);margin-bottom:3px}
 .kpi4-sem{font-size:.7rem;font-weight:700}
 .granu-curves{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
-@media(max-width:640px){.granu-curves{grid-template-columns:1fr}}
+@media(max-width:860px){.granu-curves{grid-template-columns:1fr}}
 .gcurve-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px}
 .gcurve-title{font-size:.76rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
 .trend-row{display:grid;grid-template-columns:1fr 170px 1fr;gap:10px;margin-bottom:10px;align-items:start}
@@ -4179,11 +4179,11 @@ function DashboardScreen({account,onBack}){
                 <div className="granu-curves">
                   <div className="gcurve-card">
                     <div className="gcurve-title">Retenido Parcial (%)</div>
-                    <div style={{position:'relative',height:220}}><canvas ref={cParRef}/></div>
+                    <div style={{position:'relative',minHeight:220}}><canvas ref={cParRef}/></div>
                   </div>
                   <div className="gcurve-card">
                     <div className="gcurve-title">Pasante Acumulado (%)</div>
-                    <div style={{position:'relative',height:220}}><canvas ref={cPasRef}/></div>
+                    <div style={{position:'relative',minHeight:220}}><canvas ref={cPasRef}/></div>
                   </div>
                 </div>
 
