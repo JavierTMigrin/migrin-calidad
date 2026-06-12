@@ -3745,6 +3745,53 @@ function DashboardScreen({account,onBack}){
       pct:Math.round((evaluados-fuera)/evaluados*1000)/10};
   },[filtered,prod]);
 
+  /* Resumen ejecutivo: cumplimiento por producto de TODAS las plantas
+     en el periodo seleccionado (independiente del producto elegido) */
+  var resumen=useMemo(function(){
+    if(tab!=='resumen')return null;
+    var dr=getDateRange();
+    var perProd={};
+    records.forEach(function(r){
+      var fecha=r.FechaMuestreo||r.fecha||'';
+      if(fecha<dr.from||fecha>dr.to)return;
+      if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return;
+      var pk=r.ProductoKey||r.producto||'';
+      if(!pk||!SIEVE_CONFIG[pk])return;
+      var sieves=SIEVE_CONFIG[pk];
+      var gv=(r.granu&&Array.isArray(r.granu))?r.granu
+        :sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+      var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+      var gc=calcGranu(pk,gv,pf);
+      var v=collectViolations({producto:pk,quimica:r.quimica||{},
+        pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')},gc);
+      var e=perProd[pk]||(perProd[pk]={n:0,fuera:0});
+      e.n++;if(v.length)e.fuera++;
+    });
+    var sections=[];
+    [['Arenas',ARENA_PRODUCTS],['Cuarzo',CUARZO_PRODUCTS],['Despachos',DESPACHO_PRODUCTS],
+     ['Otros Controles',OTROS_PRODUCTS],['Lavado Turco',LAVTURCO_PRODUCTS]].forEach(function(pl){
+      var rows=pl[1].map(function(p){
+        var e=perProd[p.value];if(!e)return null;
+        var tieneEett=specHasLimits(getSpecs(p.value))||p.value==='A36';
+        return{key:p.value,label:p.label,n:e.n,fuera:e.fuera,ok:e.n-e.fuera,
+          pct:tieneEett?Math.round((e.n-e.fuera)/e.n*1000)/10:null};
+      }).filter(Boolean);
+      if(rows.length)sections.push({planta:pl[0],rows:rows});
+    });
+    return sections;
+  },[records,tab,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno]);
+
+  async function exportarResumen(){
+    var el=document.getElementById('export-resumen');
+    if(!el)return;
+    try{
+      var c=await window.html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1100});
+      var a=document.createElement('a');
+      a.download='Informe_Calidad_'+getPeriodoLabel()+'.png';
+      a.href=c.toDataURL('image/png');a.click();
+    }catch(e){console.error('Export resumen',e);}
+  }
+
   function computeStats(row){
     var sieves=SIEVE_CONFIG[prod]||[];
     var pf=parseDecimal(row.PesoFinal||row.pesoFinal);
@@ -4201,7 +4248,14 @@ function DashboardScreen({account,onBack}){
       </div>
 
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
-      {!loading&&filtered.length===0&&(
+      {!loading&&(
+        <div className="dash-tabs">
+          <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
+          {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
+          <button className={'dash-tab'+(tab==='resumen'?' act':'')} onClick={function(){setTab('resumen');}}>Resumen Ejecutivo</button>
+        </div>
+      )}
+      {!loading&&filtered.length===0&&tab!=='resumen'&&(
         <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
           Sin registros para los filtros seleccionados
         </div>
@@ -4209,10 +4263,6 @@ function DashboardScreen({account,onBack}){
 
       {!loading&&filtered.length>0&&(
         <>
-          <div className="dash-tabs">
-            <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
-            {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
-          </div>
 
           {tab==='granu'&&(
             <>
@@ -4469,6 +4519,84 @@ function DashboardScreen({account,onBack}){
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {!loading&&tab==='resumen'&&(
+        <>
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
+            <button className="btn btn-primary" onClick={exportarResumen}>&#11015; Descargar Informe</button>
+          </div>
+          <div id="export-resumen" style={{background:'#fff',padding:'26px 28px',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:6}}>
+              {logoSrc&&<img src={logoSrc} style={{height:48,objectFit:'contain'}} alt="MIGRIN"/>}
+              <div>
+                <div style={{fontSize:'1.05rem',fontWeight:800,color:'var(--primary)'}}>INFORME DE CALIDAD — RESUMEN EJECUTIVO</div>
+                <div style={{fontSize:'.78rem',color:'var(--text-secondary)'}}>
+                  MIGRIN S.A. · Período: <strong>{getPeriodoLabel()}</strong>
+                  {filterTurno?' · Turno '+filterTurno:' · Todos los turnos'}
+                  {' · Generado: '+new Date().toLocaleDateString('es-CL')}
+                </div>
+              </div>
+            </div>
+            <div style={{height:2,background:'var(--primary)',margin:'10px 0 18px'}}/>
+            {(!resumen||resumen.length===0)&&(
+              <div style={{textAlign:'center',padding:30,color:'var(--text-muted)'}}>
+                Sin ensayos registrados en el período seleccionado
+              </div>
+            )}
+            {resumen&&resumen.map(function(sec,si){
+              var totN=sec.rows.reduce(function(a,r){return a+r.n;},0);
+              var totF=sec.rows.reduce(function(a,r){return a+r.fuera;},0);
+              return(
+                <div key={si} style={{marginBottom:22}}>
+                  <div style={{fontSize:'.82rem',fontWeight:800,textTransform:'uppercase',
+                    letterSpacing:'.05em',color:'var(--primary)',marginBottom:8}}>
+                    Planta {sec.planta}
+                  </div>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.83rem'}}>
+                    <thead>
+                      <tr style={{background:'#f0f4f8'}}>
+                        <th style={{padding:'6px 10px',textAlign:'left',fontWeight:700,color:'#555'}}>Producto</th>
+                        <th style={{padding:'6px 10px',textAlign:'center',fontWeight:700,color:'#555'}}>Ensayos</th>
+                        <th style={{padding:'6px 10px',textAlign:'center',fontWeight:700,color:'#555'}}>Conformes</th>
+                        <th style={{padding:'6px 10px',textAlign:'center',fontWeight:700,color:'#555'}}>Fuera de norma</th>
+                        <th style={{padding:'6px 10px',textAlign:'center',fontWeight:700,color:'#555'}}>% Cumplimiento</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sec.rows.map(function(r,ri){
+                        var col=r.pct===null?'#999':r.pct>=95?'var(--success)':r.pct>=85?'#b7791f':'var(--error)';
+                        return(
+                          <tr key={ri} style={{borderBottom:'1px solid #f0f0f0',
+                            background:r.fuera>0&&r.pct!==null?'#fffaf5':''}}>
+                            <td style={{padding:'5px 10px',fontWeight:600}}>{r.label}</td>
+                            <td style={{padding:'5px 10px',textAlign:'center'}}>{r.n}</td>
+                            <td style={{padding:'5px 10px',textAlign:'center'}}>{r.pct===null?'—':r.ok}</td>
+                            <td style={{padding:'5px 10px',textAlign:'center',fontWeight:r.fuera?700:400,
+                              color:r.fuera&&r.pct!==null?'var(--error)':'inherit'}}>{r.pct===null?'—':r.fuera}</td>
+                            <td style={{padding:'5px 10px',textAlign:'center',fontWeight:800,color:col}}>
+                              {r.pct===null?'Sin EETT':fmt(r.pct,1)+'%'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{background:'#f8fafc',fontWeight:700}}>
+                        <td style={{padding:'5px 10px'}}>Total {sec.planta}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center'}}>{totN}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center'}}>{totN-totF}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center',color:totF?'var(--error)':'inherit'}}>{totF}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center'}}>{totN?fmt((totN-totF)/totN*100,1)+'%':'—'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+            <div style={{fontSize:'.68rem',color:'#aaa',textAlign:'center',marginTop:10}}>
+              Cumplimiento evaluado contra las EETT vigentes · Productos sin EETT definida se informan solo con cantidad de ensayos
+            </div>
+          </div>
         </>
       )}
     </div>
