@@ -48,13 +48,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'A36'
 )
@@ -130,13 +144,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'A38'
 )
@@ -212,13 +240,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'ALIM'
 )
@@ -294,13 +336,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'LODOSA'
 )
@@ -376,13 +432,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'MOL1'
 )
@@ -458,13 +528,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'MOL2'
 )
@@ -540,13 +624,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'MESP'
 )
@@ -622,13 +720,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'OVR2007'
 )
@@ -704,13 +816,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'REC2001'
 )
@@ -786,13 +912,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'UND2007'
 )
@@ -868,13 +1008,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'UTACK'
 )
@@ -950,13 +1104,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'VERALTA'
 )
@@ -1032,13 +1200,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'VERBAJA'
 )
@@ -1118,13 +1300,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'DESP_LIR'
 )
@@ -1200,13 +1396,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'DESP_LLAY'
 )
@@ -1282,13 +1492,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'DESP_PH'
 )
@@ -1368,13 +1592,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'CALIM'
 )
@@ -1450,13 +1688,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'CCOMP'
 )
@@ -1532,13 +1784,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'CDLK'
 )
@@ -1614,13 +1880,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'CLODOS'
 )
@@ -1696,13 +1976,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'CTLH'
 )
@@ -1782,13 +2076,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_ALIM'
 )
@@ -1864,13 +2172,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_AMINAS'
 )
@@ -1946,13 +2268,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_CILINDRO'
 )
@@ -2028,13 +2364,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_FIERRC'
 )
@@ -2110,13 +2460,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_GMINA'
 )
@@ -2192,13 +2556,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_LODO'
 )
@@ -2274,13 +2652,27 @@ acum AS (
   FROM largo l
 ),
 con_lims AS (
+  -- COALESCE cubre el formato normal y el de A36 (variantes LIRQUEN /
+  -- CRISTALERIAS, cuyos tamices no se superponen entre si):
   SELECT a.*,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMin')     AS eett_rp_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retMax')     AS eett_rp_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMin') AS eett_ra_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'retAcumMax') AS eett_ra_max,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMin')     AS eett_pas_min,
-    num_seguro(s.specs->'granulometria'->a.tamiz->>'pasMax')     AS eett_pas_max
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMin'))     AS eett_rp_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retMax'))     AS eett_rp_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMin')) AS eett_ra_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'retAcumMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'retAcumMax')) AS eett_ra_max,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMin',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMin'))     AS eett_pas_min,
+    num_seguro(COALESCE(s.specs->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'LIRQUEN'->'granulometria'->a.tamiz->>'pasMax',
+      s.specs->'CRISTALERIAS'->'granulometria'->a.tamiz->>'pasMax'))     AS eett_pas_max
   FROM acum a
   LEFT JOIN especificaciones s ON s.producto_key = 'TT_TLH'
 )
