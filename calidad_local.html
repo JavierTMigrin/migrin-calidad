@@ -5255,11 +5255,30 @@ function DashboardScreen({account,onBack}){
         var redBg={background:'#fde0e0',color:'#922b21',fontWeight:800};
         var warnBg={background:'#fdf3d6',color:'#9a6b00',fontWeight:700};
         function cellSt(sem){return sem==='error'?redBg:sem==='warning'?warnBg:{};}
+        function exportTabla(){
+          var hdr=['Folio','Fecha','Turno','Analista']
+            .concat(sieves.map(function(s){return 'RetAcum '+s.us;}))
+            .concat(activeOx.map(function(o){return o[2];}));
+          if(hspecT)hdr.push('Humedad');
+          var rows=filtered.map(function(r,i){
+            var stat=filteredStats[i]||{};var q=r.quimica||{};
+            var row=[r.Folio||'',r.FechaMuestreo||r.fecha||'',r.Turno||r.turno||'',r.Analista||r.analista||'']
+              .concat(sieves.map(function(s){return stat[s.us]?fmt(stat[s.us].pctA,2):'';}))
+              .concat(activeOx.map(function(o){return q[o[0]]!=null?q[o[0]]:'';}));
+            if(hspecT)row.push(r.PctHumedad!=null?r.PctHumedad:(r.pctHumedad!=null?r.pctHumedad:''));
+            return row;
+          });
+          descargarCSV('TablaDatos_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
+        }
         return(
           <div className="sec-card">
-            <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,alignItems:'center'}}>
               <span>Tabla de Datos — {GRANU_TITLE[prod]||prod} · {filtered.length} ensayos</span>
-              <span style={{fontWeight:400,fontSize:'.74rem',opacity:.85}}>🔴 fuera de EETT · 🟡 en alerta</span>
+              <span style={{display:'flex',gap:10,alignItems:'center'}}>
+                <span style={{fontWeight:400,fontSize:'.74rem',opacity:.85}}>🔴 fuera de EETT · 🟡 en alerta</span>
+                <button className="btn btn-secondary" style={{padding:'5px 12px',fontSize:'.76rem'}}
+                  disabled={filtered.length===0} onClick={exportTabla}>&#11015; Exportar CSV</button>
+              </span>
             </div>
             <div style={{padding:'4px',overflowX:'auto',maxHeight:'70vh'}}>
               {filtered.length===0
