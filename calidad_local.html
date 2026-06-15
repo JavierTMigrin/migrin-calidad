@@ -1401,6 +1401,20 @@ async function deleteEnsayo(id,user){
   if(res.error)throw res.error;
 }
 
+/* Actualiza campos de un ensayo (modo admin). Registra el cambio en audit_log. */
+async function updateEnsayo(id,fields,user){
+  var prev=await supabase.from('ensayos').select('*').eq('id',id).single();
+  var res=await supabase.from('ensayos').update(fields).eq('id',id);
+  if(res.error)throw res.error;
+  try{
+    await supabase.from('audit_log').insert([{
+      accion:'UPDATE',ensayo_id:id,
+      datos_previos:prev.data||null,
+      usuario:user?user.email:'desconocido',
+    }]);
+  }catch(e){console.warn('audit',e);}
+}
+
 /* planta: 'Arenas' (incluye Cuarzo) o 'Turco'. Si la columna planta no
    existe aun en la BD, las filas sin planta se tratan como Arenas. */
 async function loadAnalistas(planta){
@@ -4694,25 +4708,12 @@ function DashboardScreen({account,onBack}){
             </div>
             {filterTipoMuestra.includes('Acopio')&&(
               <div className="dff">
-                <label style={{display:'flex',alignItems:'center',gap:5}}>
-                  N° Acopio
-                  {filterNumAcopio.length<ACOPIO_OPTS.length&&(
-                    <button onClick={function(){setFilterNumAcopio(ACOPIO_OPTS.slice());}}
-                      style={{fontSize:'.67rem',color:'var(--primary)',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>(todos)</button>
-                  )}
-                </label>
-                <div style={{display:'flex',gap:5,flexWrap:'wrap',minHeight:34,alignItems:'center'}}>
-                  {ACOPIO_OPTS.map(function(a){
-                    var chk=filterNumAcopio.includes(a);
-                    return(
-                      <label key={a} style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',fontSize:'.76rem',userSelect:'none',whiteSpace:'nowrap'}}>
-                        <input type="checkbox" checked={chk}
-                          onChange={function(){setFilterNumAcopio(function(p){return chk?p.filter(function(x){return x!==a;}):p.concat(a);});}}/>
-                        {a.replace('Acopio ','A')}
-                      </label>
-                    );
-                  })}
-                </div>
+                <label>N° Acopio</label>
+                <select value={filterNumAcopio.length===ACOPIO_OPTS.length?'__all':(filterNumAcopio[0]||'__all')}
+                  onChange={function(e){var v=e.target.value;setFilterNumAcopio(v==='__all'?ACOPIO_OPTS.slice():[v]);}}>
+                  <option value="__all">Todos los acopios</option>
+                  {ACOPIO_OPTS.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+                </select>
               </div>
             )}
           </>
@@ -5190,7 +5191,11 @@ function EstadisticasScreen({account,onBack}){
   var[showMA,setShowMA]=useState(false);
   var[maWin,setMaWin]=useState(5);
   var[colSel,setColSel]=useState('__all');
+  var[showS1,setShowS1]=useState(true);
+  var[showS2,setShowS2]=useState(true);
+  var[showS3,setShowS3]=useState(true);
   var chartRefs=useRef({});var chartInsts=useRef({});
+  var histRefs=useRef({});var histInsts=useRef({});
 
   function movAvgLocal(arr,w){
     return arr.map(function(v,i){
@@ -5282,12 +5287,18 @@ function EstadisticasScreen({account,onBack}){
         borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:3,tension:.3,spanGaps:true}];
       if(showMA)ds.push({label:'MA'+maWin,data:c.ma.map(function(v){return v!=null?+v.toFixed(3):null;}),borderColor:'#e67e22',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
       ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.3,pointRadius:0,borderDash:[2,2]});
-      ds.push({label:'+1σ',data:band(m+sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
-      ds.push({label:'-1σ',data:band(m-sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
-      ds.push({label:'+2σ',data:band(m+2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
-      ds.push({label:'-2σ',data:band(m-2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
-      ds.push({label:'+3σ',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
-      ds.push({label:'-3σ',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
+      if(showS1){
+        ds.push({label:'+1σ',data:band(m+sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+        ds.push({label:'-1σ',data:band(m-sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+      }
+      if(showS2){
+        ds.push({label:'+2σ',data:band(m+2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
+        ds.push({label:'-2σ',data:band(m-2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
+      }
+      if(showS3){
+        ds.push({label:'+3σ',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
+        ds.push({label:'-3σ',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
+      }
       if(c.limMax!=null)ds.push({label:'EETT máx',data:band(c.limMax),borderColor:'#000',borderWidth:1.3,pointRadius:0});
       if(c.limMin!=null)ds.push({label:'EETT mín',data:band(c.limMin),borderColor:'#000',borderWidth:1.3,pointRadius:0});
       chartInsts.current[c.key]=new window.Chart(el,{type:'line',data:{labels:lbls,datasets:ds},
@@ -5296,7 +5307,28 @@ function EstadisticasScreen({account,onBack}){
           scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:10}},y:{ticks:{font:{size:8}}}}}});
     });
     return function(){Object.keys(chartInsts.current).forEach(function(k){if(chartInsts.current[k]){chartInsts.current[k].destroy();chartInsts.current[k]=null;}});};
-  },[colStats,lbls,showMA,maWin,colSel]);
+  },[colStats,lbls,showMA,maWin,colSel,showS1,showS2,showS3]);
+
+  // === Histograma de distribucion por columna ===
+  useEffect(function(){
+    if(!window.Chart)return;
+    Object.keys(histInsts.current).forEach(function(k){if(histInsts.current[k]){histInsts.current[k].destroy();histInsts.current[k]=null;}});
+    colStats.forEach(function(c){
+      var el=histRefs.current[c.key];if(!el||!c.st||c.st.n<2)return;
+      var vals=c.series.filter(function(v){return v!=null&&!isNaN(v);});
+      var lo=c.st.min,hi=c.st.max;if(hi<=lo){hi=lo+1;}
+      var nb=Math.min(12,Math.max(5,Math.ceil(Math.sqrt(vals.length))));
+      var w=(hi-lo)/nb,bins=new Array(nb).fill(0),labels=[];
+      for(var b=0;b<nb;b++)labels.push(fmt(lo+w*b,2));
+      vals.forEach(function(v){var idx=Math.min(nb-1,Math.floor((v-lo)/w));bins[idx]++;});
+      histInsts.current[c.key]=new window.Chart(el,{type:'bar',
+        data:{labels:labels,datasets:[{data:bins,backgroundColor:(c.color||'#1a5276')+'cc',borderColor:c.color||'#1a5276',borderWidth:1}]},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8}},beginAtZero:true}}}});
+    });
+    return function(){Object.keys(histInsts.current).forEach(function(k){if(histInsts.current[k]){histInsts.current[k].destroy();histInsts.current[k]=null;}});};
+  },[colStats,colSel]);
 
   return(
     <div>
@@ -5341,6 +5373,19 @@ function EstadisticasScreen({account,onBack}){
             </select>
           </div>
         </div>
+        <div className="dff"><label>Líneas de control σ</label>
+          <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34}}>
+            <label style={{display:'inline-flex',alignItems:'center',gap:3,fontSize:'.8rem',color:'#2e7d32',fontWeight:600}}>
+              <input type="checkbox" checked={showS1} onChange={function(e){setShowS1(e.target.checked);}}/>±1σ
+            </label>
+            <label style={{display:'inline-flex',alignItems:'center',gap:3,fontSize:'.8rem',color:'#b7791f',fontWeight:600}}>
+              <input type="checkbox" checked={showS2} onChange={function(e){setShowS2(e.target.checked);}}/>±2σ
+            </label>
+            <label style={{display:'inline-flex',alignItems:'center',gap:3,fontSize:'.8rem',color:'#c62828',fontWeight:600}}>
+              <input type="checkbox" checked={showS3} onChange={function(e){setShowS3(e.target.checked);}}/>±3σ
+            </label>
+          </div>
+        </div>
       </div>
 
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
@@ -5369,11 +5414,37 @@ function EstadisticasScreen({account,onBack}){
                           <span style={{fontWeight:800}}>{kv[1]==null?'—':fmt(kv[1],kv[2])}</span></span>;
                       })}
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr',gap:12}}>
-                      <div style={{position:'relative',minHeight:200}}><canvas ref={function(el){chartRefs.current[c.key]=el;}}/></div>
+                    {(function(){
+                      // Cp/Cpk si hay limites EETT (analisis de capacidad)
+                      if((c.limMin==null&&c.limMax==null)||!st.sd)return null;
+                      var cp=(c.limMin!=null&&c.limMax!=null)?(c.limMax-c.limMin)/(6*st.sd):null;
+                      var cpu=c.limMax!=null?(c.limMax-st.mean)/(3*st.sd):null;
+                      var cpl=c.limMin!=null?(st.mean-c.limMin)/(3*st.sd):null;
+                      var cpk=Math.min.apply(null,[cpu,cpl].filter(function(x){return x!=null;}));
+                      var cpkCol=cpk>=1.33?'var(--success)':cpk>=1?'#b7791f':'var(--error)';
+                      return(
+                        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:'.74rem'}}>
+                          <span style={{padding:'3px 10px',borderRadius:10,background:'#eef4fb',border:'1px solid var(--primary-light)'}}>
+                            <b>Capacidad:</b> {cp!=null?'Cp '+fmt(cp,2)+' · ':''}<span style={{color:cpkCol,fontWeight:800}}>Cpk {fmt(cpk,2)}</span>
+                            {cpk>=1.33?' (capaz)':cpk>=1?' (marginal)':' (no capaz)'}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14}}>
                       <div>
-                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>DISTRIBUCIÓN (BOXPLOT)</div>
-                        <Boxplot st={st} color={c.color}/>
+                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>CARTA DE CONTROL (TENDENCIA + σ)</div>
+                        <div style={{position:'relative',minHeight:200}}><canvas ref={function(el){chartRefs.current[c.key]=el;}}/></div>
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                        <div>
+                          <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>HISTOGRAMA (DISTRIBUCIÓN)</div>
+                          <div style={{position:'relative',minHeight:160}}><canvas ref={function(el){histRefs.current[c.key]=el;}}/></div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>BOXPLOT (MÍN–Q1–MED–Q3–MÁX)</div>
+                          <Boxplot st={st} color={c.color}/>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -5383,6 +5454,111 @@ function EstadisticasScreen({account,onBack}){
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ── EDITOR ADMIN DE REGISTRO ── */
+function EditEnsayoModal({rec,account,onClose,onSaved}){
+  var pk=rec.ProductoKey||rec.producto||'';
+  var sieves=SIEVE_CONFIG[pk]||[];
+  var cfg=PRODUCT_CONFIG[pk]||{};
+  var[fecha,setFecha]=useState(rec.FechaMuestreo||rec.fecha||'');
+  var[turno,setTurno]=useState(rec.Turno||rec.turno||'');
+  var[analista,setAnalista]=useState(rec.Analista||rec.analista||'');
+  var[tipoM,setTipoM]=useState(rec.TipoMuestra||rec.tipoMuestra||'');
+  var[numA,setNumA]=useState(rec.NumAcopio||rec.numAcopio||'');
+  var[pIni,setPIni]=useState(String(rec.PesoInicial!=null?rec.PesoInicial:''));
+  var[pFin,setPFin]=useState(String(rec.PesoFinal!=null?rec.PesoFinal:''));
+  var[hum,setHum]=useState(String(rec.PctHumedad!=null?rec.PctHumedad:''));
+  var[obs,setObs]=useState(rec.Observaciones||rec.observaciones||'');
+  var[granu,setGranu]=useState((rec.granu&&Array.isArray(rec.granu)?rec.granu:sieves.map(function(){return'';})).map(String));
+  var q0=rec.quimica||{};
+  var[quim,setQuim]=useState({sio2:String(q0.sio2||''),al2o3:String(q0.al2o3||''),fe2o3:String(q0.fe2o3||''),
+    cao:String(q0.cao||''),mgo:String(q0.mgo||''),k2o:String(q0.k2o||''),na2o:String(q0.na2o||''),tio2:String(q0.tio2||'')});
+  var[saving,setSaving]=useState(false);
+  var[err,setErr]=useState('');
+
+  function upG(i,v){setGranu(function(p){var n=p.slice();n[i]=v;return n;});}
+  function upQ(k,v){setQuim(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
+
+  async function save(){
+    setSaving(true);setErr('');
+    var fields={
+      fecha_muestreo:fecha||null,turno:turno||null,analista:analista||null,
+      tipo_muestra:tipoM||null,num_acopio:numA||null,
+      peso_inicial:parseDecimal(pIni)||null,peso_final:parseDecimal(pFin)||null,
+      pct_humedad:parseDecimal(hum)||null,observaciones:obs||null,
+      granu:granu,quimica:quim,
+    };
+    try{
+      await updateEnsayo(rec.ID||rec.id,fields,account);
+      setSaving(false);onSaved();
+    }catch(e){setSaving(false);setErr('Error al guardar: '+(e.message||e));}
+  }
+  var inS={width:'100%',padding:'6px 8px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif',fontSize:'.85rem'};
+  var lbS={fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:3};
+  return(
+    <div className="rmodal-ov" onClick={onClose}>
+      <div className="rmodal-wrap" style={{maxWidth:640}} onClick={function(e){e.stopPropagation();}}>
+        <div className="rmodal-bar">
+          <div className="rmodal-bar-title">✏️ Editar registro {rec.Folio?'#'+rec.Folio:''} — {rec.Producto||rec.productoLabel}</div>
+          <button className="back-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{padding:'16px 18px',maxHeight:'70vh',overflowY:'auto'}}>
+          {err&&<div className="err-box" style={{marginBottom:10}}>{err}</div>}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+            <div><label style={lbS}>Fecha muestreo</label><input type="date" style={inS} value={fecha} onChange={function(e){setFecha(e.target.value);}}/></div>
+            <div><label style={lbS}>Turno</label>
+              <select style={inS} value={turno} onChange={function(e){setTurno(e.target.value);}}>
+                <option value="">—</option><option value="A">A</option><option value="B">B</option><option value="C">C</option>
+              </select></div>
+            <div><label style={lbS}>Analista</label><input style={inS} value={analista} onChange={function(e){setAnalista(e.target.value);}}/></div>
+            {cfg.tipoMuestra&&<div><label style={lbS}>Tipo muestra</label>
+              <select style={inS} value={tipoM} onChange={function(e){setTipoM(e.target.value);}}>
+                <option value="">—</option><option value="Puntual">Puntual</option><option value="Acopio">Acopio</option>
+              </select></div>}
+            {cfg.tipoMuestra&&<div><label style={lbS}>N° Acopio</label>
+              <select style={inS} value={numA} onChange={function(e){setNumA(e.target.value);}}>
+                <option value="">—</option>{ACOPIOS_PRODUCCION.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
+              </select></div>}
+            <div><label style={lbS}>Peso inicial (g)</label><input style={inS} value={pIni} onChange={function(e){setPIni(e.target.value);}}/></div>
+            <div><label style={lbS}>Peso final (g)</label><input style={inS} value={pFin} onChange={function(e){setPFin(e.target.value);}}/></div>
+            {cfg.humedad&&<div><label style={lbS}>Humedad (%)</label><input style={inS} value={hum} onChange={function(e){setHum(e.target.value);}}/></div>}
+          </div>
+          {sieves.length>0&&(
+            <div style={{marginBottom:12}}>
+              <label style={lbS}>Granulometría (masas g)</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:6}}>
+                {sieves.map(function(s,i){return(
+                  <div key={s.us}>
+                    <span style={{fontSize:'.68rem',color:'var(--text-muted)'}}>{s.us}</span>
+                    <input style={inS} value={granu[i]||''} onChange={function(e){upG(i,e.target.value);}}/>
+                  </div>
+                );})}
+              </div>
+            </div>
+          )}
+          {cfg.quimica&&(
+            <div style={{marginBottom:12}}>
+              <label style={lbS}>Química (%)</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:6}}>
+                {[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']].map(function(o){return(
+                  <div key={o[0]}>
+                    <span style={{fontSize:'.68rem',color:'var(--text-muted)'}}>{o[1]}</span>
+                    <input style={inS} value={quim[o[0]]} onChange={function(e){upQ(o[0],e.target.value);}}/>
+                  </div>
+                );})}
+              </div>
+            </div>
+          )}
+          <div><label style={lbS}>Observaciones</label><textarea style={Object.assign({},inS,{minHeight:50})} value={obs} onChange={function(e){setObs(e.target.value);}}/></div>
+        </div>
+        <div className="rmodal-ctrl">
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?'Guardando...':'Guardar cambios'}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -5397,6 +5573,7 @@ function HistoryScreen({account,onBack}){
   var[expandedId,setExpandedId]=useState(null);
   var[resendSt,setResendSt]=useState({});
   var[reportView,setReportView]=useState(null);
+  var[editRec,setEditRec]=useState(null);
   var[page,setPage]=useState(0);
   var[busca,setBusca]=useState('');
   var[fDesde,setFDesde]=useState('');
@@ -5538,6 +5715,9 @@ function HistoryScreen({account,onBack}){
     <div>
       {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
       {showPass&&<PassModal currentUser={account} onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
+      {editRec&&<EditEnsayoModal rec={editRec} account={account}
+        onClose={function(){setEditRec(null);}}
+        onSaved={function(){setEditRec(null);setToast({msg:'Registro actualizado',type:'success'});load();}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <h2>Historial — Calidad</h2>
@@ -5746,8 +5926,14 @@ function HistoryScreen({account,onBack}){
                                     {' — '+rst.error.msg}
                                   </span>
                                 )}
+                                {isAdmin&&r.status==='sent'&&(
+                                  <button className="btn btn-secondary" style={{padding:'7px 14px',fontSize:'.84rem',marginLeft:'auto'}}
+                                    onClick={function(e){e.stopPropagation();setEditRec(r);}}>
+                                    ✏️ Editar
+                                  </button>
+                                )}
                                 {isAdmin&&(
-                                  <button className="btn btn-danger" style={{padding:'7px 14px',fontSize:'.84rem',marginLeft:'auto'}}
+                                  <button className="btn btn-danger" style={{padding:'7px 14px',fontSize:'.84rem',marginLeft:r.status==='sent'?'8px':'auto'}}
                                     onClick={async function(e){
                                       e.stopPropagation();
                                       var eid=r.id||r.ID;
