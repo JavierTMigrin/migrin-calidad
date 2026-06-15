@@ -4002,7 +4002,7 @@ function DashboardScreen({account,onBack}){
   /* Resumen ejecutivo: cumplimiento por producto de TODAS las plantas
      en el periodo seleccionado (independiente del producto elegido) */
   var resumen=useMemo(function(){
-    if(tab!=='resumen')return null;
+    if(tab!=='resumen'&&tab!=='general')return null;
     var dr=getDateRange();
     var perProd={};
     records.forEach(function(r){
@@ -4043,6 +4043,56 @@ function DashboardScreen({account,onBack}){
       a.download='Informe_Calidad_'+getPeriodoLabel()+'.png';
       a.href=c.toDataURL('image/png');a.click();
     }catch(e){console.error('Export resumen',e);}
+  }
+
+  function csvEsc(v){
+    if(v==null)return'';
+    var s=String(v);
+    if(s.match(/^[=+\-@]/))s="'"+s;
+    if(s.indexOf('"')>=0||s.indexOf(',')>=0||s.indexOf('\n')>=0)s='"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }
+  function descargarCSV(nombre,hdr,rows){
+    var csv=[hdr].concat(rows).map(function(r){return r.map(csvEsc).join(',');}).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+    a.download=nombre;a.click();
+  }
+  /* Exporta la granulometria (retenido parcial %) de los registros filtrados */
+  function exportarGranuCSV(){
+    var sieves=SIEVE_CONFIG[prod]||[];
+    var hdr=['Folio','Fecha','Turno','Analista','TipoMuestra','NumAcopio','PesoFinal']
+      .concat(sieves.map(function(s){return 'RP '+s.us;}));
+    var rows=filtered.map(function(r,i){
+      var st=filteredStats[i];
+      return[r.Folio||'',r.FechaMuestreo||r.fecha||'',r.Turno||r.turno||'',r.Analista||r.analista||'',
+        r.TipoMuestra||r.tipoMuestra||'',r.NumAcopio||r.numAcopio||'',r.PesoFinal!=null?r.PesoFinal:'']
+        .concat(sieves.map(function(s){return st&&st[s.us]?fmt(st[s.us].pctP,2):'';}));
+    });
+    descargarCSV('Granulometria_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
+  }
+  /* Exporta la quimica de los registros filtrados */
+  function exportarQuimicaCSV(){
+    var ox=[['sio2','SiO2'],['al2o3','Al2O3'],['fe2o3','Fe2O3'],['cao','CaO'],['mgo','MgO'],['k2o','K2O'],['na2o','Na2O'],['tio2','TiO2']];
+    var hdr=['Folio','Fecha','Turno','Analista','Humedad'].concat(ox.map(function(o){return o[1];}));
+    var rows=filtered.map(function(r){
+      var q=r.quimica||{};
+      return[r.Folio||'',r.FechaMuestreo||r.fecha||'',r.Turno||r.turno||'',r.Analista||r.analista||'',
+        r.PctHumedad!=null?r.PctHumedad:''].concat(ox.map(function(o){return q[o[0]]!=null?q[o[0]]:'';}));
+    });
+    descargarCSV('Quimica_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
+  }
+  /* Exporta el resumen consolidado por planta/producto */
+  function exportarResumenCSV(){
+    if(!resumen)return;
+    var hdr=['Planta','Producto','Ensayos','Conformes','FueraNorma','PctCumplimiento'];
+    var rows=[];
+    resumen.forEach(function(sec){
+      sec.rows.forEach(function(r){
+        rows.push([sec.planta,r.label,r.n,r.pct===null?'':r.ok,r.pct===null?'':r.fuera,r.pct===null?'Sin EETT':fmt(r.pct,1)]);
+      });
+    });
+    descargarCSV('Resumen_General_'+getPeriodoLabel()+'.csv',hdr,rows);
   }
 
   function computeStats(row){
@@ -4757,16 +4807,17 @@ function DashboardScreen({account,onBack}){
           <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
           {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           <button className={'dash-tab'+(tab==='resumen'?' act':'')} onClick={function(){setTab('resumen');}}>Resumen Ejecutivo</button>
+          <button className={'dash-tab'+(tab==='general'?' act':'')} onClick={function(){setTab('general');}}>General</button>
         </div>
       )}
-      {!loading&&filtered.length===0&&tab!=='resumen'&&(
+      {!loading&&filtered.length===0&&(tab==='granu'||tab==='quim')&&(
         <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
           Sin registros para los filtros seleccionados
         </div>
       )}
 
-      {!loading&&tab!=='resumen'&&eettPanel()}
-      {!loading&&tab!=='resumen'&&turcoIndPanel()}
+      {!loading&&(tab==='granu'||tab==='quim')&&eettPanel()}
+      {!loading&&(tab==='granu'||tab==='quim')&&turcoIndPanel()}
 
       {!loading&&filtered.length>0&&(
         <>
@@ -5016,6 +5067,42 @@ function DashboardScreen({account,onBack}){
                 })}
               </div>
 
+              {/* Tabla de datos quimica */}
+              {chemStats.length>0&&(
+                <div className="sec-card" style={{marginBottom:14}}>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Química — último ensayo vs promedio período</div>
+                  <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                    <table className="dtbl" style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
+                      <thead><tr style={{background:'var(--primary)',color:'#fff'}}>
+                        <th style={{padding:'5px 9px',textAlign:'left'}}>Óxido</th>
+                        <th style={{padding:'5px 9px'}}>Último</th><th style={{padding:'5px 9px'}}>Promedio</th>
+                        <th style={{padding:'5px 9px'}}>σ</th><th style={{padding:'5px 9px'}}>Mín</th><th style={{padding:'5px 9px'}}>Máx</th>
+                        <th style={{padding:'5px 9px'}}>n</th><th style={{padding:'5px 9px'}}>EETT</th><th style={{padding:'5px 9px'}}>Estado</th>
+                      </tr></thead>
+                      <tbody>
+                        {chemStats.map(function(st){
+                          var c=st.ctrl;var sc=SEM_COLOR[st.sem]||'#999';
+                          var eett=c.limMax!=null&&c.limMin!=null?(c.limMin+' – '+c.limMax):c.limMax!=null?('≤ '+c.limMax):c.limMin!=null?('≥ '+c.limMin):'—';
+                          return(
+                            <tr key={c.key} style={{borderBottom:'1px solid #f0f0f0',background:st.sem==='error'?'#fff5f5':st.sem==='warning'?'#fffff0':''}}>
+                              <td style={{padding:'4px 9px',fontWeight:700}}>{c.label.replace(' (%)','')}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center',fontWeight:700,color:sc}}>{st.last!=null?fmt(st.last,3):'-'}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center'}}>{st.avg!=null?fmt(st.avg,3):'-'}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center',color:'var(--text-secondary)'}}>{st.std!=null?fmt(st.std,4):'-'}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center'}}>{st.min!=null?fmt(st.min,3):'-'}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center'}}>{st.max!=null?fmt(st.max,3):'-'}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center',color:'var(--text-muted)'}}>{st.n}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center',fontSize:'.74rem'}}>{eett}{c.specName?' ('+c.specName+')':''}</td>
+                              <td style={{padding:'4px 9px',textAlign:'center',color:sc,fontWeight:700,fontSize:'.74rem'}}>{SEM_ICON[st.sem]} {SEM_LABEL[st.sem]}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Un grafico por oxido con su estadistica */}
               <div className="granu-curves">
                 {chemStats.map(function(st){
@@ -5141,6 +5228,80 @@ function DashboardScreen({account,onBack}){
             })}
             <div style={{fontSize:'.68rem',color:'#aaa',textAlign:'center',marginTop:10}}>
               Cumplimiento evaluado contra las EETT vigentes · Productos sin EETT definida se informan solo con cantidad de ensayos
+            </div>
+          </div>
+        </>
+      )}
+
+      {!loading&&tab==='general'&&(
+        <>
+          {/* Exportacion del producto seleccionado */}
+          <div className="sec-card" style={{marginBottom:16}}>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Exportar datos — {GRANU_TITLE[prod]||prod} · {getPeriodoLabel()}</div>
+            <div style={{padding:'14px 16px'}}>
+              <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginBottom:10}}>
+                Exporta los <strong>{filtered.length}</strong> ensayos filtrados (según planta, producto, período y turno) a CSV para abrir en Excel.
+              </div>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <button className="btn btn-primary" disabled={filtered.length===0} onClick={exportarGranuCSV}>&#11015; Granulometría (CSV)</button>
+                {hasChem&&<button className="btn btn-primary" disabled={filtered.length===0} onClick={exportarQuimicaCSV}>&#11015; Química (CSV)</button>}
+                <button className="btn btn-secondary" disabled={!resumen||resumen.length===0} onClick={exportarResumenCSV}>&#11015; Resumen consolidado (CSV)</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Resumen general por planta y producto */}
+          <div className="sec-card">
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Resumen general — todas las plantas · {getPeriodoLabel()}</div>
+            <div style={{padding:'12px 16px',overflowX:'auto'}}>
+              {(!resumen||resumen.length===0)&&(
+                <div style={{textAlign:'center',padding:24,color:'var(--text-muted)'}}>Sin ensayos en el período</div>
+              )}
+              {resumen&&resumen.map(function(sec,si){
+                var totN=sec.rows.reduce(function(a,r){return a+r.n;},0);
+                var totF=sec.rows.reduce(function(a,r){return a+r.fuera;},0);
+                return(
+                  <div key={si} style={{marginBottom:18}}>
+                    <div style={{fontSize:'.8rem',fontWeight:800,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--primary)',marginBottom:6}}>Planta {sec.planta}</div>
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                      <thead><tr style={{background:'#f0f4f8'}}>
+                        <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Producto</th>
+                        <th style={{padding:'5px 10px',color:'#555'}}>Ensayos</th>
+                        <th style={{padding:'5px 10px',color:'#555'}}>Conformes</th>
+                        <th style={{padding:'5px 10px',color:'#555'}}>Fuera</th>
+                        <th style={{padding:'5px 10px',color:'#555'}}>% Cumplim.</th>
+                        <th style={{padding:'5px 10px',color:'#555'}}/>
+                      </tr></thead>
+                      <tbody>
+                        {sec.rows.map(function(r,ri){
+                          var col=r.pct===null?'#999':r.pct>=95?'var(--success)':r.pct>=85?'#b7791f':'var(--error)';
+                          return(
+                            <tr key={ri} style={{borderBottom:'1px solid #f0f0f0',background:r.fuera>0&&r.pct!==null?'#fffaf5':''}}>
+                              <td style={{padding:'4px 10px',fontWeight:600}}>{r.label}</td>
+                              <td style={{padding:'4px 10px',textAlign:'center'}}>{r.n}</td>
+                              <td style={{padding:'4px 10px',textAlign:'center'}}>{r.pct===null?'—':r.ok}</td>
+                              <td style={{padding:'4px 10px',textAlign:'center',fontWeight:r.fuera?700:400,color:r.fuera&&r.pct!==null?'var(--error)':'inherit'}}>{r.pct===null?'—':r.fuera}</td>
+                              <td style={{padding:'4px 10px',textAlign:'center',fontWeight:800,color:col}}>{r.pct===null?'Sin EETT':fmt(r.pct,1)+'%'}</td>
+                              <td style={{padding:'4px 10px',textAlign:'center'}}>
+                                <button className="btn btn-secondary" style={{padding:'3px 10px',fontSize:'.72rem'}}
+                                  onClick={function(){var pl=Object.keys(PLANTAS_PROD).find(function(p){return (PLANTAS_PROD[p]||[]).some(function(x){return x.value===r.key;});});if(pl)setPlantaFiltro(pl);setProd(r.key);setTab('granu');}}>Ver</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr style={{background:'#f8fafc',fontWeight:700}}>
+                          <td style={{padding:'4px 10px'}}>Total {sec.planta}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center'}}>{totN}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center'}}>{totN-totF}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center',color:totF?'var(--error)':'inherit'}}>{totF}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center'}}>{totN?fmt((totN-totF)/totN*100,1)+'%':'—'}</td>
+                          <td/>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </>
