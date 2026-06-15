@@ -62,6 +62,34 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   box-shadow:0 4px 10px rgba(26,82,118,.28)}
 .mod-label{font-weight:800;font-size:.98rem;color:var(--text);letter-spacing:-.01em}
 .mod-desc{font-size:.74rem;color:var(--text-muted);line-height:1.35}
+/* ── Inicio rediseñado ── */
+.home-hero{background:linear-gradient(120deg,#1a5276,#2980b9);border-radius:18px;
+  padding:26px 28px;margin-bottom:26px;color:#fff;box-shadow:0 6px 20px rgba(26,82,118,.22)}
+.home-hero h2{font-size:1.5rem;font-weight:800;margin-bottom:5px;letter-spacing:-.02em}
+.home-hero p{font-size:.9rem;color:rgba(255,255,255,.82);max-width:560px}
+.home-sec-title{display:flex;align-items:center;gap:9px;font-size:.78rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--text-secondary);margin:0 2px 13px}
+.home-sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.home-block{margin-bottom:30px}
+.nav-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:620px){.nav-grid{grid-template-columns:1fr 1fr}}
+.nav-card{display:flex;align-items:center;gap:16px;background:var(--card);border-radius:15px;
+  padding:20px 22px;cursor:pointer;border:1.5px solid var(--border);text-align:left;
+  box-shadow:0 2px 8px rgba(15,40,60,.06);transition:transform .2s,box-shadow .2s,border-color .2s}
+.nav-card:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(26,82,118,.16);border-color:var(--primary-light)}
+.nav-card .nc-ico{width:54px;height:54px;border-radius:14px;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:26px;color:#fff}
+.nav-card .nc-tit{font-weight:800;font-size:1.05rem;color:var(--text)}
+.nav-card .nc-desc{font-size:.78rem;color:var(--text-muted);line-height:1.35;margin-top:2px}
+.nav-card .nc-arrow{margin-left:auto;font-size:1.3rem;color:var(--primary-light);flex-shrink:0}
+/* Variante grande para el inicio del visualizador */
+.nav-grid-lg{display:grid;grid-template-columns:1fr;gap:18px;max-width:520px;margin:0 auto}
+@media(min-width:620px){.nav-grid-lg{grid-template-columns:1fr 1fr;max-width:720px}}
+.nav-card-lg{flex-direction:column;text-align:center;padding:34px 24px;gap:14px}
+.nav-card-lg .nc-ico{width:72px;height:72px;font-size:36px;border-radius:18px}
+.nav-card-lg .nc-tit{font-size:1.25rem}
+.nav-card-lg .nc-desc{font-size:.82rem}
+.nav-card-lg .nc-arrow{display:none}
 .prod-mosaic{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px}
 @media(min-width:580px){.prod-mosaic{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:900px){.prod-mosaic{grid-template-columns:repeat(4,1fr)}}
@@ -363,6 +391,12 @@ const TURCO_SIEVES=[ // banda estandar Lavado Turco (#16 a #270, PAN=fondo)
   {us:'#70',mm:'0,212'},{us:'#100',mm:'0,150'},{us:'#140',mm:'0,106'},
   {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
 ];
+const GOLF_SIEVES=[ // Arena Golf: agrega #12 al inicio
+  {us:'#12',mm:'1,700'},{us:'#16',mm:'1,180'},{us:'#18',mm:'1,000'},{us:'#20',mm:'0,850'},
+  {us:'#30',mm:'0,600'},{us:'#40',mm:'0,425'},{us:'#50',mm:'0,300'},
+  {us:'#70',mm:'0,212'},{us:'#100',mm:'0,150'},{us:'#140',mm:'0,106'},
+  {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
+];
 const SIEVE_CONFIG={
   // ── ARENAS ──
   'A36':[
@@ -459,6 +493,7 @@ const SIEVE_CONFIG={
   'TT_ARCILLAS':[],
   'TT_FLOC':[],
   'TT_AMCRIST':[],
+  'TT_GOLF':    GOLF_SIEVES,
   // ── CUARZO ──
   'CALIM':  CALIM_SIEVES,
   'CTLH':   CALIM_SIEVES,
@@ -511,6 +546,7 @@ const PRODUCT_CONFIG={
   'TT_ARCILLAS':{quimica:false,humedad:false,tipoMuestra:false},
   'TT_FLOC':    {quimica:false,humedad:false,tipoMuestra:false},
   'TT_AMCRIST': {quimica:true, humedad:false,tipoMuestra:false},
+  'TT_GOLF':    {quimica:true, humedad:true, tipoMuestra:false},
   'CALIM':  {quimica:true, humedad:true, tipoMuestra:false},
   'CTLH':   {quimica:true, humedad:true, tipoMuestra:false},
   'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
@@ -528,7 +564,24 @@ const GRANU_TITLE={
   TT_AMINAS:'Arenas Minas',TT_FIERRC:'Fierrillo Casillero',TT_LODO:'Lodo',
   TT_GMINA:'Grano Mina',TT_GRANOS:'Control Granos Produccion',
   TT_ARCILLAS:'% Arcillas',TT_FLOC:'Floculante',TT_AMCRIST:'Arena Mina Cristaleria',
+  TT_GOLF:'Arena Golf',
   CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
+};
+/* Texto descriptivo para productos sin EETT: qué se controla / qué muestra el reporte */
+const NO_EETT_DETALLE={
+  TT_FLOC:'Control de floculante: se registra la dilución en gramos. Cumple cuando oscila entre 0,004 y 0,016 g; No cumple si supera 0,016 g. El reporte muestra la evolución de la dilución y el estado de cumplimiento.',
+  TT_ARCILLAS:'Control de % de arcillas: se registra el conteo por banda granulométrica. El reporte muestra la tendencia del conteo en el período.',
+  TT_GRANOS:'Control de granos de producción: conteo de granos por tamiz. El reporte muestra la cantidad de granos por banda a lo largo del tiempo.',
+  CGRANOS:'Control de granos (Arenas): conteo de granos por tamiz (#14 a #20). El reporte muestra la cantidad por banda en el período.',
+  TT_CILINDRO:'Cilindro: granulometría de entrada y salida del cilindro. El reporte muestra la distribución granulométrica de la entrada; la salida queda registrada en el detalle del ensayo.',
+  MPRIMA:'Materias primas Las Piedras: identificación de la arena y química. El reporte muestra las tendencias químicas registradas.',
+  REC2001:'Rechazo 20.01: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
+  MOL1:'Molino 1: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
+  MOL2:'Molino 2: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
+  UND2007:'Under 20.07: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
+  OVR2007:'Over 20.07: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
+  UTACK:'Under Tack 222: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
+  MESP:'Muestras especiales: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
 };
 
 const SPECS_A36={
@@ -658,6 +711,17 @@ function getDashboardControles(prod){
   var ps=getSpecs(prod);
   var cols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#555'];
   var ci=0;function nc(){return cols[ci++%cols.length];}
+  if(prod.indexOf('TT_')===0){
+    // Turco: controles = indicadores definidos para el producto
+    var defs=turcoIndicadores({producto:prod,granu:[],quimica:{},extra:{},PesoFinal:0})||[];
+    var tcols=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#e67e22','#2e86c1','#117864'];
+    return defs.map(function(ind,i){
+      var lim=turcoCtrlLims(ind);
+      var u=ind.unit==='%'?' (%)':(ind.unit?' ('+ind.unit+')':'');
+      return{key:'_ind_'+i,field:'_ind',ind:true,indLabel:ind.label,label:ind.label+u,
+        color:tcols[i%tcols.length],limMin:lim.limMin,limMax:lim.limMax};
+    });
+  }
   if(prod==='A36'){
     var glir=SPECS_A36.LIRQUEN.granulometria||{};
     function ga(us,f){var o=glir[us]||{};return o[f]==null?null:o[f];}
@@ -821,6 +885,128 @@ function collectViolations(data,gc){
   return out;
 }
 
+/* ══ INDICADORES DE CONTROL TURCO ══
+   Controles calculados sobre el retenido parcial (%) por tamiz, quimica
+   y campos del formulario. Cada indicador define su tipo de evaluacion:
+   - max      : fuera si valor > max
+   - max_lt   : fuera si valor >= lim (p.ej. arcillas >= 15)
+   - min      : fuera si valor < min
+   - rango    : fuera si fuera de [min,max]
+   - zonas    : ok < alerta · alerta entre alerta y fuera · fuera > fuera
+   - tendencia: sin limite, solo se grafica/observa */
+function rpMapTurco(prod,gv,pesoFinal){
+  var gc=calcGranu(prod,gv||[],pesoFinal);
+  var m={};
+  (gc.rows||[]).forEach(function(r){m[r.isFondo?'PAN':r.us]=r.pctP||0;});
+  return m;
+}
+function sumRP(m,list){return list.reduce(function(a,us){return a+(m[us]||0);},0);}
+function calcAFS(m){
+  return Math.round(
+    (m['#20']||0)*0.1+(m['#30']||0)*0.2+(m['#40']||0)*0.3+(m['#50']||0)*0.4+(m['#70']||0)*0.5
+    +((m['#100']||0)+(m['#140']||0)+(m['#200']||0)+(m['#270']||0)+(m['PAN']||0))*0.7
+    +(m['#140']||0)*1.4+(m['#270']||0)*2+(m['PAN']||0)*3
+  );
+}
+function turcoEstado(ind){
+  var v=ind.valor;
+  if(v==null||isNaN(v)||ind.tipo==='tendencia')return 'info';
+  if(ind.tipo==='max')return v>ind.max?'error':'ok';
+  if(ind.tipo==='max_lt')return v>=ind.lim?'error':'ok';
+  if(ind.tipo==='min')return v<ind.min?'error':'ok';
+  if(ind.tipo==='rango')return(v<ind.min||v>ind.max)?'error':'ok';
+  if(ind.tipo==='zonas')return v>ind.fuera?'error':v>=ind.alerta?'warning':'ok';
+  return 'info';
+}
+function turcoLimLabel(ind){
+  if(ind.tipo==='max')return '≤ '+fmt(ind.max,2);
+  if(ind.tipo==='max_lt')return '< '+fmt(ind.lim,2);
+  if(ind.tipo==='min')return '≥ '+fmt(ind.min,2);
+  if(ind.tipo==='rango')return fmt(ind.min,2)+' – '+fmt(ind.max,2);
+  if(ind.tipo==='zonas')return 'ok <'+fmt(ind.alerta,2)+' · alerta '+fmt(ind.alerta,2)+'–'+fmt(ind.fuera,2)+' · fuera >'+fmt(ind.fuera,2);
+  return 'tendencia';
+}
+/* Devuelve la lista de indicadores de control para un registro Turco.
+   rec: {producto/ProductoKey, granu, quimica, extra, PesoFinal/pesoFinal} */
+function turcoIndicadores(rec){
+  var prod=rec.producto||rec.ProductoKey||'';
+  if(prod.indexOf('TT_')!==0)return null;
+  var gv=rec.granu&&Array.isArray(rec.granu)?rec.granu:[];
+  var pf=rec.PesoFinal!==undefined?rec.PesoFinal:(rec.pesoFinal!==undefined?rec.pesoFinal:0);
+  var q=rec.quimica||{};
+  var extra=rec.Extra||rec.extra||{};
+  var m=rpMapTurco(prod,gv,pf);
+  function f(list){return +sumRP(m,list).toFixed(2);}
+  var P30=['#16','#18','#20','#30'],P40=['#16','#18','#20','#30','#40'];
+  var M30_100=['#40','#50','#70','#100'],M40_100=['#50','#70','#100'];
+  var B100=['#140','#200','#270','PAN'],B100_200=['#140','#200'],B200=['#270','PAN'];
+  var B70=['#100','#140','#200','#270','PAN'];
+  var out=[];
+  if(prod==='TT_TLH'){
+    out.push({label:'#16 retenido',valor:+(m['#16']||0).toFixed(2),unit:'%',tipo:'max',max:0});
+    out.push({label:'+#30 (ret.acum)',valor:f(P30),unit:'%',tipo:'max',max:1.5});
+    out.push({label:'+#40 (ret.acum)',valor:f(P40),unit:'%',tipo:'max',max:25});
+    out.push({label:'-#100 (pasante)',valor:f(B100),unit:'%',tipo:'max',max:2.5});
+    out.push({label:'AFS',valor:calcAFS(m),unit:'',tipo:'tendencia'});
+  }else if(prod==='TT_ALIM'||prod==='TT_AMINAS'){
+    var arc=parseDecimal(extra.pctArcilla);
+    out.push({label:'% Arcillas',valor:isNaN(arc)?null:arc,unit:'%',tipo:'max_lt',lim:15});
+    var fe=parseDecimal(q.fe2o3);
+    out.push({label:'Fe₂O₃ (hierro)',valor:isNaN(fe)?null:fe,unit:'%',tipo:'zonas',alerta:1.3,fuera:2});
+    out.push({label:'+#30 (ret.acum)',valor:f(P30),unit:'%',tipo:'tendencia'});
+    out.push({label:'-#30+#100',valor:f(M30_100),unit:'%',tipo:'tendencia'});
+    out.push({label:'-#100',valor:f(B100),unit:'%',tipo:'tendencia'});
+    out.push({label:'#40 (ret.parcial)',valor:+(m['#40']||0).toFixed(2),unit:'%',tipo:'tendencia'});
+  }else if(prod==='TT_FIERRC'){
+    out.push({label:'+#40 (ret.acum)',valor:f(P40),unit:'%',tipo:'max',max:14});
+    out.push({label:'-#30+#100',valor:f(M30_100),unit:'%',tipo:'rango',min:0,max:50});
+    out.push({label:'-#100',valor:f(B100),unit:'%',tipo:'tendencia'});
+    out.push({label:'-#200',valor:f(B200),unit:'%',tipo:'tendencia'});
+  }else if(prod==='TT_LODO'){
+    out.push({label:'+#120 (ret.acum)',valor:f(['#40','#50','#80','#100','#120']),unit:'%',tipo:'max',max:10});
+  }else if(prod==='TT_GRANOS'){
+    var c16=parseDecimal(gv[0]),c18=parseDecimal(gv[1]),c20=parseDecimal(gv[2]);
+    out.push({label:'#16 (conteo)',valor:isNaN(c16)?null:c16,unit:'',tipo:'max',max:0});
+    out.push({label:'#18 (conteo)',valor:isNaN(c18)?null:c18,unit:'',tipo:'max',max:0});
+    out.push({label:'#20 (conteo)',valor:isNaN(c20)?null:c20,unit:'',tipo:'zonas',alerta:11,fuera:29});
+  }else if(prod==='TT_ARCILLAS'){
+    var pa=parseDecimal(extra.pctArcillas);
+    out.push({label:'% Arcillas',valor:isNaN(pa)?null:pa,unit:'%',tipo:'max_lt',lim:15});
+  }else if(prod==='TT_FLOC'){
+    var fm=parseDecimal(extra.flocMadreG),fd=parseDecimal(extra.flocDilG);
+    out.push({label:'Floculante madre',valor:isNaN(fm)?null:fm,unit:'g',tipo:'rango',min:0.015,max:0.033});
+    out.push({label:'Floculante dilución',valor:isNaN(fd)?null:fd,unit:'g',tipo:'rango',min:0.004,max:0.016});
+  }else if(prod==='TT_CILINDRO'){
+    var entB100=f(B100);
+    var salGv=extra.salidaGranu||[],totS=extra.totalSalida;
+    var mS=rpMapTurco('TT_CILINDRO',salGv,totS);
+    var salB100=+sumRP(mS,B100).toFixed(2);
+    out.push({label:'Bajo #100 Entrada',valor:entB100,unit:'%',tipo:'tendencia'});
+    out.push({label:'Bajo #100 Salida',valor:salB100,unit:'%',tipo:'tendencia'});
+    var ratio=salB100>0?Math.abs(entB100/salB100):null;
+    out.push({label:'Índice finos (Ent/Sal)',valor:ratio!=null?+ratio.toFixed(2):null,unit:'',tipo:'tendencia'});
+  }else if(prod==='TT_GOLF'){
+    out.push({label:'#12 retenido',valor:+(m['#12']||0).toFixed(2),unit:'%',tipo:'max',max:5});
+    out.push({label:'-#100+#200',valor:f(B100_200),unit:'%',tipo:'max',max:5});
+    out.push({label:'#20 retenido',valor:+(m['#20']||0).toFixed(2),unit:'%',tipo:'tendencia'});
+    out.push({label:'-#70',valor:f(B70),unit:'%',tipo:'tendencia'});
+    out.push({label:'-#40+#100',valor:f(M40_100),unit:'%',tipo:'tendencia'});
+    out.push({label:'-#200',valor:f(B200),unit:'%',tipo:'tendencia'});
+    out.push({label:'AFS',valor:calcAFS(m),unit:'',tipo:'tendencia'});
+  }
+  out.forEach(function(ind){ind.estado=turcoEstado(ind);ind.limLabel=turcoLimLabel(ind);});
+  return out;
+}
+/* Convierte un indicador en limites min/max para graficar la linea EETT */
+function turcoCtrlLims(ind){
+  if(ind.tipo==='max')return{limMin:null,limMax:ind.max};
+  if(ind.tipo==='max_lt')return{limMin:null,limMax:ind.lim};
+  if(ind.tipo==='min')return{limMin:ind.min,limMax:null};
+  if(ind.tipo==='rango')return{limMin:ind.min,limMax:ind.max};
+  if(ind.tipo==='zonas')return{limMin:null,limMax:ind.fuera};
+  return{limMin:null,limMax:null};
+}
+
 const ARENA_PRODUCTS=[
   {value:'A36',    label:'A36 — TLH'},
   {value:'A38',    label:'A38 — Fierrillo'},
@@ -906,6 +1092,7 @@ const LAVTURCO_PRODUCTS=[
   {value:'TT_GMINA',   label:'Grano Mina'},
   {value:'TT_AMCRIST', label:'Arena Mina Cristaleria'},
   {value:'TT_FIERRC',  label:'Fierrillo Casillero'},
+  {value:'TT_GOLF',    label:'Arena Golf'},
 ];
 const TURNOS_ABC=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'},{value:'C',label:'Turno C'}];
 const ACOPIOS_TURCO=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8']
@@ -922,7 +1109,34 @@ const SPECS_TT_LODO={
     '#120':{retMax:10,retMin:null,pasMax:null,pasMin:null},
   },
 };
+/* TLH Turco: quimica + humedad (granulometria se controla por indicadores) */
+const SPECS_TT_TLH={
+  granulometria:{},
+  quimica:{
+    SiO2:{min:88.0,max:null},Al2O3:{min:2.3,max:5.0},Fe2O3:{min:0.15,max:0.85},
+    CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
+    Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
+  },
+  humedad:{max:5.0},
+};
+/* Arena Golf (A45): quimica + humedad */
+const SPECS_TT_GOLF={
+  granulometria:{},
+  quimica:{
+    SiO2:{min:85.0,max:null},Al2O3:{min:null,max:7.0},Fe2O3:{min:null,max:4.0},
+    CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
+    Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
+  },
+  humedad:{max:5.0},
+};
 const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS);
+/* Productos agrupados por planta para el filtro en cascada de Reportes */
+const PLANTAS_PROD={
+  'Arenas':ARENA_PRODUCTS.concat(OTROS_PRODUCTS.filter(function(p){return p.value==='CGRANOS';})),
+  'Cuarzo':CUARZO_PRODUCTS.concat(OTROS_PRODUCTS.filter(function(p){return p.value==='MPRIMA';})),
+  'Despachos':DESPACHO_PRODUCTS,
+  'Lavado Turco':LAVTURCO_PRODUCTS,
+};
 
 /* ── EETT EDITABLES ──
    Registro en vivo de especificaciones por producto. Los SPECS_* de
@@ -958,6 +1172,8 @@ var EETT_DEFAULTS={
   DESP_PH:JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
   DESP_LLAY:JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
   TT_LODO:SPECS_TT_LODO,
+  TT_TLH:SPECS_TT_TLH,
+  TT_GOLF:SPECS_TT_GOLF,
 };
 var EETT_LIVE={};
 ALL_PRODUCTS.forEach(function(p){
@@ -2324,6 +2540,7 @@ var TT_FORM_CFG={
   TT_AMINAS: {granu:true,quimica:true,tipoArena:true,pctArcilla:true},
   TT_FIERRC: {granu:true,quimica:true},
   TT_AMCRIST:{quimica:true,tipoArena:true},
+  TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
 };
 
 var TT_QUIM_FIELDS=[
@@ -3220,7 +3437,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
       e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
     if(cfg.tipoMuestra&&!tipoMuestra)e.tipoMuestra='Requerido';
-    if(cfg.tipoMuestra&&tipoMuestra==='Acopio'&&!numAcopio)e.numAcopio='Requerido';
+    if(cfg.tipoMuestra&&tipoMuestra&&!numAcopio)e.numAcopio='Requerido';
     if(cfg.humedad&&!pctHumedad)e.pctHumedad='Requerido';
     if(cfg.quimica){
       if(!quimica.sio2)e.sio2='Requerido';
@@ -3251,7 +3468,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     var prodObj=products.find(function(p){return p.value===producto;});
     var prodLabel=prodObj?prodObj.label:producto;
     var tmVal=cfg.tipoMuestra?tipoMuestra:'';
-    var naVal=cfg.tipoMuestra&&tipoMuestra==='Acopio'?numAcopio:'';
+    var naVal=cfg.tipoMuestra&&tipoMuestra?numAcopio:'';
     var data={
       id:uid(),fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,
       turno:turno,analista:analista,producto:producto,productoLabel:prodLabel,
@@ -3311,7 +3528,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
         data={{fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,turno:turno,
                analista:analista,producto:producto,productoLabel:prodLabel2,
                tipoMuestra:cfg.tipoMuestra?tipoMuestra:'',
-               numAcopio:cfg.tipoMuestra&&tipoMuestra==='Acopio'?numAcopio:'',
+               numAcopio:cfg.tipoMuestra&&tipoMuestra?numAcopio:'',
                pesoInicial:pesoInicial,pesoFinal:pesoFinal,
                pctHumedad:pctHumedad,quimica:quimica,observaciones:obs}}
         gc={gc} onConfirm={handleConfirm} onBack={function(){setView('form');}} sending={sending}/>
@@ -3325,13 +3542,19 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
   return(
     <div>
       <div className="page-hdr">
-        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <button className="back-btn" onClick={producto?function(){setProducto('');}:onBack}>&#8592;</button>
         <div>
           <h2>{plantaLabel}</h2>
           {prodLabel3&&<div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{prodLabel3}</div>}
         </div>
       </div>
 
+      {producto&&(
+        <button className="btn btn-secondary" style={{marginBottom:16}}
+          onClick={function(){setProducto('');}}>&#8592; Cambiar producto</button>
+      )}
+
+      {!producto&&(
       <div className="prod-mosaic">
         {products.map(function(p){
           return(
@@ -3391,6 +3614,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
           </>
         )}
       </div>
+      )}
 
       {!producto&&(
         <div className="prod-no-sel">Selecciona un producto para continuar</div>
@@ -3412,7 +3636,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
                   options={[{value:'Puntual',label:'Muestra Puntual'},{value:'Acopio',label:'Acopio'}]}
                   value={tipoMuestra} onChange={function(e){setTipoMuestra(e.target.value);setNumAcopio('');}}
                   error={errors.tipoMuestra}/>
-                {tipoMuestra==='Acopio'&&(
+                {tipoMuestra&&(
                   <Sel name="numAcopio" label="Numero de Acopio" required
                     options={[
                       {value:'Acopio 1',label:'Acopio 1'},{value:'Acopio 2',label:'Acopio 2'},
@@ -3584,6 +3808,7 @@ function DashboardScreen({account,onBack}){
   var[loading,setLoading]=useState(true);
   var[tab,setTab]=useState('granu');
   var[prod,setProd]=useState('A36');
+  var[plantaFiltro,setPlantaFiltro]=useState('Arenas');
   var[periodType,setPeriodType]=useState('month');
   var[selWeek,setSelWeek]=useState(function(){
     var d=new Date(),dc=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
@@ -3598,7 +3823,7 @@ function DashboardScreen({account,onBack}){
   var[filterTurno,setFilterTurno]=useState('');
   var[filterAnalista,setFilterAnalista]=useState('');
   var[maWin,setMaWin]=useState(5);
-  var[showMA,setShowMA]=useState(true);
+  var[showMA,setShowMA]=useState(false);
   var[showAvg,setShowAvg]=useState(true);
   var[showLims,setShowLims]=useState(true);
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
@@ -3782,15 +4007,14 @@ function DashboardScreen({account,onBack}){
       e.n++;if(v.length)e.fuera++;
     });
     var sections=[];
-    [['Arenas',ARENA_PRODUCTS],['Cuarzo',CUARZO_PRODUCTS],['Despachos',DESPACHO_PRODUCTS],
-     ['Otros Controles',OTROS_PRODUCTS],['Lavado Turco',LAVTURCO_PRODUCTS]].forEach(function(pl){
-      var rows=pl[1].map(function(p){
+    Object.keys(PLANTAS_PROD).forEach(function(plName){
+      var rows=PLANTAS_PROD[plName].map(function(p){
         var e=perProd[p.value];if(!e)return null;
         var tieneEett=specHasLimits(getSpecs(p.value))||p.value==='A36';
         return{key:p.value,label:p.label,n:e.n,fuera:e.fuera,ok:e.n-e.fuera,
           pct:tieneEett?Math.round((e.n-e.fuera)/e.n*1000)/10:null};
       }).filter(Boolean);
-      if(rows.length)sections.push({planta:pl[0],rows:rows});
+      if(rows.length)sections.push({planta:plName,rows:rows});
     });
     return sections;
   },[records,tab,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno]);
@@ -3902,9 +4126,25 @@ function DashboardScreen({account,onBack}){
     return list;
   },[prod,granuControls]);
 
+  // Indicadores Turco por registro (para tendencias y estadistica)
+  var turcoRecInds=useMemo(function(){
+    if(prod.indexOf('TT_')!==0)return null;
+    return filtered.map(function(r){
+      return turcoIndicadores({producto:prod,granu:r.granu,quimica:r.quimica,
+        extra:r.Extra||r.extra,PesoFinal:r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal})||[];
+    });
+  },[filtered,prod]);
+
+  function turcoIndVal(i,label){
+    if(!turcoRecInds||!turcoRecInds[i])return null;
+    var f=turcoRecInds[i].find(function(x){return x.label===label;});
+    return f&&f.valor!=null&&!isNaN(f.valor)?f.valor:null;
+  }
+
   var ctrlStats=useMemo(function(){
     return allCtrls.map(function(ctrl){
       var valsRaw=filtered.map(function(r,i){
+        if(ctrl.field==='_ind')return turcoIndVal(i,ctrl.indLabel);
         if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
         var st=filteredStats[i];if(!st)return null;
         if(ctrl.field)return st[ctrl.key]?st[ctrl.key][ctrl.field]:null;
@@ -3928,7 +4168,7 @@ function DashboardScreen({account,onBack}){
         perVar:last!=null&&perAvg!=null?last-perAvg:null,
       });
     });
-  },[filteredStats,filtered,prod,allCtrls]);
+  },[filteredStats,filtered,prod,allCtrls,turcoRecInds]);
 
   var granuCurveData=useMemo(function(){
     var sieves=SIEVE_CONFIG[prod]||[];
@@ -4015,6 +4255,7 @@ function DashboardScreen({account,onBack}){
     allCtrls.forEach(function(ctrl,i){
       if(i>=6||!trList[i]||!trList[i].current)return;
       var vals=filtered.map(function(r,ri){
+        if(ctrl.field==='_ind'){var iv=turcoIndVal(ri,ctrl.indLabel);return iv!=null?+iv.toFixed(2):null;}
         if(ctrl.key==='_humedad')return parseDecimal(r.PctHumedad||r.pctHumedad);
         var st=filteredStats[ri];if(!st)return null;
         if(ctrl.field)return st[ctrl.key]?+(st[ctrl.key][ctrl.field]||0).toFixed(2):null;
@@ -4038,7 +4279,7 @@ function DashboardScreen({account,onBack}){
           scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8,family:'Inter'}}}}}});
     });
     return function(){tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});};
-  },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims]);
+  },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims,turcoRecInds]);
 
   // === CHART: Chemistry (un grafico por oxido, estilo tendencias EETT) ===
   useEffect(function(){
@@ -4179,6 +4420,156 @@ function DashboardScreen({account,onBack}){
   var hasChem=!!(PRODUCT_CONFIG[prod]&&PRODUCT_CONFIG[prod].quimica);
   var hasSpecs=ctrlStats.length>0;
 
+  /* Panel de Especificación (EETT) visible en el reporte.
+     Muestra los límites del producto; si no tiene EETT, muestra
+     otros detalles del formulario. */
+  function rng(min,max){
+    if(min!=null&&max!=null)return fmt(min,2)+' – '+fmt(max,2);
+    if(max!=null)return '≤ '+fmt(max,2);
+    if(min!=null)return '≥ '+fmt(min,2);
+    return '—';
+  }
+  function bandLim(g){
+    var parts=[];
+    if(g.retAcumMin!=null||g.retAcumMax!=null)parts.push('Ret.Acum '+rng(g.retAcumMin,g.retAcumMax));
+    if(g.retMin!=null||g.retMax!=null)parts.push('Ret.Parc '+rng(g.retMin,g.retMax));
+    if(g.pasMin!=null||g.pasMax!=null)parts.push('Pasante '+rng(g.pasMin,g.pasMax));
+    return parts.join(' · ');
+  }
+  function specTable(sp,titulo){
+    var gKeys=sp.granulometria?Object.keys(sp.granulometria).filter(function(us){return bandLim(sp.granulometria[us]);}):[];
+    var qKeys=sp.quimica?Object.keys(sp.quimica).filter(function(el){var s=sp.quimica[el];return s&&(s.min!=null||s.max!=null);}):[];
+    var hasHum=sp.humedad&&sp.humedad.max!=null;
+    var hasD50=sp.d50Max!=null;
+    if(!gKeys.length&&!qKeys.length&&!hasHum&&!hasD50)return null;
+    var thS={textAlign:'left',padding:'4px 10px',fontSize:'.72rem',color:'#fff',background:'var(--primary)',fontWeight:700};
+    var tdS={padding:'4px 10px',fontSize:'.8rem',borderBottom:'1px solid #f0f0f0'};
+    return(
+      <div key={titulo||'spec'} style={{marginBottom:14}}>
+        {titulo&&<div style={{fontWeight:700,fontSize:'.8rem',color:'var(--primary)',marginBottom:6}}>{titulo}</div>}
+        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14}}>
+          {gKeys.length>0&&(
+            <div style={{overflowX:'auto'}}>
+              <div style={{fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>GRANULOMETRÍA</div>
+              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead><tr><th style={thS}>Tamiz</th><th style={thS}>Límite (%)</th></tr></thead>
+                <tbody>
+                  {gKeys.map(function(us){return(
+                    <tr key={us}><td style={Object.assign({fontWeight:700},tdS)}>{us}</td>
+                      <td style={tdS}>{bandLim(sp.granulometria[us])}</td></tr>
+                  );})}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {(qKeys.length>0||hasHum||hasD50)&&(
+            <div style={{overflowX:'auto'}}>
+              <div style={{fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>QUÍMICA / OTROS</div>
+              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead><tr><th style={thS}>Parámetro</th><th style={thS}>Límite</th></tr></thead>
+                <tbody>
+                  {qKeys.map(function(el){var s=sp.quimica[el];return(
+                    <tr key={el}><td style={Object.assign({fontWeight:700},tdS)}>{el.replace('_','+')}</td>
+                      <td style={tdS}>{rng(s.min,s.max)} %</td></tr>
+                  );})}
+                  {hasD50&&<tr><td style={Object.assign({fontWeight:700},tdS)}>D50</td><td style={tdS}>≤ {fmt(sp.d50Max,3)} mm</td></tr>}
+                  {hasHum&&<tr><td style={Object.assign({fontWeight:700},tdS)}>Humedad</td><td style={tdS}>≤ {fmt(sp.humedad.max,2)} %</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  function eettPanel(){
+    var tables=[];
+    if(prod==='A36'){
+      tables.push(specTable(Object.assign({nombre:'Lirquen'},SPECS_A36.LIRQUEN),'Vidrios Lirquen'));
+      tables.push(specTable(Object.assign({nombre:'Cristalerias'},SPECS_A36.CRISTALERIAS),'Cristalerias Chile'));
+    }else{
+      var sp=EETT_LIVE[prod];
+      if(sp&&specHasLimits(sp))tables.push(specTable(sp,null));
+    }
+    tables=tables.filter(Boolean);
+    var titulo=GRANU_TITLE[prod]||prod;
+    var turcoHasInd=prod.indexOf('TT_')===0&&(turcoIndicadores({producto:prod,granu:[],quimica:{},extra:{},PesoFinal:0})||[]).length>0;
+    if(tables.length===0){
+      if(turcoHasInd)return null; // lo cubre el panel de indicadores de control
+      // Sin EETT: detalles del formulario
+      var det=NO_EETT_DETALLE[prod]||'Este producto no tiene EETT definida. El reporte muestra las tendencias y estadísticas de los valores registrados en el período.';
+      return(
+        <div className="sec-card" style={{marginBottom:16}}>
+          <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Especificación (EETT) — {titulo}</div>
+          <div style={{padding:'14px 16px'}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'4px 12px',borderRadius:14,
+              background:'#fff8e1',color:'#b7791f',border:'1px solid #f6e05e',fontSize:'.78rem',fontWeight:700,marginBottom:8}}>
+              ⓘ Sin EETT definida
+            </div>
+            <div style={{fontSize:'.84rem',color:'var(--text-secondary)',lineHeight:1.5}}>{det}</div>
+            <div style={{fontSize:'.74rem',color:'var(--text-muted)',marginTop:8}}>
+              Un administrador puede cargar los límites desde <strong>Ajustes → Especificaciones (EETT)</strong>.
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return(
+      <div className="sec-card" style={{marginBottom:16}}>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Especificación (EETT) — {titulo}</div>
+        <div style={{padding:'14px 16px'}}>{tables}</div>
+      </div>
+    );
+  }
+
+  /* Indicadores de control Turco: evalúa el último ensayo del período. */
+  function turcoIndPanel(){
+    if(prod.indexOf('TT_')!==0)return null;
+    var rec=filtered.length?filtered[filtered.length-1]:null;
+    if(!rec)return null;
+    var inds=turcoIndicadores({producto:prod,granu:rec.granu,quimica:rec.quimica,
+      extra:rec.Extra||rec.extra,PesoFinal:rec.PesoFinal!==undefined?rec.PesoFinal:rec.pesoFinal});
+    if(!inds||!inds.length)return null;
+    var thS={textAlign:'left',padding:'5px 10px',fontSize:'.72rem',color:'#fff',background:'var(--primary)',fontWeight:700};
+    var tdS={padding:'5px 10px',fontSize:'.82rem',borderBottom:'1px solid #f0f0f0'};
+    return(
+      <div className="sec-card" style={{marginBottom:16}}>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          Indicadores de control — {GRANU_TITLE[prod]||prod}
+          <span style={{fontSize:'.72rem',fontWeight:400,opacity:.8}}>último ensayo del período (folio #{rec.Folio||'—'})</span>
+        </div>
+        <div style={{padding:'10px 14px',overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead><tr>
+              <th style={thS}>Indicador</th><th style={Object.assign({textAlign:'center'},thS)}>Valor</th>
+              <th style={thS}>Límite</th><th style={Object.assign({textAlign:'center'},thS)}>Estado</th>
+            </tr></thead>
+            <tbody>
+              {inds.map(function(ind,i){
+                var sc=SEM_COLOR[ind.estado]||'#999';
+                return(
+                  <tr key={i} style={{background:ind.estado==='error'?'#fff5f5':ind.estado==='warning'?'#fffbf0':''}}>
+                    <td style={Object.assign({fontWeight:600},tdS)}>{ind.label}</td>
+                    <td style={Object.assign({textAlign:'center',fontWeight:800,color:sc},tdS)}>
+                      {ind.valor==null?'—':fmt(ind.valor,ind.unit==='g'?4:2)}{ind.unit?' '+ind.unit:''}
+                    </td>
+                    <td style={Object.assign({fontSize:'.74rem',color:'#666'},tdS)}>{ind.limLabel}</td>
+                    <td style={Object.assign({textAlign:'center',fontWeight:700,color:sc,fontSize:'.74rem'},tdS)}>
+                      {ind.tipo==='tendencia'?'—':(SEM_ICON[ind.estado]+' '+SEM_LABEL[ind.estado])}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div style={{fontSize:'.7rem',color:'var(--text-muted)',marginTop:8}}>
+            Indicadores marcados "tendencia" no tienen límite EETT — solo se observan en el tiempo.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Period selector content
   var wks=[];for(var wi=1;wi<=52;wi++)wks.push(wi);
   var periodSel=(function(){
@@ -4228,23 +4619,19 @@ function DashboardScreen({account,onBack}){
       {/* ── BARRA DE FILTROS ── */}
       <div className="db-filter-row">
         <div className="dff">
+          <label>Planta</label>
+          <select value={plantaFiltro} onChange={function(e){
+            var pl=e.target.value;setPlantaFiltro(pl);
+            var lista=PLANTAS_PROD[pl]||[];
+            if(lista.length)setProd(lista[0].value);
+          }}>
+            {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+          </select>
+        </div>
+        <div className="dff">
           <label>Producto</label>
           <select value={prod} onChange={function(e){setProd(e.target.value);}}>
-            <optgroup label="Arenas">
-              {ARENA_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-            </optgroup>
-            <optgroup label="Cuarzo">
-              {CUARZO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-            </optgroup>
-            <optgroup label="Despachos">
-              {DESPACHO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-            </optgroup>
-            <optgroup label="Otros Controles">
-              {OTROS_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-            </optgroup>
-            <optgroup label="Lavado Turco">
-              {LAVTURCO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-            </optgroup>
+            {(PLANTAS_PROD[plantaFiltro]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
           </select>
         </div>
         <div className="dff">
@@ -4365,6 +4752,9 @@ function DashboardScreen({account,onBack}){
           Sin registros para los filtros seleccionados
         </div>
       )}
+
+      {!loading&&tab!=='resumen'&&eettPanel()}
+      {!loading&&tab!=='resumen'&&turcoIndPanel()}
 
       {!loading&&filtered.length>0&&(
         <>
@@ -4747,6 +5137,245 @@ function DashboardScreen({account,onBack}){
   );
 }
 
+/* ── ESTADISTICAS (solo admin) ──
+   Por cada columna del formulario: tendencia, limites de control
+   ±1σ/±2σ/±3σ, promedio movil, estadistica y boxplot. */
+function statSummary(arr){
+  var v=arr.filter(function(x){return x!=null&&!isNaN(x);}).slice().sort(function(a,b){return a-b;});
+  var n=v.length;if(!n)return null;
+  var mean=v.reduce(function(a,b){return a+b;},0)/n;
+  var sd=n>1?Math.sqrt(v.reduce(function(s,x){return s+(x-mean)*(x-mean);},0)/(n-1)):0;
+  function q(p){var idx=(n-1)*p,lo=Math.floor(idx),hi=Math.ceil(idx);return v[lo]+(v[hi]-v[lo])*(idx-lo);}
+  return{n:n,mean:mean,sd:sd,min:v[0],max:v[n-1],q1:q(0.25),med:q(0.5),q3:q(0.75),cv:mean?sd/mean*100:null};
+}
+function Boxplot({st,color}){
+  if(!st)return null;
+  var w=240,h=54,pad=10,my=20;
+  var lo=st.min,hi=st.max;if(hi<=lo){hi=lo+1;lo=lo-1;}
+  function X(v){return pad+(v-lo)/(hi-lo)*(w-2*pad);}
+  var c=color||'#1a5276';
+  return(
+    <svg width="100%" viewBox={'0 0 '+w+' '+h} style={{maxWidth:w}}>
+      <line x1={X(st.min)} y1={my} x2={X(st.q1)} y2={my} stroke="#999" strokeWidth="1"/>
+      <line x1={X(st.q3)} y1={my} x2={X(st.max)} y2={my} stroke="#999" strokeWidth="1"/>
+      <line x1={X(st.min)} y1={my-6} x2={X(st.min)} y2={my+6} stroke="#999" strokeWidth="1"/>
+      <line x1={X(st.max)} y1={my-6} x2={X(st.max)} y2={my+6} stroke="#999" strokeWidth="1"/>
+      <rect x={X(st.q1)} y={my-9} width={Math.max(1,X(st.q3)-X(st.q1))} height="18" fill={c+'22'} stroke={c} strokeWidth="1.2"/>
+      <line x1={X(st.med)} y1={my-9} x2={X(st.med)} y2={my+9} stroke={c} strokeWidth="2"/>
+      <text x={X(st.min)} y={h-4} fontSize="8" fill="#888" textAnchor="middle">{fmt(st.min,2)}</text>
+      <text x={X(st.med)} y={h-4} fontSize="8" fill={c} textAnchor="middle" fontWeight="700">{fmt(st.med,2)}</text>
+      <text x={X(st.max)} y={h-4} fontSize="8" fill="#888" textAnchor="middle">{fmt(st.max,2)}</text>
+    </svg>
+  );
+}
+function EstadisticasScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[loading,setLoading]=useState(true);
+  var[plantaF,setPlantaF]=useState('Arenas');
+  var[prod,setProd]=useState('A36');
+  var[desde,setDesde]=useState('');
+  var[hasta,setHasta]=useState('');
+  var[turno,setTurno]=useState('');
+  var[showMA,setShowMA]=useState(false);
+  var[maWin,setMaWin]=useState(5);
+  var[colSel,setColSel]=useState('__all');
+  var chartRefs=useRef({});var chartInsts=useRef({});
+
+  function movAvgLocal(arr,w){
+    return arr.map(function(v,i){
+      var sl=arr.slice(Math.max(0,i-w+1),i+1).filter(function(x){return x!=null&&!isNaN(x);});
+      return sl.length?sl.reduce(function(a,b){return a+b;},0)/sl.length:null;
+    });
+  }
+
+  useEffect(function(){load();},[]);
+  async function load(){
+    setLoading(true);
+    var cloud=[];try{cloud=await loadEnsayos();}catch(e){console.error(e);}
+    var pa=getPending(),pc=getPendingCuarzo();
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pa.filter(function(r){return !ids.has(r.id);}))
+                    .concat(pc.filter(function(r){return !ids.has(r.id);}));
+    merged.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    setRecords(merged);setLoading(false);
+  }
+
+  var filtered=useMemo(function(){
+    return records.filter(function(r){
+      var pk=r.ProductoKey||r.producto||'';
+      if(pk!==prod)return false;
+      var f=r.FechaMuestreo||r.fecha||'';
+      if(desde&&f<desde)return false;
+      if(hasta&&f>hasta)return false;
+      if(turno&&(r.Turno||r.turno)!==turno)return false;
+      return true;
+    });
+  },[records,prod,desde,hasta,turno]);
+
+  var enriched=useMemo(function(){
+    return filtered.map(function(r){
+      var pf=r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal;
+      var rec=Object.assign({},r);
+      rec._rp=rpMapTurco(prod,r.granu||[],pf);
+      if(prod.indexOf('TT_')===0)rec._inds=turcoIndicadores({producto:prod,granu:r.granu,quimica:r.quimica,extra:r.Extra||r.extra,PesoFinal:pf})||[];
+      return rec;
+    });
+  },[filtered,prod]);
+
+  var columns=useMemo(function(){
+    var cols=[];
+    var sieves=SIEVE_CONFIG[prod]||[];
+    var isCount=(prod==='CGRANOS'||prod==='TT_GRANOS');
+    sieves.forEach(function(s,idx){
+      cols.push({key:'s_'+s.us,label:(isCount?'Conteo ':'Ret.Parcial ')+s.us,
+        get:isCount?function(rec){return parseDecimal((rec.granu||[])[idx]);}
+                   :function(rec){return rec._rp?rec._rp[s.us]:null;}});
+    });
+    var cfg=PRODUCT_CONFIG[prod]||{};
+    if(cfg.quimica){
+      [['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']].forEach(function(o){
+        cols.push({key:'q_'+o[0],label:o[1]+' (%)',color:'#117864',
+          get:function(rec){var q=rec.quimica||{};return parseDecimal(q[o[0]]);}});
+      });
+    }
+    if(cfg.humedad)cols.push({key:'hum',label:'Humedad (%)',color:'#8e44ad',
+      get:function(rec){return parseDecimal(rec.PctHumedad!==undefined?rec.PctHumedad:rec.pctHumedad);}});
+    if(prod.indexOf('TT_')===0){
+      var defs=turcoIndicadores({producto:prod,granu:[],quimica:{},extra:{},PesoFinal:0})||[];
+      defs.forEach(function(ind){
+        var lim=turcoCtrlLims(ind);
+        cols.push({key:'i_'+ind.label,label:'Indicador: '+ind.label,color:'#c0392b',limMin:lim.limMin,limMax:lim.limMax,
+          get:function(rec){var arr=rec._inds||[];var f=arr.find(function(x){return x.label===ind.label;});return f&&f.valor!=null?f.valor:null;}});
+      });
+    }
+    return cols;
+  },[prod]);
+
+  var colStats=useMemo(function(){
+    return columns.map(function(c){
+      var series=enriched.map(c.get);
+      return Object.assign({},c,{series:series,st:statSummary(series),ma:movAvgLocal(series,maWin)});
+    });
+  },[columns,enriched,maWin]);
+
+  var lbls=useMemo(function(){return filtered.map(function(r){var f=r.FechaMuestreo||r.fecha||'';return f.slice(5);});},[filtered]);
+
+  useEffect(function(){
+    if(!window.Chart)return;
+    Object.keys(chartInsts.current).forEach(function(k){if(chartInsts.current[k]){chartInsts.current[k].destroy();chartInsts.current[k]=null;}});
+    colStats.forEach(function(c){
+      var el=chartRefs.current[c.key];if(!el||!c.st)return;
+      var m=c.st.mean,sd=c.st.sd,col=c.color||'#1a5276';
+      function band(v){return c.series.map(function(){return v;});}
+      var ds=[{label:c.label,data:c.series.map(function(v){return v!=null?+v.toFixed(3):null;}),
+        borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:3,tension:.3,spanGaps:true}];
+      if(showMA)ds.push({label:'MA'+maWin,data:c.ma.map(function(v){return v!=null?+v.toFixed(3):null;}),borderColor:'#e67e22',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
+      ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.3,pointRadius:0,borderDash:[2,2]});
+      ds.push({label:'+1σ',data:band(m+sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+      ds.push({label:'-1σ',data:band(m-sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+      ds.push({label:'+2σ',data:band(m+2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
+      ds.push({label:'-2σ',data:band(m-2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
+      ds.push({label:'+3σ',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
+      ds.push({label:'-3σ',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
+      if(c.limMax!=null)ds.push({label:'EETT máx',data:band(c.limMax),borderColor:'#000',borderWidth:1.3,pointRadius:0});
+      if(c.limMin!=null)ds.push({label:'EETT mín',data:band(c.limMin),borderColor:'#000',borderWidth:1.3,pointRadius:0});
+      chartInsts.current[c.key]=new window.Chart(el,{type:'line',data:{labels:lbls,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:10}},y:{ticks:{font:{size:8}}}}}});
+    });
+    return function(){Object.keys(chartInsts.current).forEach(function(k){if(chartInsts.current[k]){chartInsts.current[k].destroy();chartInsts.current[k]=null;}});};
+  },[colStats,lbls,showMA,maWin,colSel]);
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div><h2>Análisis Estadístico</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Control estadístico por columna — solo administrador</div>
+        </div>
+      </div>
+
+      <div className="db-filter-row">
+        <div className="dff"><label>Planta</label>
+          <select value={plantaF} onChange={function(e){var pl=e.target.value;setPlantaF(pl);var l=PLANTAS_PROD[pl]||[];if(l.length)setProd(l[0].value);}}>
+            {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+          </select>
+        </div>
+        <div className="dff"><label>Producto</label>
+          <select value={prod} onChange={function(e){setProd(e.target.value);setColSel('__all');}}>
+            {(PLANTAS_PROD[plantaF]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+          </select>
+        </div>
+        <div className="dff"><label>Columna</label>
+          <select value={colSel} onChange={function(e){setColSel(e.target.value);}}>
+            <option value="__all">Todas las columnas</option>
+            {columns.map(function(c){return <option key={c.key} value={c.key}>{c.label}</option>;})}
+          </select>
+        </div>
+        <div className="dff"><label>Desde</label><input type="date" value={desde} onChange={function(e){setDesde(e.target.value);}}/></div>
+        <div className="dff"><label>Hasta</label><input type="date" value={hasta} onChange={function(e){setHasta(e.target.value);}}/></div>
+        <div className="dff"><label>Turno</label>
+          <select value={turno} onChange={function(e){setTurno(e.target.value);}}>
+            <option value="">Todos</option><option value="A">A</option><option value="B">B</option><option value="C">C</option>
+          </select>
+        </div>
+        <div className="dff"><label>Promedio móvil</label>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <label style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:'.8rem'}}>
+              <input type="checkbox" checked={showMA} onChange={function(e){setShowMA(e.target.checked);}}/>Ver
+            </label>
+            <select value={maWin} onChange={function(e){setMaWin(parseInt(e.target.value));}}>
+              <option value="5">5</option><option value="7">7</option><option value="10">10</option><option value="30">30</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+      {!loading&&filtered.length===0&&(
+        <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+          Sin registros para {GRANU_TITLE[prod]||prod} en el período
+        </div>
+      )}
+      {!loading&&filtered.length>0&&(
+        <>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginBottom:12}}>
+            <strong>{GRANU_TITLE[prod]||prod}</strong> · {filtered.length} ensayos · líneas de control ±1σ (verde) ±2σ (ámbar) ±3σ (rojo)
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr',gap:16}}>
+            {colStats.filter(function(c){return colSel==='__all'||c.key===colSel;}).map(function(c){
+              if(!c.st)return null;
+              var st=c.st;
+              return(
+                <div key={c.key} className="sec-card">
+                  <div className="sec-card-hdr" style={{fontSize:'.82rem'}}>{c.label}</div>
+                  <div style={{padding:'12px 14px'}}>
+                    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:'.72rem'}}>
+                      {[['n',st.n,0],['Media',st.mean,3],['σ',st.sd,4],['CV%',st.cv,1],['Mín',st.min,3],['Q1',st.q1,3],['Mediana',st.med,3],['Q3',st.q3,3],['Máx',st.max,3]].map(function(kv,i){
+                        return <span key={i} style={{padding:'2px 8px',borderRadius:10,background:'#f5f7fa',border:'1px solid var(--border)'}}>
+                          <span style={{color:'var(--text-muted)',fontWeight:600}}>{kv[0]}</span>{' '}
+                          <span style={{fontWeight:800}}>{kv[1]==null?'—':fmt(kv[1],kv[2])}</span></span>;
+                      })}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr',gap:12}}>
+                      <div style={{position:'relative',minHeight:200}}><canvas ref={function(el){chartRefs.current[c.key]=el;}}/></div>
+                      <div>
+                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>DISTRIBUCIÓN (BOXPLOT)</div>
+                        <Boxplot st={st} color={c.color}/>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── HISTORY SCREEN ── */
 function HistoryScreen({account,onBack}){
   var[records,setRecords]=useState([]);
@@ -4768,6 +5397,7 @@ function HistoryScreen({account,onBack}){
   function getPlanta(r){
     var pk=r.ProductoKey||r.producto||'';
     if(pk.indexOf('TT_')===0)return'Turco';
+    if(pk==='MPRIMA')return'Cuarzo';
     return CUARZO_PRODUCTS.some(function(p){return p.value===pk;})?'Cuarzo':'Arenas';
   }
 
@@ -5516,31 +6146,64 @@ const MODULES=[
   {id:'lavado-turco',label:'Lavado Turco',icon:'💧',desc:'TLH, minas, cilindro, floculante y mas',active:true},
 ];
 
-function HomeScreen({onSelect,isViewer}){
+function HomeScreen({onSelect,onNav,isViewer,account}){
+  var nombre=account&&account.email?account.email.split('@')[0]:'';
   return(
     <div>
-      <div className="home-intro">
-        <h2>Modulos de Control</h2>
-        <p>{isViewer?'Tienes acceso de solo lectura — Historial y Reportes.':'Seleccione un modulo para iniciar el registro de calidad'}</p>
+      <div className="home-hero">
+        <h2>Bienvenido{nombre?', '+nombre:''}</h2>
+        <p>{isViewer
+          ?'Tienes acceso de solo lectura. Consulta los reportes y el historial de ensayos.'
+          :'Registra un nuevo ensayo o consulta los reportes e historial de calidad.'}</p>
       </div>
+
       {!isViewer&&(
-        <div className="modules-grid">
-          {MODULES.map(function(m){
-            return(
-              <div key={m.id} className={'mod-card '+(m.active?'active':'disabled')}
-                onClick={function(){if(m.active)onSelect(m.id);}}
-                role={m.active?'button':undefined}
-                tabIndex={m.active?0:undefined}
-                onKeyDown={m.active?function(e){if(e.key==='Enter')onSelect(m.id);}:undefined}>
-                {!m.active&&<span className="badge-soon">Proximamente</span>}
-                <div className="mod-icon"><span style={{filter:m.active?'none':'grayscale(1)'}}>{m.icon}</span></div>
-                <div className="mod-label">{m.label}</div>
-                <div className="mod-desc">{m.desc}</div>
-              </div>
-            );
-          })}
+        <div className="home-block">
+          <div className="home-sec-title">📝 Ingresar datos</div>
+          <div className="modules-grid">
+            {MODULES.map(function(m){
+              return(
+                <div key={m.id} className={'mod-card '+(m.active?'active':'disabled')}
+                  onClick={function(){if(m.active)onSelect(m.id);}}
+                  role={m.active?'button':undefined}
+                  tabIndex={m.active?0:undefined}
+                  onKeyDown={m.active?function(e){if(e.key==='Enter')onSelect(m.id);}:undefined}>
+                  {!m.active&&<span className="badge-soon">Proximamente</span>}
+                  <div className="mod-icon"><span style={{filter:m.active?'none':'grayscale(1)'}}>{m.icon}</span></div>
+                  <div className="mod-label">{m.label}</div>
+                  <div className="mod-desc">{m.desc}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
+
+      <div className="home-block">
+        <div className="home-sec-title">📊 Consultar y analizar</div>
+        <div className={isViewer?'nav-grid nav-grid-lg':'nav-grid'}>
+          <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
+            onClick={function(){onNav('dashboard');}}
+            onKeyDown={function(e){if(e.key==='Enter')onNav('dashboard');}}>
+            <div className="nc-ico" style={{background:'linear-gradient(135deg,#1a5276,#2980b9)'}}>📈</div>
+            <div>
+              <div className="nc-tit">Reportes</div>
+              <div className="nc-desc">Tendencias, cumplimiento EETT, cartas de control y resumen ejecutivo</div>
+            </div>
+            <div className="nc-arrow">›</div>
+          </div>
+          <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
+            onClick={function(){onNav('history');}}
+            onKeyDown={function(e){if(e.key==='Enter')onNav('history');}}>
+            <div className="nc-ico" style={{background:'linear-gradient(135deg,#117864,#1abc9c)'}}>📋</div>
+            <div>
+              <div className="nc-tit">Historial</div>
+              <div className="nc-desc">Busca ensayos por folio, producto o fecha y reimprime informes</div>
+            </div>
+            <div className="nc-arrow">›</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -5594,6 +6257,7 @@ function App(){
   var[toast,setToast]=useState(null);
 
   var isViewer=account&&account.user_metadata&&account.user_metadata.is_viewer===true&&account.user_metadata.is_admin!==true;
+  var isAdmin=account&&account.user_metadata&&account.user_metadata.is_admin===true;
 
   useEffect(function(){
     // Cargar overrides de EETT desde Supabase
@@ -5652,6 +6316,11 @@ function App(){
           <button className="btn-hdr" onClick={function(){setScreen('history');}}>
             <span className="lbl">Historial </span>&#128202;
           </button>
+          {isAdmin&&(
+            <button className="btn-hdr" onClick={function(){setScreen('estadisticas');}}>
+              <span className="lbl">Estadísticas </span>&#128201;
+            </button>
+          )}
           {!isViewer&&(
             <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
               <span className="lbl">Ajustes </span>&#9881;&#65039;
@@ -5679,7 +6348,9 @@ function App(){
       {header}
       <div className="main">
         {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
-        {screen==='home'&&<HomeScreen isViewer={isViewer} onSelect={function(id){
+        {screen==='home'&&<HomeScreen isViewer={isViewer} account={account}
+          onNav={function(s){setScreen(s);}}
+          onSelect={function(id){
           if(isViewer)return;
           if(id==='arenas')setScreen('arenas');
           else if(id==='cuarzo')setScreen('cuarzo');
@@ -5690,6 +6361,7 @@ function App(){
         {!isViewer&&screen==='lavado-turco'&&<LavadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
     </>
