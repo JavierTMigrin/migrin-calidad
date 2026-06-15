@@ -4034,6 +4034,44 @@ function DashboardScreen({account,onBack}){
     return sections;
   },[records,tab,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno]);
 
+  /* Vista anual: % cumplimiento por producto x mes del año seleccionado */
+  var generalAnual=useMemo(function(){
+    if(tab!=='general')return null;
+    var data={}; // pk -> array[12] de {n,fuera}
+    records.forEach(function(r){
+      var fecha=r.FechaMuestreo||r.fecha||'';
+      if(fecha.slice(0,4)!==String(selYear))return;
+      if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return;
+      var pk=r.ProductoKey||r.producto||'';
+      if(!pk||!SIEVE_CONFIG[pk])return;
+      var mes=parseInt(fecha.slice(5,7),10)-1;
+      if(isNaN(mes)||mes<0||mes>11)return;
+      var sieves=SIEVE_CONFIG[pk];
+      var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+      var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+      var gc=calcGranu(pk,gv,pf);
+      var v=collectViolations({producto:pk,quimica:r.quimica||{},
+        pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')},gc);
+      if(!data[pk])data[pk]=Array.from({length:12},function(){return{n:0,fuera:0};});
+      data[pk][mes].n++;if(v.length)data[pk][mes].fuera++;
+    });
+    var sections=[];
+    Object.keys(PLANTAS_PROD).forEach(function(plName){
+      var rows=PLANTAS_PROD[plName].map(function(p){
+        var arr=data[p.value];if(!arr)return null;
+        var tieneEett=specHasLimits(getSpecs(p.value))||p.value==='A36';
+        var meses=arr.map(function(m){return m.n?{n:m.n,pct:tieneEett?Math.round((m.n-m.fuera)/m.n*1000)/10:null}:null;});
+        var totN=arr.reduce(function(a,m){return a+m.n;},0);
+        if(!totN)return null;
+        var totF=arr.reduce(function(a,m){return a+m.fuera;},0);
+        return{key:p.value,label:p.label,meses:meses,totN:totN,
+          totPct:tieneEett?Math.round((totN-totF)/totN*1000)/10:null};
+      }).filter(Boolean);
+      if(rows.length)sections.push({planta:plName,rows:rows});
+    });
+    return sections;
+  },[records,tab,selYear,filterTurno]);
+
   async function exportarResumen(){
     var el=document.getElementById('export-resumen');
     if(!el)return;
@@ -5336,9 +5374,61 @@ function DashboardScreen({account,onBack}){
             </div>
           </div>
 
+          {/* Vista anual: heatmap producto x mes */}
+          <div className="sec-card" style={{marginBottom:16}}>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+              <span>Evolución anual {selYear} — % cumplimiento por mes</span>
+              <select value={selYear} onChange={function(e){setSelYear(parseInt(e.target.value));}}
+                style={{padding:'4px 8px',borderRadius:6,border:'1px solid var(--border)',fontSize:'.78rem'}}>
+                {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+              </select>
+            </div>
+            <div style={{padding:'10px 14px',overflowX:'auto'}}>
+              {(!generalAnual||generalAnual.length===0)
+                ?<div style={{textAlign:'center',padding:24,color:'var(--text-muted)'}}>Sin ensayos en {selYear}</div>
+                :generalAnual.map(function(sec,si){
+                  return(
+                    <div key={si} style={{marginBottom:16}}>
+                      <div style={{fontSize:'.78rem',fontWeight:800,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--primary)',marginBottom:6}}>Planta {sec.planta}</div>
+                      <table style={{borderCollapse:'collapse',fontSize:'.72rem',width:'100%'}}>
+                        <thead><tr>
+                          <th style={{padding:'4px 8px',textAlign:'left',background:'#f0f4f8',position:'sticky',left:0}}>Producto</th>
+                          {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map(function(m){return <th key={m} style={{padding:'4px 6px',textAlign:'center',background:'#f0f4f8',minWidth:42}}>{m}</th>;})}
+                          <th style={{padding:'4px 8px',textAlign:'center',background:'#e8eef4'}}>Año</th>
+                        </tr></thead>
+                        <tbody>
+                          {sec.rows.map(function(r,ri){
+                            function cellColor(pct){return pct==null?'#f5f5f5':pct>=95?'#d4efdf':pct>=85?'#fcf3cf':'#f5b7b1';}
+                            function cellTxt(pct){return pct==null?'#999':pct>=95?'#1e7e44':pct>=85?'#9a6b00':'#922b21';}
+                            return(
+                              <tr key={ri} style={{borderBottom:'1px solid #f0f0f0'}}>
+                                <td style={{padding:'4px 8px',fontWeight:600,position:'sticky',left:0,background:'#fff'}}>{r.label}</td>
+                                {r.meses.map(function(m,mi){
+                                  return <td key={mi} title={m?('n='+m.n+(m.pct!=null?' · '+m.pct+'%':' · sin EETT')):'sin datos'}
+                                    style={{padding:'4px 4px',textAlign:'center',background:m?cellColor(m.pct):'#fafafa',
+                                      color:m?cellTxt(m.pct):'#ccc',fontWeight:m&&m.pct!=null?700:400}}>
+                                    {m?(m.pct!=null?fmt(m.pct,0):'·'):''}</td>;
+                                })}
+                                <td style={{padding:'4px 8px',textAlign:'center',fontWeight:800,background:cellColor(r.totPct),color:cellTxt(r.totPct)}}>
+                                  {r.totPct!=null?fmt(r.totPct,0)+'%':'—'}<div style={{fontSize:'.6rem',fontWeight:400,color:'var(--text-muted)'}}>n={r.totN}</div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              <div style={{fontSize:'.7rem',color:'var(--text-muted)',marginTop:4}}>
+                Cada celda = % de cumplimiento EETT del mes (verde ≥95 · ámbar ≥85 · rojo &lt;85). Pasa el cursor para ver n y %. "·" = mes con datos sin EETT definida.
+              </div>
+            </div>
+          </div>
+
           {/* Resumen general por planta y producto */}
           <div className="sec-card">
-            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Resumen general — todas las plantas · {getPeriodoLabel()}</div>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Resumen del período seleccionado · {getPeriodoLabel()}</div>
             <div style={{padding:'12px 16px',overflowX:'auto'}}>
               {(!resumen||resumen.length===0)&&(
                 <div style={{textAlign:'center',padding:24,color:'var(--text-muted)'}}>Sin ensayos en el período</div>
@@ -5518,15 +5608,15 @@ function EstadisticasScreen({account,onBack}){
     return columns.map(function(c){
       var series=enriched.map(c.get);
       var st=statSummary(series);
-      // Metricas avanzadas de control
       var vals=series.filter(function(v){return v!=null&&!isNaN(v);});
+      // Rango movil y sigma estimada I-mR (correcto para mediciones individuales)
+      var mr=[];for(var k=1;k<vals.length;k++)mr.push(Math.abs(vals[k]-vals[k-1]));
+      var mrBar=mr.length?mr.reduce(function(a,b){return a+b;},0)/mr.length:0;
+      var sigmaHat=mrBar/1.128; // d2 para n=2
+      var sig=(sigmaHat>0)?sigmaHat:(st?st.sd:0);
       var out3=0,out2=0,outEett=0,maxRun=vals.length?1:0,curUp=1,curDn=1;
-      if(st&&st.sd){
-        vals.forEach(function(v){
-          var z=Math.abs((v-st.mean)/st.sd);
-          if(z>3)out3++;else if(z>2)out2++;
-        });
-        // racha monotona mas larga (tendencia sostenida subiendo o bajando)
+      if(st&&sig){
+        vals.forEach(function(v){var z=Math.abs((v-st.mean)/sig);if(z>3)out3++;else if(z>2)out2++;});
         for(var i=1;i<vals.length;i++){
           if(vals[i]>vals[i-1]){curUp++;curDn=1;}
           else if(vals[i]<vals[i-1]){curDn++;curUp=1;}
@@ -5538,7 +5628,7 @@ function EstadisticasScreen({account,onBack}){
         vals.forEach(function(v){if((c.limMin!=null&&v<c.limMin)||(c.limMax!=null&&v>c.limMax))outEett++;});
       }
       return Object.assign({},c,{series:series,st:st,ma:movAvgLocal(series,maWin),
-        out3:out3,out2:out2,outEett:outEett,maxRun:maxRun});
+        out3:out3,out2:out2,outEett:outEett,maxRun:maxRun,sig:sig,nLow:st?st.n<20:false});
     });
   },[columns,enriched,maWin]);
 
@@ -5549,10 +5639,13 @@ function EstadisticasScreen({account,onBack}){
     Object.keys(chartInsts.current).forEach(function(k){if(chartInsts.current[k]){chartInsts.current[k].destroy();chartInsts.current[k]=null;}});
     colStats.forEach(function(c){
       var el=chartRefs.current[c.key];if(!el||!c.st)return;
-      var m=c.st.mean,sd=c.st.sd,col=c.color||'#1a5276';
+      var m=c.st.mean,sd=c.sig||c.st.sd,col=c.color||'#1a5276';
       function band(v){return c.series.map(function(){return v;});}
+      // Marcar en rojo los puntos fuera de control (±3σ I-mR)
+      var ptCol=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?'#c62828':col;});
+      var ptRad=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?5:3;});
       var ds=[{label:c.label,data:c.series.map(function(v){return v!=null?+v.toFixed(3):null;}),
-        borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:3,tension:.3,spanGaps:true}];
+        borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:ptRad,pointBackgroundColor:ptCol,tension:.3,spanGaps:true}];
       if(showMA)ds.push({label:'MA'+maWin,data:c.ma.map(function(v){return v!=null?+v.toFixed(3):null;}),borderColor:'#e67e22',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
       ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.3,pointRadius:0,borderDash:[2,2]});
       if(showS1){
@@ -5564,8 +5657,8 @@ function EstadisticasScreen({account,onBack}){
         ds.push({label:'-2σ',data:band(m-2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
       }
       if(showS3){
-        ds.push({label:'+3σ',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
-        ds.push({label:'-3σ',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]});
+        ds.push({label:'LCS (+3σ)',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+        ds.push({label:'LCI (-3σ)',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
       }
       if(c.limMax!=null)ds.push({label:'EETT máx',data:band(c.limMax),borderColor:'#000',borderWidth:1.3,pointRadius:0});
       if(c.limMin!=null)ds.push({label:'EETT mín',data:band(c.limMin),borderColor:'#000',borderWidth:1.3,pointRadius:0});
@@ -5665,15 +5758,92 @@ function EstadisticasScreen({account,onBack}){
       {!loading&&filtered.length>0&&(
         <>
           <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginBottom:12}}>
-            <strong>{GRANU_TITLE[prod]||prod}</strong> · {filtered.length} ensayos · líneas de control ±1σ (verde) ±2σ (ámbar) ±3σ (rojo)
+            <strong>{GRANU_TITLE[prod]||prod}</strong> · {filtered.length} ensayos · carta de individuales I-mR · límites ±1σ (verde) ±2σ (ámbar) ±3σ/LCS-LCI (rojo) · σ estimada del rango móvil · 🔴 puntos fuera de control
           </div>
+
+          {/* Overview: resumen de todas las columnas de un vistazo */}
+          {colSel==='__all'&&(
+            <div className="sec-card" style={{marginBottom:16}}>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Resumen general de columnas — clic en una para analizarla</div>
+              <div style={{padding:'6px',overflowX:'auto'}}>
+                <table style={{borderCollapse:'collapse',fontSize:'.74rem',width:'100%'}}>
+                  <thead><tr style={{background:'#f0f4f8'}}>
+                    {['Columna','n','Media','σ','CV%','Tendencia','Fuera ±2σ','Fuera ±3σ','Fuera EETT','Cpk'].map(function(h){return <th key={h} style={{padding:'5px 8px',textAlign:h==='Columna'?'left':'center',color:'#555',whiteSpace:'nowrap'}}>{h}</th>;})}
+                  </tr></thead>
+                  <tbody>
+                    {colStats.map(function(c){
+                      if(!c.st)return null;var st=c.st;
+                      var cvc=st.cv==null?'inherit':st.cv<10?'#1e7e44':st.cv<20?'#9a6b00':'#922b21';
+                      var cpk=null;
+                      if((c.limMin!=null||c.limMax!=null)&&c.sig){
+                        var cpu=c.limMax!=null?(c.limMax-st.mean)/(3*c.sig):null;
+                        var cpl=c.limMin!=null?(st.mean-c.limMin)/(3*c.sig):null;
+                        cpk=Math.min.apply(null,[cpu,cpl].filter(function(x){return x!=null;}));
+                      }
+                      var cpkc=cpk==null?'inherit':cpk>=1.33?'#1e7e44':cpk>=1?'#9a6b00':'#922b21';
+                      function cell(val,warn,col){return <td style={{padding:'4px 8px',textAlign:'center',fontWeight:warn?800:400,
+                        background:warn?(col||'#922b21')+'18':'',color:warn?(col||'#922b21'):'inherit'}}>{val}</td>;}
+                      return(
+                        <tr key={c.key} style={{borderBottom:'1px solid #f0f0f0',cursor:'pointer'}}
+                          onClick={function(){setColSel(c.key);}}
+                          title="Ver análisis detallado de esta columna">
+                          <td style={{padding:'4px 8px',fontWeight:600,whiteSpace:'nowrap'}}>{c.label}{c.nLow?' ⚠':''}</td>
+                          <td style={{padding:'4px 8px',textAlign:'center'}}>{st.n}</td>
+                          <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(st.mean,2)}</td>
+                          <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(c.sig||st.sd,3)}</td>
+                          <td style={{padding:'4px 8px',textAlign:'center',color:cvc,fontWeight:700}}>{st.cv==null?'—':fmt(st.cv,1)}</td>
+                          {cell(c.maxRun,c.maxRun>=6,'#2980b9')}
+                          {cell(c.out2,c.out2>0,'#e67e22')}
+                          {cell(c.out3,c.out3>0,'#c62828')}
+                          {cell((c.limMin!=null||c.limMax!=null)?c.outEett:'—',c.outEett>0,'#922b21')}
+                          <td style={{padding:'4px 8px',textAlign:'center',color:cpkc,fontWeight:700}}>{cpk==null?'—':fmt(cpk,2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Pareto de incumplimientos EETT */}
+          {colSel==='__all'&&(function(){
+            var off=colStats.filter(function(c){return(c.limMin!=null||c.limMax!=null)&&c.outEett>0;})
+              .sort(function(a,b){return b.outEett-a.outEett;});
+            if(!off.length)return null;
+            var maxV=off[0].outEett,tot=off.reduce(function(a,c){return a+c.outEett;},0),acc=0;
+            return(
+              <div className="sec-card" style={{marginBottom:16}}>
+                <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Pareto de incumplimientos EETT — dónde se concentran las desviaciones</div>
+                <div style={{padding:'12px 16px'}}>
+                  {off.map(function(c){
+                    acc+=c.outEett;var pctAcc=Math.round(acc/tot*100);
+                    return(
+                      <div key={c.key} style={{display:'flex',alignItems:'center',gap:10,marginBottom:7}}>
+                        <div style={{width:160,fontSize:'.76rem',fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.label}</div>
+                        <div style={{flex:1,background:'#f0f0f0',borderRadius:6,height:20,position:'relative'}}>
+                          <div style={{width:(c.outEett/maxV*100)+'%',background:'#c0392b',height:'100%',borderRadius:6}}/>
+                        </div>
+                        <div style={{width:80,fontSize:'.74rem',textAlign:'right'}}><b style={{color:'#c0392b'}}>{c.outEett}</b> <span style={{color:'var(--text-muted)'}}>({pctAcc}%)</span></div>
+                      </div>
+                    );
+                  })}
+                  <div style={{fontSize:'.7rem',color:'var(--text-muted)',marginTop:6}}>Barras = n° de ensayos fuera de EETT por elemento · (%) = acumulado de Pareto. Prioriza los primeros.</div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{display:'grid',gridTemplateColumns:'1fr',gap:16}}>
             {colStats.filter(function(c){return colSel==='__all'||c.key===colSel;}).map(function(c){
               if(!c.st)return null;
               var st=c.st;
               return(
                 <div key={c.key} className="sec-card">
-                  <div className="sec-card-hdr" style={{fontSize:'.82rem'}}>{c.label}</div>
+                  <div className="sec-card-hdr" style={{fontSize:'.82rem',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <span>{c.label}</span>
+                    {c.nLow&&<span style={{fontWeight:600,fontSize:'.68rem',background:'#fff8e1',color:'#9a6b00',border:'1px solid #f6e05e',borderRadius:12,padding:'2px 9px'}}>⚠ Muestra pequeña (n={st.n}&lt;20) — interpretar con cautela</span>}
+                  </div>
                   <div style={{padding:'12px 14px'}}>
                     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:'.72rem'}}>
                       {[['n',st.n,0,'#1a5276'],['Media',st.mean,3,'#1a5276'],['σ',st.sd,4,'#6c3483'],['Mín',st.min,3,'#117864'],['Q1',st.q1,3,'#117864'],['Mediana',st.med,3,'#117864'],['Q3',st.q3,3,'#117864'],['Máx',st.max,3,'#117864']].map(function(kv,i){
@@ -5737,6 +5907,46 @@ function EstadisticasScreen({account,onBack}){
                         </div>
                       </div>
                     </div>
+                    {/* Comparacion por turno y analista (solo al enfocar una columna) */}
+                    {colSel===c.key&&(function(){
+                      function grupos(campo){
+                        var g={};
+                        enriched.forEach(function(rec){
+                          var key=(rec[campo]||rec[campo.toLowerCase()]||'(sin)');
+                          var v=c.get(rec);if(v==null||isNaN(v))return;
+                          (g[key]||(g[key]=[])).push(v);
+                        });
+                        return Object.keys(g).sort().map(function(k){return{nombre:k,st:statSummary(g[k])};}).filter(function(x){return x.st;});
+                      }
+                      function bloque(titulo,arr){
+                        if(arr.length<2)return null;
+                        return(
+                          <div style={{flex:1,minWidth:240}}>
+                            <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:6}}>{titulo}</div>
+                            {arr.map(function(gp,i){
+                              return(
+                                <div key={i} style={{marginBottom:8}}>
+                                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.72rem',marginBottom:2}}>
+                                    <span style={{fontWeight:600}}>{gp.nombre}</span>
+                                    <span style={{color:'var(--text-muted)'}}>x̄ {fmt(gp.st.mean,2)} · σ {fmt(gp.st.sd,2)} · n{gp.st.n}</span>
+                                  </div>
+                                  <Boxplot st={gp.st} color={c.color}/>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      var bT=bloque('POR TURNO',grupos('Turno'));
+                      var bA=bloque('POR ANALISTA',grupos('Analista'));
+                      if(!bT&&!bA)return null;
+                      return(
+                        <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
+                          <div style={{fontSize:'.74rem',fontWeight:800,color:'var(--primary)',marginBottom:8}}>COMPARATIVA (detección de sesgos)</div>
+                          <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>{bT}{bA}</div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
