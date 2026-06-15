@@ -3809,6 +3809,7 @@ function DashboardScreen({account,onBack}){
   var[tab,setTab]=useState('granu');
   var[prod,setProd]=useState('A36');
   var[plantaFiltro,setPlantaFiltro]=useState('Arenas');
+  var[eettOpen,setEettOpen]=useState(false);
   var[periodType,setPeriodType]=useState('month');
   var[selWeek,setSelWeek]=useState(function(){
     var d=new Date(),dc=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
@@ -4500,7 +4501,12 @@ function DashboardScreen({account,onBack}){
       var det=NO_EETT_DETALLE[prod]||'Este producto no tiene EETT definida. El reporte muestra las tendencias y estadísticas de los valores registrados en el período.';
       return(
         <div className="sec-card" style={{marginBottom:16}}>
-          <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Especificación (EETT) — {titulo}</div>
+          <div className="sec-card-hdr" style={{fontSize:'.8rem',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+            onClick={function(){setEettOpen(function(v){return !v;});}}>
+            <span>Especificación (EETT) — {titulo}</span>
+            <span style={{fontSize:'.9rem'}}>{eettOpen?'▲':'▼'}</span>
+          </div>
+          {eettOpen&&(
           <div style={{padding:'14px 16px'}}>
             <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'4px 12px',borderRadius:14,
               background:'#fff8e1',color:'#b7791f',border:'1px solid #f6e05e',fontSize:'.78rem',fontWeight:700,marginBottom:8}}>
@@ -4511,13 +4517,18 @@ function DashboardScreen({account,onBack}){
               Un administrador puede cargar los límites desde <strong>Ajustes → Especificaciones (EETT)</strong>.
             </div>
           </div>
+          )}
         </div>
       );
     }
     return(
       <div className="sec-card" style={{marginBottom:16}}>
-        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Especificación (EETT) — {titulo}</div>
-        <div style={{padding:'14px 16px'}}>{tables}</div>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+          onClick={function(){setEettOpen(function(v){return !v;});}}>
+          <span>Especificación (EETT) — {titulo}</span>
+          <span style={{fontSize:'.9rem'}}>{eettOpen?'▲ ocultar':'▼ ver'}</span>
+        </div>
+        {eettOpen&&<div style={{padding:'14px 16px'}}>{tables}</div>}
       </div>
     );
   }
