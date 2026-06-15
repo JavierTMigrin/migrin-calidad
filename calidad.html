@@ -3704,6 +3704,15 @@ function DashboardScreen({account,onBack}){
     }catch(e){console.error('Export',e);}
   }
 
+  /* Analistas disponibles: union de los presentes en los registros +
+     los por defecto (Arenas y Turco), para que aparezcan todos */
+  var analistaOpts=useMemo(function(){
+    var set={};
+    ANALISTAS_DEFAULT.concat(ANALISTAS_TURCO_DEFAULT).forEach(function(a){set[a.value]=true;});
+    records.forEach(function(r){var a=r.Analista||r.analista;if(a)set[a]=true;});
+    return Object.keys(set).sort();
+  },[records]);
+
   var filtered=useMemo(function(){
     var dr=getDateRange();
     return records.filter(function(r){
@@ -4227,6 +4236,15 @@ function DashboardScreen({account,onBack}){
             <optgroup label="Cuarzo">
               {CUARZO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
             </optgroup>
+            <optgroup label="Despachos">
+              {DESPACHO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+            </optgroup>
+            <optgroup label="Otros Controles">
+              {OTROS_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+            </optgroup>
+            <optgroup label="Lavado Turco">
+              {LAVTURCO_PRODUCTS.map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+            </optgroup>
           </select>
         </div>
         <div className="dff">
@@ -4249,14 +4267,14 @@ function DashboardScreen({account,onBack}){
         <div className="dff">
           <label>Turno</label>
           <select value={filterTurno} onChange={function(e){setFilterTurno(e.target.value);}}>
-            <option value="">Todos</option><option value="A">Turno A</option><option value="B">Turno B</option>
+            <option value="">Todos</option><option value="A">Turno A</option><option value="B">Turno B</option><option value="C">Turno C</option>
           </select>
         </div>
         <div className="dff">
           <label>Analista</label>
           <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}}>
             <option value="">Todos</option>
-            {ANALISTAS_DEFAULT.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
+            {analistaOpts.map(function(a){return <option key={a} value={a}>{a}</option>;})}
           </select>
         </div>
         {prod==='A36'&&(
