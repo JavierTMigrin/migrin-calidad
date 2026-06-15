@@ -4806,6 +4806,7 @@ function DashboardScreen({account,onBack}){
         <div className="dash-tabs">
           <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
           {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
+          <button className={'dash-tab'+(tab==='tabla'?' act':'')} onClick={function(){setTab('tabla');}}>Tabla de Datos</button>
           <button className={'dash-tab'+(tab==='resumen'?' act':'')} onClick={function(){setTab('resumen');}}>Resumen Ejecutivo</button>
           <button className={'dash-tab'+(tab==='general'?' act':'')} onClick={function(){setTab('general');}}>General</button>
         </div>
@@ -5233,6 +5234,72 @@ function DashboardScreen({account,onBack}){
         </>
       )}
 
+      {!loading&&tab==='tabla'&&(function(){
+        var sieves=SIEVE_CONFIG[prod]||[];
+        var gspec=prod==='A36'?(SPECS_A36.LIRQUEN.granulometria||{}):((getSpecs(prod)||{}).granulometria||{});
+        var qspecT=prod==='A36'?(SPECS_A36.LIRQUEN.quimica||{}):((getSpecs(prod)||{}).quimica||{});
+        var hspecT=prod==='A36'?null:((getSpecs(prod)||{}).humedad||null);
+        var oxs=[['sio2','SiO₂','SiO2'],['al2o3','Al₂O₃','Al2O3'],['fe2o3','Fe₂O₃','Fe2O3'],['cao','CaO','CaO'],['mgo','MgO','MgO'],['k2o','K₂O','K2O'],['na2o','Na₂O','Na2O'],['tio2','TiO₂','TiO2']];
+        function sieveLim(us){var g=gspec[us];if(!g)return'';
+          if(prod==='A36'){if(g.retAcumMax!=null&&g.retAcumMin!=null)return g.retAcumMin+'–'+g.retAcumMax;if(g.retAcumMax!=null)return'≤'+g.retAcumMax;if(g.retAcumMin!=null)return'≥'+g.retAcumMin;return'';}
+          if(g.retMax!=null&&g.retMin!=null)return g.retMin+'–'+g.retMax;if(g.retMax!=null)return'≤'+g.retMax;if(g.retMin!=null)return'≥'+g.retMin;
+          if(g.pasMax!=null)return'pas≤'+g.pasMax;if(g.pasMin!=null)return'pas≥'+g.pasMin;return'';}
+        function sieveSem(us,stat){var g=gspec[us];if(!g||!stat)return'info';
+          if(prod==='A36')return(g.retAcumMin!=null||g.retAcumMax!=null)?calcSemaforo(stat.pctA,g.retAcumMin,g.retAcumMax):'info';
+          if(g.retMin!=null||g.retMax!=null)return calcSemaforo(stat.pctA,g.retMin,g.retMax);
+          if(g.pasMin!=null||g.pasMax!=null)return calcSemaforo(stat.pctPas,g.pasMin,g.pasMax);return'info';}
+        function oxLim(s){if(!s)return'';if(s.min!=null&&s.max!=null)return s.min+'–'+s.max;if(s.max!=null)return'≤'+s.max;if(s.min!=null)return'≥'+s.min;return'';}
+        var activeOx=oxs.filter(function(o){return hasChem&&filtered.some(function(r){var q=r.quimica||{};return q[o[0]]!=null&&q[o[0]]!=='';});});
+        var th={padding:'5px 7px',background:'var(--primary)',color:'#fff',fontSize:'.72rem',whiteSpace:'nowrap',textAlign:'center',position:'sticky',top:0};
+        var sub={fontSize:'.62rem',fontWeight:400,opacity:.85,display:'block'};
+        var redBg={background:'#fde0e0',color:'#922b21',fontWeight:800};
+        var warnBg={background:'#fdf3d6',color:'#9a6b00',fontWeight:700};
+        function cellSt(sem){return sem==='error'?redBg:sem==='warning'?warnBg:{};}
+        return(
+          <div className="sec-card">
+            <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+              <span>Tabla de Datos — {GRANU_TITLE[prod]||prod} · {filtered.length} ensayos</span>
+              <span style={{fontWeight:400,fontSize:'.74rem',opacity:.85}}>🔴 fuera de EETT · 🟡 en alerta</span>
+            </div>
+            <div style={{padding:'4px',overflowX:'auto',maxHeight:'70vh'}}>
+              {filtered.length===0
+                ?<div style={{textAlign:'center',padding:24,color:'var(--text-muted)'}}>Sin registros en el período</div>
+                :<table style={{borderCollapse:'collapse',fontSize:'.74rem',width:'100%'}}>
+                  <thead><tr>
+                    <th style={th}>Folio</th><th style={th}>Fecha</th><th style={th}>Tn</th><th style={th}>Analista</th>
+                    {sieves.map(function(s){return <th key={s.us} style={th}>{s.us}<span style={sub}>{sieveLim(s.us)||'—'}</span></th>;})}
+                    {activeOx.map(function(o){return <th key={o[0]} style={th}>{o[1]}<span style={sub}>{oxLim(qspecT[o[2]])||'—'}</span></th>;})}
+                    {hspecT&&<th style={th}>Hum<span style={sub}>{hspecT.max!=null?'≤'+hspecT.max:'—'}</span></th>}
+                  </tr></thead>
+                  <tbody>
+                    {filtered.map(function(r,i){
+                      var stat=filteredStats[i]||{};
+                      var hum=parseDecimal(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad);
+                      var humSem=hspecT&&hspecT.max!=null?calcSemaforo(hum,null,hspecT.max):'info';
+                      return(
+                        <tr key={i} style={{borderBottom:'1px solid #eee'}}>
+                          <td style={{padding:'4px 7px',fontWeight:700,color:'var(--primary)',textAlign:'center'}}>{r.Folio?'#'+r.Folio:'—'}</td>
+                          <td style={{padding:'4px 7px',whiteSpace:'nowrap'}}>{(r.FechaMuestreo||r.fecha||'').slice(5)}</td>
+                          <td style={{padding:'4px 7px',textAlign:'center'}}>{r.Turno||r.turno||'—'}</td>
+                          <td style={{padding:'4px 7px',whiteSpace:'nowrap',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{r.Analista||r.analista||'—'}</td>
+                          {sieves.map(function(s){var sm=sieveSem(s.us,stat[s.us]);
+                            return <td key={s.us} style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(sm))}>{stat[s.us]?fmt(stat[s.us].pctA,1):'—'}</td>;})}
+                          {activeOx.map(function(o){var q=r.quimica||{};var v=parseDecimal(q[o[0]]);var sm=calcSemaforo(v,qspecT[o[2]]?qspecT[o[2]].min:null,qspecT[o[2]]?qspecT[o[2]].max:null);
+                            return <td key={o[0]} style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(sm))}>{v!=null&&!isNaN(v)?fmt(v,2):'—'}</td>;})}
+                          {hspecT&&<td style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(humSem))}>{!isNaN(hum)?fmt(hum,1):'—'}</td>}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>}
+            </div>
+            <div style={{padding:'8px 14px',fontSize:'.72rem',color:'var(--text-muted)'}}>
+              Granulometría mostrada como <strong>retenido acumulado (%)</strong>. Las celdas en rojo superan la EETT del elemento.
+            </div>
+          </div>
+        );
+      })()}
+
       {!loading&&tab==='general'&&(
         <>
           {/* Exportacion del producto seleccionado */}
@@ -5431,7 +5498,28 @@ function EstadisticasScreen({account,onBack}){
   var colStats=useMemo(function(){
     return columns.map(function(c){
       var series=enriched.map(c.get);
-      return Object.assign({},c,{series:series,st:statSummary(series),ma:movAvgLocal(series,maWin)});
+      var st=statSummary(series);
+      // Metricas avanzadas de control
+      var vals=series.filter(function(v){return v!=null&&!isNaN(v);});
+      var out3=0,out2=0,outEett=0,maxRun=vals.length?1:0,curUp=1,curDn=1;
+      if(st&&st.sd){
+        vals.forEach(function(v){
+          var z=Math.abs((v-st.mean)/st.sd);
+          if(z>3)out3++;else if(z>2)out2++;
+        });
+        // racha monotona mas larga (tendencia sostenida subiendo o bajando)
+        for(var i=1;i<vals.length;i++){
+          if(vals[i]>vals[i-1]){curUp++;curDn=1;}
+          else if(vals[i]<vals[i-1]){curDn++;curUp=1;}
+          else {curUp=1;curDn=1;}
+          maxRun=Math.max(maxRun,curUp,curDn);
+        }
+      }
+      if(c.limMin!=null||c.limMax!=null){
+        vals.forEach(function(v){if((c.limMin!=null&&v<c.limMin)||(c.limMax!=null&&v>c.limMax))outEett++;});
+      }
+      return Object.assign({},c,{series:series,st:st,ma:movAvgLocal(series,maWin),
+        out3:out3,out2:out2,outEett:outEett,maxRun:maxRun});
     });
   },[columns,enriched,maWin]);
 
@@ -5569,11 +5657,33 @@ function EstadisticasScreen({account,onBack}){
                   <div className="sec-card-hdr" style={{fontSize:'.82rem'}}>{c.label}</div>
                   <div style={{padding:'12px 14px'}}>
                     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:'.72rem'}}>
-                      {[['n',st.n,0],['Media',st.mean,3],['σ',st.sd,4],['CV%',st.cv,1],['Mín',st.min,3],['Q1',st.q1,3],['Mediana',st.med,3],['Q3',st.q3,3],['Máx',st.max,3]].map(function(kv,i){
-                        return <span key={i} style={{padding:'2px 8px',borderRadius:10,background:'#f5f7fa',border:'1px solid var(--border)'}}>
+                      {[['n',st.n,0,'#1a5276'],['Media',st.mean,3,'#1a5276'],['σ',st.sd,4,'#6c3483'],['Mín',st.min,3,'#117864'],['Q1',st.q1,3,'#117864'],['Mediana',st.med,3,'#117864'],['Q3',st.q3,3,'#117864'],['Máx',st.max,3,'#117864']].map(function(kv,i){
+                        return <span key={i} style={{padding:'3px 9px',borderRadius:10,background:kv[3]+'12',border:'1px solid '+kv[3]+'44'}}>
                           <span style={{color:'var(--text-muted)',fontWeight:600}}>{kv[0]}</span>{' '}
-                          <span style={{fontWeight:800}}>{kv[1]==null?'—':fmt(kv[1],kv[2])}</span></span>;
+                          <span style={{fontWeight:800,color:kv[3]}}>{kv[1]==null?'—':fmt(kv[1],kv[2])}</span></span>;
                       })}
+                      {(function(){var cvc=st.cv==null?'#888':st.cv<10?'var(--success)':st.cv<20?'#b7791f':'var(--error)';
+                        return <span style={{padding:'3px 9px',borderRadius:10,background:cvc+'18',border:'1px solid '+cvc+'55',fontWeight:800,color:cvc}}>
+                          CV {st.cv==null?'—':fmt(st.cv,1)+'%'} {st.cv!=null&&(st.cv<10?'✓':st.cv<20?'~':'⚠')}</span>;})()}
+                    </div>
+                    {/* Panel de control: tendencia y dispersion */}
+                    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
+                      {(function(){
+                        var items=[
+                          {lbl:'Fuera ±3σ (fuera de control)',val:c.out3,col:'#c62828',warn:c.out3>0},
+                          {lbl:'Dispersión alta (±2σ)',val:c.out2,col:'#e67e22',warn:c.out2>0},
+                          {lbl:'Tendencia máx (racha)',val:c.maxRun,col:'#2980b9',warn:c.maxRun>=6,suf:c.maxRun>=6?' ⚠':''},
+                        ];
+                        if(c.limMin!=null||c.limMax!=null)items.push({lbl:'Fuera de EETT',val:c.outEett,col:'#922b21',warn:c.outEett>0});
+                        return items.map(function(it,i){
+                          var on=it.warn;
+                          return <div key={i} style={{padding:'6px 12px',borderRadius:10,minWidth:96,
+                            background:on?it.col+'18':'#f5f7fa',border:'1px solid '+(on?it.col:'var(--border)')}}>
+                            <div style={{fontSize:'1.25rem',fontWeight:800,color:on?it.col:'var(--text-secondary)',lineHeight:1}}>{it.val}{it.suf||''}</div>
+                            <div style={{fontSize:'.64rem',color:'var(--text-muted)',marginTop:2}}>{it.lbl}</div>
+                          </div>;
+                        });
+                      })()}
                     </div>
                     {(function(){
                       // Cp/Cpk si hay limites EETT (analisis de capacidad)
