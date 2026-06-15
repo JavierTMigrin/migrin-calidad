@@ -4585,11 +4585,36 @@ function DashboardScreen({account,onBack}){
       </div>
     );
   }
+  function turcoControlTable(){
+    var defs=turcoIndicadores({producto:prod,granu:[],quimica:{},extra:{},PesoFinal:0})||[];
+    if(!defs.length)return null;
+    var thS={textAlign:'left',padding:'4px 10px',fontSize:'.72rem',color:'#fff',background:'var(--primary)',fontWeight:700};
+    var tdS={padding:'4px 10px',fontSize:'.8rem',borderBottom:'1px solid #f0f0f0'};
+    return(
+      <div key="turcoctrl" style={{marginBottom:14,overflowX:'auto'}}>
+        <div style={{fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>GRANULOMETRÍA / CONTROLES</div>
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead><tr><th style={thS}>Control</th><th style={thS}>Límite</th></tr></thead>
+          <tbody>
+            {defs.map(function(d){return(
+              <tr key={d.label}><td style={Object.assign({fontWeight:700},tdS)}>{d.label}</td>
+                <td style={tdS}>{d.tipo==='tendencia'?'No aplica (solo tendencia)':d.limLabel}</td></tr>
+            );})}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   function eettPanel(){
     var tables=[];
     if(prod==='A36'){
       tables.push(specTable(Object.assign({nombre:'Lirquen'},SPECS_A36.LIRQUEN),'Vidrios Lirquen'));
       tables.push(specTable(Object.assign({nombre:'Cristalerias'},SPECS_A36.CRISTALERIAS),'Cristalerias Chile'));
+    }else if(prod.indexOf('TT_')===0){
+      // Turco: controles granulometricos/AFS + quimica + humedad
+      tables.push(turcoControlTable());
+      var spT=EETT_LIVE[prod];
+      if(spT&&(spT.quimica||spT.humedad))tables.push(specTable({quimica:spT.quimica,humedad:spT.humedad,granulometria:{}},null));
     }else{
       var sp=EETT_LIVE[prod];
       if(sp&&specHasLimits(sp))tables.push(specTable(sp,null));
