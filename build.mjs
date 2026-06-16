@@ -30,8 +30,10 @@ const out = babel.transform(jsx, {
   compact: false,
 });
 
-// 4) Reinsertar como <script> plano
-html = html.replace(re, '<script>\n' + out.code + '\n</script>');
+// 4) Reinsertar como <script> plano, envuelto en IIFE para que las
+//    declaraciones (const supabase, etc.) queden en scope de funcion y
+//    no choquen con globales del CDN (window.supabase) ni del runtime.
+html = html.replace(re, '<script>\n(function(){\n' + out.code + '\n})();\n</script>');
 
 // 5) Escribir produccion + local (sin BOM)
 function write(file, content) { writeFileSync(file, content, { encoding: 'utf8' }); }
