@@ -1700,7 +1700,7 @@ function ReviewScreen({data,gc,onConfirm,onBack,sending}){
 }
 
 /* ── REPORT MODAL ── */
-function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,violations}){
+function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,violations,extraActions}){
   var chartRef=useRef(null);
   var instRef=useRef(null);
   var pendingDlRef=useRef(null);
@@ -2114,6 +2114,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
           ):(
             <button className="btn btn-primary" onClick={function(){doDownload(null);}}>Descargar PNG</button>
           )}
+          {extraActions}
           <button className="btn btn-secondary" onClick={onClose}>X Cerrar y volver</button>
         </div>
       </div>
@@ -2123,6 +2124,145 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
 
 /* ── HELPERS ERROR (legacy alias) ── */
 var buildOdError = buildDbError;
+
+/* ── CERTIFICADO DE ANALISIS (despachos) ── */
+const CLIENTE_DESP={DESP_PH:'Padre Hurtado',DESP_LIR:'Lirquén',DESP_LLAY:'Llay-Llay'};
+function CertificadoDespacho({data,gc,onClose}){
+  var prod=data.producto||data.ProductoKey||'';
+  var spec=getSpecs(prod)||{};
+  var gspec=spec.granulometria||{};
+  var qspec=spec.quimica||{};
+  var hspec=spec.humedad||null;
+  var sieves=SIEVE_CONFIG[prod]||[];
+  var rows=(gc&&gc.rows?gc.rows:[]).filter(function(r){return !r.isFondo;});
+  var logoSrc=(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'logo.png';})();
+  var violations=collectViolations(data,gc);
+  var apto=violations.length===0;
+
+  function semColor(s){return s==='error'?'#c0392b':s==='warning'?'#9a6b00':'#1e7e44';}
+  // Filas granulometria (solo tamices con limite)
+  var granuRows=[];
+  Object.keys(gspec).forEach(function(us){
+    var g=gspec[us];if(!(g.retMin!=null||g.retMax!=null||g.pasMin!=null||g.pasMax!=null))return;
+    var idx=sieves.findIndex(function(s){return s.us===us;});
+    var r=idx>=0?rows[idx]:null;
+    var esRet=(g.retMin!=null||g.retMax!=null);
+    var val=r?(esRet?r.pctA:r.pctPas):null;
+    var lmin=esRet?g.retMin:g.pasMin,lmax=esRet?g.retMax:g.pasMax;
+    var sem=val!=null?calcSemaforo(val,lmin,lmax):'info';
+    granuRows.push({param:(esRet?'Ret.Acum ':'Pasante ')+us,val:val,
+      lim:(lmin!=null&&lmax!=null?lmin+'–'+lmax:lmax!=null?'≤ '+lmax:lmin!=null?'≥ '+lmin:'—'),sem:sem});
+  });
+  // Filas quimica
+  var qmap={SiO2:'sio2',Al2O3:'al2o3',Fe2O3:'fe2o3',CaO:'cao',MgO:'mgo',K2O:'k2o',Na2O:'na2o',TiO2:'tio2'};
+  var qRows=[];
+  Object.keys(qspec).forEach(function(el){
+    var s=qspec[el];if(!s||(s.min==null&&s.max==null))return;
+    var v=parseDecimal((data.quimica||{})[qmap[el]]);
+    var sem=isNaN(v)?'info':calcSemaforo(v,s.min,s.max);
+    qRows.push({param:el.replace('_','+'),val:isNaN(v)?null:v,
+      lim:(s.min!=null&&s.max!=null?s.min+'–'+s.max:s.max!=null?'≤ '+s.max:s.min!=null?'≥ '+s.min:'—'),sem:sem});
+  });
+  var hum=parseDecimal(data.pctHumedad);
+  var humSem=hspec&&hspec.max!=null&&!isNaN(hum)?calcSemaforo(hum,null,hspec.max):'info';
+
+  async function descargar(){
+    var el=document.getElementById('cert-card');
+    try{
+      var c=await window.html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#fff',logging:false,windowWidth:820});
+      var a=document.createElement('a');
+      a.download='Certificado_'+(CLIENTE_DESP[prod]||prod)+'_Guia'+(data.guia||'')+'.png';
+      a.href=c.toDataURL('image/png');a.click();
+    }catch(e){console.error(e);}
+  }
+  var th={padding:'5px 10px',textAlign:'left',background:'#1a5276',color:'#fff',fontSize:'.74rem'};
+  var td={padding:'4px 10px',borderBottom:'1px solid #eee',fontSize:'.8rem'};
+  function tabla(titulo,arr){
+    if(!arr.length)return null;
+    return(
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:'.76rem',fontWeight:800,color:'#1a5276',marginBottom:5}}>{titulo}</div>
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead><tr><th style={th}>Parámetro</th><th style={th}>Resultado</th><th style={th}>Especificación</th><th style={th}>Cumple</th></tr></thead>
+          <tbody>{arr.map(function(r,i){return(
+            <tr key={i}><td style={Object.assign({fontWeight:600},td)}>{r.param}</td>
+              <td style={Object.assign({fontWeight:700,color:semColor(r.sem)},td)}>{r.val!=null?fmt(r.val,2):'—'}</td>
+              <td style={td}>{r.lim}</td>
+              <td style={Object.assign({fontWeight:700,color:semColor(r.sem)},td)}>{r.sem==='error'?'NO':r.sem==='info'?'—':'SÍ'}</td></tr>
+          );})}</tbody>
+        </table>
+      </div>
+    );
+  }
+  return(
+    <div className="rmodal-ov" onClick={onClose}>
+      <div className="rmodal-wrap" style={{maxWidth:800}} onClick={function(e){e.stopPropagation();}}>
+        <div className="rmodal-bar">
+          <div className="rmodal-bar-title">Certificado de Análisis — Despacho</div>
+          <button className="back-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{maxHeight:'72vh',overflowY:'auto'}}>
+          <div id="cert-card" style={{padding:'28px 30px',background:'#fff',fontFamily:'Inter,sans-serif'}}>
+            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:8}}>
+              <img src={logoSrc} style={{height:54,objectFit:'contain'}} alt="MIGRIN"/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'1.15rem',fontWeight:800,color:'#1a5276'}}>CERTIFICADO DE ANÁLISIS</div>
+                <div style={{fontSize:'.8rem',color:'#555'}}>MIGRIN S.A. · Control de Calidad</div>
+              </div>
+              <div style={{textAlign:'right',fontSize:'.76rem',color:'#555'}}>
+                <div><b>Guía N°:</b> {data.guia||'—'}</div>
+                <div><b>Lote:</b> {data.lote||'—'}</div>
+              </div>
+            </div>
+            <div style={{height:2,background:'#1a5276',margin:'8px 0 16px'}}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 24px',fontSize:'.82rem',marginBottom:16}}>
+              <div><b>Cliente:</b> {CLIENTE_DESP[prod]||(data.productoLabel||prod)}</div>
+              <div><b>Producto:</b> {data.productoLabel||prod}</div>
+              <div><b>Fecha muestreo:</b> {data.fecha||'—'}</div>
+              <div><b>Hora salida:</b> {data.horaSalida||'—'}</div>
+              <div><b>Analista:</b> {data.analista||'—'}</div>
+              <div><b>Emitido:</b> {new Date().toLocaleDateString('es-CL')}</div>
+            </div>
+
+            {/* Veredicto */}
+            <div style={{textAlign:'center',padding:'12px',borderRadius:10,marginBottom:16,
+              background:apto?'#eafaf1':'#fdecea',border:'2px solid '+(apto?'#1e7e44':'#c0392b')}}>
+              <span style={{fontSize:'1.3rem',fontWeight:800,letterSpacing:'.04em',color:apto?'#1e7e44':'#c0392b'}}>
+                {apto?'✓ APTO PARA DESPACHO':'⛔ NO APTO — PRODUCTO CON POSIBILIDAD DE RECHAZO'}
+              </span>
+            </div>
+
+            {tabla('GRANULOMETRÍA',granuRows)}
+            {tabla('QUÍMICA',qRows)}
+            {hspec&&hspec.max!=null&&(
+              <div style={{marginBottom:14,fontSize:'.82rem'}}>
+                <b>Humedad:</b> <span style={{fontWeight:700,color:semColor(humSem)}}>{!isNaN(hum)?fmt(hum,2)+'%':'—'}</span> (límite ≤ {hspec.max}%) — <b style={{color:semColor(humSem)}}>{humSem==='error'?'NO CUMPLE':'CUMPLE'}</b>
+              </div>
+            )}
+
+            <div style={{display:'flex',justifyContent:'space-around',gap:30,marginTop:40,marginBottom:8}}>
+              <div style={{textAlign:'center',minWidth:200}}>
+                <div style={{borderTop:'1px solid #555',paddingTop:6,fontSize:'.76rem',fontWeight:600}}>{data.analista||'—'}</div>
+                <div style={{fontSize:'.68rem',color:'#888'}}>Analista de Calidad</div>
+              </div>
+              <div style={{textAlign:'center',minWidth:200}}>
+                <div style={{borderTop:'1px solid #555',paddingTop:6,fontSize:'.76rem',fontWeight:600}}>&nbsp;</div>
+                <div style={{fontSize:'.68rem',color:'#888'}}>Jefe de Calidad / Responsable Técnico</div>
+              </div>
+            </div>
+            <div style={{textAlign:'center',fontSize:'.66rem',color:'#aaa',marginTop:14}}>
+              Documento emitido por el Sistema de Control de Calidad MIGRIN S.A.
+            </div>
+          </div>
+        </div>
+        <div className="rmodal-ctrl">
+          <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
+          <button className="btn btn-primary" onClick={descargar}>&#11015; Descargar certificado</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── PLANTA FORM (shared by Arenas + Cuarzo) ── */
 /* ── FORMULARIO DESPACHOS ARENA PREMIUM ──
@@ -2148,6 +2288,7 @@ function DespachoForm({account,producto,onBack,onSuccess}){
   var[reportModal,setReportModal]=useState(null);
   var[sendError,setSendError]=useState(null);
   var[retrying,setRetrying]=useState(false);
+  var[cert,setCert]=useState(false);
 
   var specs=getSpecs(producto);
   var qspec=(specs&&specs.quimica)||{};
@@ -2227,13 +2368,17 @@ function DespachoForm({account,producto,onBack,onSuccess}){
 
   if(reportModal){
     return(
-      <ReportModal
-        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
-        sendError={sendError} retrying={retrying} onRetry={handleRetry}
-        onClose={function(){
-          setReportModal(null);setSendError(null);
-          onSuccess(sendError?'Despacho guardado localmente como pendiente.':reportModal.msg);
-        }}/>
+      <>
+        <ReportModal
+          data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+          sendError={sendError} retrying={retrying} onRetry={handleRetry}
+          extraActions={<button className="btn btn-secondary" onClick={function(){setCert(true);}}>📄 Certificado</button>}
+          onClose={function(){
+            setReportModal(null);setSendError(null);
+            onSuccess(sendError?'Despacho guardado localmente como pendiente.':reportModal.msg);
+          }}/>
+        {cert&&<CertificadoDespacho data={reportModal.data} gc={reportModal.gc} onClose={function(){setCert(false);}}/>}
+      </>
     );
   }
 
@@ -6101,6 +6246,7 @@ function HistoryScreen({account,onBack}){
   var[resendSt,setResendSt]=useState({});
   var[reportView,setReportView]=useState(null);
   var[editRec,setEditRec]=useState(null);
+  var[certRec,setCertRec]=useState(null);
   var[page,setPage]=useState(0);
   var[busca,setBusca]=useState('');
   var[fDesde,setFDesde]=useState('');
@@ -6171,6 +6317,7 @@ function HistoryScreen({account,onBack}){
       pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:0),
       quimica:quimica,
       observaciones:r.Observaciones||r.observaciones||'',
+      guia:r.Guia||r.guia||'',lote:r.Lote||r.lote||'',horaSalida:r.HoraSalida||r.horaSalida||'',
     };
     return{data:data,gc:gc};
   }
@@ -6242,6 +6389,7 @@ function HistoryScreen({account,onBack}){
     <div>
       {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
       {showPass&&<PassModal currentUser={account} onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
+      {certRec&&<CertificadoDespacho data={certRec.data} gc={certRec.gc} onClose={function(){setCertRec(null);}}/>}
       {editRec&&<EditEnsayoModal rec={editRec} account={account}
         onClose={function(){setEditRec(null);}}
         onSaved={function(){setEditRec(null);setToast({msg:'Registro actualizado',type:'success'});load();}}/>}
@@ -6431,6 +6579,12 @@ function HistoryScreen({account,onBack}){
                                   <button className="btn btn-secondary" style={{padding:'7px 14px',fontSize:'.84rem'}}
                                     onClick={function(e){e.stopPropagation();setReportView(reconstruirRegistro(r));}}>
                                     &#11015; Ver informe / Descargar PNG
+                                  </button>
+                                )}
+                                {(String(r.ProductoKey||r.producto||'').indexOf('DESP_')===0)&&(
+                                  <button className="btn btn-secondary" style={{padding:'7px 14px',fontSize:'.84rem'}}
+                                    onClick={function(e){e.stopPropagation();setCertRec(reconstruirRegistro(r));}}>
+                                    📄 Certificado
                                   </button>
                                 )}
                                 {r.status==='pending'&&(
