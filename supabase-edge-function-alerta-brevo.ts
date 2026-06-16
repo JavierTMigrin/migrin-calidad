@@ -17,10 +17,7 @@
 const REMITENTE = { name: 'Alertas Calidad MIGRIN', email: 'jtorres@migrin.cl' };
 const DESTINATARIOS = [
   'jtorres@migrin.cl',
-  'amendez@migrin.cl',
   'sarce@migrin.cl',
-  'scontreras@migrin.cl',
-  'jhernandez@migrin.cl',
 ];
 
 Deno.serve(async (req) => {
