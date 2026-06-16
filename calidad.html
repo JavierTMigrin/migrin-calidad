@@ -3999,6 +3999,12 @@ function DashboardScreen({account,onBack}){
   var tInsts=useRef([null,null,null,null,null,null]);
   // chemistry chart
   var cQRef=useRef(null);var iQRef=useRef(null);
+  // Comparador (lado B)
+  var[cmpPlanta,setCmpPlanta]=useState('Arenas');
+  var[cmpProd,setCmpProd]=useState('A36');
+  var[cmpYear,setCmpYear]=useState(function(){return new Date().getFullYear();});
+  var[cmpMonth,setCmpMonth]=useState(-1); // -1 = año completo
+  var cmpRef=useRef(null);var cmpInst=useRef(null);
   // per-oxide chemistry charts
   var chemRefs=useRef({});var chemInsts=useRef({});
   var logoSrc=useMemo(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'';},[]);
@@ -4218,6 +4224,45 @@ function DashboardScreen({account,onBack}){
     });
     return sections;
   },[records,tab,selYear,filterTurno]);
+
+  /* Comparador: calcula promedios de retenido parcial, quimica y
+     cumplimiento para un conjunto de registros de un producto. */
+  function ladoStats(pk,recs){
+    var sieves=SIEVE_CONFIG[pk]||[];
+    var sumRP=sieves.map(function(){return{s:0,n:0};});
+    var oxs=[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']];
+    var sumQ={};oxs.forEach(function(o){sumQ[o[0]]={s:0,n:0};});
+    var nFuera=0,nEval=0;
+    var tieneEett=specHasLimits(getSpecs(pk))||pk==='A36';
+    recs.forEach(function(r){
+      var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+      var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+      var gc=calcGranu(pk,gv,pf);
+      (gc.rows||[]).filter(function(x){return !x.isFondo;}).forEach(function(row,i){
+        if(sumRP[i]&&row.pctP!=null&&!isNaN(row.pctP)){sumRP[i].s+=row.pctP;sumRP[i].n++;}
+      });
+      var q=r.quimica||{};
+      oxs.forEach(function(o){var v=parseDecimal(q[o[0]]);if(!isNaN(v)){sumQ[o[0]].s+=v;sumQ[o[0]].n++;}});
+      if(tieneEett){var vio=collectViolations({producto:pk,quimica:q,pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')},gc);nEval++;if(vio.length)nFuera++;}
+    });
+    return{
+      n:recs.length,sieves:sieves,
+      avgRP:sumRP.map(function(x){return x.n?+(x.s/x.n).toFixed(2):null;}),
+      quim:oxs.map(function(o){return{label:o[1],avg:sumQ[o[0]].n?+(sumQ[o[0]].s/sumQ[o[0]].n).toFixed(3):null};}),
+      pct:tieneEett&&nEval?Math.round((nEval-nFuera)/nEval*1000)/10:null,
+    };
+  }
+  var comparador=useMemo(function(){
+    if(tab!=='comparar')return null;
+    var recB=records.filter(function(r){
+      if((r.ProductoKey||r.producto||'')!==cmpProd)return false;
+      var f=r.FechaMuestreo||r.fecha||'';
+      if(f.slice(0,4)!==String(cmpYear))return false;
+      if(cmpMonth>=0&&(parseInt(f.slice(5,7),10)-1)!==cmpMonth)return false;
+      return true;
+    });
+    return{A:ladoStats(prod,filtered),B:ladoStats(cmpProd,recB)};
+  },[tab,records,filtered,prod,cmpProd,cmpYear,cmpMonth]);
 
   async function exportarResumen(){
     var el=document.getElementById('export-resumen');
@@ -4530,6 +4575,26 @@ function DashboardScreen({account,onBack}){
     });
     return function(){tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});};
   },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims,turcoRecInds]);
+
+  // === CHART: Comparador (retenido parcial promedio A vs B) ===
+  useEffect(function(){
+    if(tab!=='comparar'||!window.Chart||!comparador||!cmpRef.current)return;
+    if(cmpInst.current){cmpInst.current.destroy();cmpInst.current=null;}
+    var A=comparador.A,B=comparador.B;
+    // etiquetas = union de tamices de A y B (por nombre)
+    var labels=A.sieves.map(function(s){return s.us;});
+    B.sieves.forEach(function(s){if(labels.indexOf(s.us)<0)labels.push(s.us);});
+    function alinea(lado){return labels.map(function(us){var i=lado.sieves.findIndex(function(s){return s.us===us;});return i>=0?lado.avgRP[i]:null;});}
+    cmpInst.current=new window.Chart(cmpRef.current,{type:'line',
+      data:{labels:labels,datasets:[
+        {label:'A: '+(GRANU_TITLE[prod]||prod),data:alinea(A),borderColor:'#1a5276',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,spanGaps:true},
+        {label:'B: '+(GRANU_TITLE[cmpProd]||cmpProd),data:alinea(B),borderColor:'#c0392b',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,spanGaps:true,borderDash:[5,3]},
+      ]},
+      options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+        scales:{x:{ticks:{font:{size:8}}},y:{title:{display:true,text:'Retenido parcial (%)'},ticks:{font:{size:8}}}}}});
+    return function(){if(cmpInst.current){cmpInst.current.destroy();cmpInst.current=null;}};
+  },[tab,comparador,prod,cmpProd]);
 
   // === CHART: Chemistry (un grafico por oxido, estilo tendencias EETT) ===
   useEffect(function(){
@@ -5017,6 +5082,7 @@ function DashboardScreen({account,onBack}){
           <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
           {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           <button className={'dash-tab'+(tab==='tabla'?' act':'')} onClick={function(){setTab('tabla');}}>Tabla de Datos</button>
+          <button className={'dash-tab'+(tab==='comparar'?' act':'')} onClick={function(){setTab('comparar');}}>Comparador</button>
           <button className={'dash-tab'+(tab==='resumen'?' act':'')} onClick={function(){setTab('resumen');}}>Resumen Ejecutivo</button>
           <button className={'dash-tab'+(tab==='general'?' act':'')} onClick={function(){setTab('general');}}>General</button>
         </div>
@@ -5444,6 +5510,91 @@ function DashboardScreen({account,onBack}){
         </>
       )}
 
+      {!loading&&tab==='comparar'&&comparador&&(function(){
+        var A=comparador.A,B=comparador.B;
+        var MN2=['Año completo','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        function card(titulo,lado,subt,color){
+          return(
+            <div style={{flex:1,minWidth:240,background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',padding:'14px 16px',borderTop:'4px solid '+color}}>
+              <div style={{fontSize:'.9rem',fontWeight:800,color:color}}>{titulo}</div>
+              <div style={{fontSize:'.74rem',color:'var(--text-muted)',marginBottom:8}}>{subt}</div>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <div><div style={{fontSize:'1.3rem',fontWeight:800}}>{lado.n}</div><div style={{fontSize:'.66rem',color:'var(--text-muted)'}}>Ensayos</div></div>
+                <div><div style={{fontSize:'1.3rem',fontWeight:800,color:lado.pct==null?'#999':lado.pct>=95?'var(--success)':lado.pct>=85?'#b7791f':'var(--error)'}}>{lado.pct==null?'—':fmt(lado.pct,1)+'%'}</div><div style={{fontSize:'.66rem',color:'var(--text-muted)'}}>Cumplimiento</div></div>
+              </div>
+            </div>
+          );
+        }
+        return(
+          <>
+            <div className="sec-card" style={{marginBottom:16}}>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Comparador — Lado A (filtros de arriba) vs Lado B</div>
+              <div style={{padding:'12px 16px'}}>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end',marginBottom:14}}>
+                  <div className="dff"><label>Planta B</label>
+                    <select value={cmpPlanta} onChange={function(e){var pl=e.target.value;setCmpPlanta(pl);var l=PLANTAS_PROD[pl]||[];if(l.length)setCmpProd(l[0].value);}}>
+                      {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+                    </select>
+                  </div>
+                  <div className="dff"><label>Producto B</label>
+                    <select value={cmpProd} onChange={function(e){setCmpProd(e.target.value);}}>
+                      {(PLANTAS_PROD[cmpPlanta]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+                    </select>
+                  </div>
+                  <div className="dff"><label>Año B</label>
+                    <select value={cmpYear} onChange={function(e){setCmpYear(parseInt(e.target.value));}}>
+                      {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+                    </select>
+                  </div>
+                  <div className="dff"><label>Mes B</label>
+                    <select value={cmpMonth} onChange={function(e){setCmpMonth(parseInt(e.target.value));}}>
+                      {MN2.map(function(m,i){return <option key={i} value={i-1}>{m}</option>;})}
+                    </select>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
+                  {card('A — '+(GRANU_TITLE[prod]||prod),A,getPeriodoLabel()+(filterTurno?' · Turno '+filterTurno:''),'#1a5276')}
+                  {card('B — '+(GRANU_TITLE[cmpProd]||cmpProd),B,(cmpMonth>=0?MN2[cmpMonth+1]+' ':'')+cmpYear,'#c0392b')}
+                </div>
+              </div>
+            </div>
+
+            <div className="dash-chart-card" style={{marginBottom:16}}>
+              <div className="dash-chart-title">Curva granulométrica promedio — A vs B (retenido parcial %)</div>
+              <div style={{position:'relative',minHeight:300}}><canvas ref={cmpRef}/></div>
+            </div>
+
+            <div className="sec-card">
+              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Química promedio — A vs B</div>
+              <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                  <thead><tr style={{background:'#f0f4f8'}}>
+                    <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Óxido</th>
+                    <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>A</th>
+                    <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>B</th>
+                    <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
+                  </tr></thead>
+                  <tbody>
+                    {A.quim.map(function(qa,i){
+                      var qb=B.quim[i];var d=(qa.avg!=null&&qb.avg!=null)?+(qb.avg-qa.avg).toFixed(3):null;
+                      if(qa.avg==null&&qb.avg==null)return null;
+                      return(
+                        <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
+                          <td style={{padding:'4px 10px',fontWeight:600}}>{qa.label}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center'}}>{qa.avg!=null?fmt(qa.avg,3):'—'}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center'}}>{qb.avg!=null?fmt(qb.avg,3):'—'}</td>
+                          <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:d==null?'#999':d>0?'#c0392b':d<0?'#1e7e44':'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,3)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
       {!loading&&tab==='tabla'&&(function(){
         var sieves=SIEVE_CONFIG[prod]||[];
         var gspec=prod==='A36'?(SPECS_A36.LIRQUEN.granulometria||{}):((getSpecs(prod)||{}).granulometria||{});
@@ -5703,6 +5854,7 @@ function EstadisticasScreen({account,onBack}){
   var[showS1,setShowS1]=useState(true);
   var[showS2,setShowS2]=useState(true);
   var[showS3,setShowS3]=useState(true);
+  var[chartType,setChartType]=useState('imr'); // imr | ewma | cusum
   var chartRefs=useRef({});var chartInsts=useRef({});
   var histRefs=useRef({});var histInsts=useRef({});
 
@@ -5813,34 +5965,59 @@ function EstadisticasScreen({account,onBack}){
       var el=chartRefs.current[c.key];if(!el||!c.st)return;
       var m=c.st.mean,sd=c.sig||c.st.sd,col=c.color||'#1a5276';
       function band(v){return c.series.map(function(){return v;});}
-      // Marcar en rojo los puntos fuera de control (±3σ I-mR)
-      var ptCol=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?'#c62828':col;});
-      var ptRad=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?5:3;});
-      var ds=[{label:c.label,data:c.series.map(function(v){return v!=null?+v.toFixed(3):null;}),
-        borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:ptRad,pointBackgroundColor:ptCol,tension:.3,spanGaps:true}];
-      if(showMA)ds.push({label:'MA'+maWin,data:c.ma.map(function(v){return v!=null?+v.toFixed(3):null;}),borderColor:'#e67e22',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
-      ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.3,pointRadius:0,borderDash:[2,2]});
-      if(showS1){
-        ds.push({label:'+1σ',data:band(m+sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
-        ds.push({label:'-1σ',data:band(m-sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+      var ds=[];
+      if(chartType==='ewma'){
+        // EWMA λ=0.2; limites asintoticos m ± 3σ·sqrt(λ/(2-λ))
+        var lam=0.2,z=m,ew=c.series.map(function(v){if(v!=null&&!isNaN(v))z=lam*v+(1-lam)*z;return v!=null?+z.toFixed(3):null;});
+        var Lk=3*sd*Math.sqrt(lam/(2-lam));
+        ds.push({label:'EWMA',data:ew,borderColor:col,backgroundColor:'transparent',borderWidth:1.8,pointRadius:2,tension:.3,spanGaps:true});
+        ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.2,pointRadius:0,borderDash:[2,2]});
+        ds.push({label:'LCS',data:band(m+Lk),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+        ds.push({label:'LCI',data:band(m-Lk),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+      }else if(chartType==='cusum'){
+        // CUSUM tabular: k=0.5σ, H=5σ
+        var kk=0.5*sd,H=5*sd,cp=0,cn=0;
+        var sp=[],sn=[];
+        c.series.forEach(function(v){
+          if(v==null||isNaN(v)){sp.push(null);sn.push(null);return;}
+          cp=Math.max(0,cp+(v-m)-kk);cn=Math.max(0,cn+(m-v)-kk);
+          sp.push(+cp.toFixed(3));sn.push(+(-cn).toFixed(3));
+        });
+        ds.push({label:'C+',data:sp,borderColor:'#1a5276',backgroundColor:'transparent',borderWidth:1.6,pointRadius:2,tension:.2,spanGaps:true});
+        ds.push({label:'C-',data:sn,borderColor:'#e67e22',backgroundColor:'transparent',borderWidth:1.6,pointRadius:2,tension:.2,spanGaps:true});
+        ds.push({label:'+H',data:band(H),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+        ds.push({label:'-H',data:band(-H),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+        ds.push({label:'0',data:band(0),borderColor:'#555',borderWidth:1,pointRadius:0,borderDash:[2,2]});
+      }else{
+        // I-mR (individuales)
+        var ptCol=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?'#c62828':col;});
+        var ptRad=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?5:3;});
+        ds.push({label:c.label,data:c.series.map(function(v){return v!=null?+v.toFixed(3):null;}),
+          borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:ptRad,pointBackgroundColor:ptCol,tension:.3,spanGaps:true});
+        if(showMA)ds.push({label:'MA'+maWin,data:c.ma.map(function(v){return v!=null?+v.toFixed(3):null;}),borderColor:'#e67e22',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
+        ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.3,pointRadius:0,borderDash:[2,2]});
+        if(showS1){
+          ds.push({label:'+1σ',data:band(m+sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+          ds.push({label:'-1σ',data:band(m-sd),borderColor:'#2e7d32',borderWidth:1,pointRadius:0,borderDash:[3,3]});
+        }
+        if(showS2){
+          ds.push({label:'+2σ',data:band(m+2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
+          ds.push({label:'-2σ',data:band(m-2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
+        }
+        if(showS3){
+          ds.push({label:'LCS (+3σ)',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+          ds.push({label:'LCI (-3σ)',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
+        }
+        if(c.limMax!=null)ds.push({label:'EETT máx',data:band(c.limMax),borderColor:'#000',borderWidth:1.3,pointRadius:0});
+        if(c.limMin!=null)ds.push({label:'EETT mín',data:band(c.limMin),borderColor:'#000',borderWidth:1.3,pointRadius:0});
       }
-      if(showS2){
-        ds.push({label:'+2σ',data:band(m+2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
-        ds.push({label:'-2σ',data:band(m-2*sd),borderColor:'#f9a825',borderWidth:1,pointRadius:0,borderDash:[4,3]});
-      }
-      if(showS3){
-        ds.push({label:'LCS (+3σ)',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
-        ds.push({label:'LCI (-3σ)',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
-      }
-      if(c.limMax!=null)ds.push({label:'EETT máx',data:band(c.limMax),borderColor:'#000',borderWidth:1.3,pointRadius:0});
-      if(c.limMin!=null)ds.push({label:'EETT mín',data:band(c.limMin),borderColor:'#000',borderWidth:1.3,pointRadius:0});
       chartInsts.current[c.key]=new window.Chart(el,{type:'line',data:{labels:lbls,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:false}},
           scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:10}},y:{ticks:{font:{size:8}}}}}});
     });
     return function(){Object.keys(chartInsts.current).forEach(function(k){if(chartInsts.current[k]){chartInsts.current[k].destroy();chartInsts.current[k]=null;}});};
-  },[colStats,lbls,showMA,maWin,colSel,showS1,showS2,showS3]);
+  },[colStats,lbls,showMA,maWin,colSel,showS1,showS2,showS3,chartType]);
 
   // === Histograma de distribucion por columna ===
   useEffect(function(){
@@ -5906,6 +6083,14 @@ function EstadisticasScreen({account,onBack}){
             </select>
           </div>
         </div>
+        <div className="dff"><label>Tipo de carta</label>
+          <select value={chartType} onChange={function(e){setChartType(e.target.value);}}>
+            <option value="imr">Individuales (I-mR)</option>
+            <option value="ewma">EWMA (deriva suave)</option>
+            <option value="cusum">CUSUM (suma acumulada)</option>
+          </select>
+        </div>
+        {chartType==='imr'&&(
         <div className="dff"><label>Líneas de control σ</label>
           <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34}}>
             <label style={{display:'inline-flex',alignItems:'center',gap:3,fontSize:'.8rem',color:'#2e7d32',fontWeight:600}}>
@@ -5919,6 +6104,7 @@ function EstadisticasScreen({account,onBack}){
             </label>
           </div>
         </div>
+        )}
       </div>
 
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
@@ -6065,7 +6251,7 @@ function EstadisticasScreen({account,onBack}){
                     })()}
                     <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14}}>
                       <div>
-                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>CARTA DE CONTROL (TENDENCIA + σ)</div>
+                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>{chartType==='ewma'?'CARTA EWMA (deriva suave)':chartType==='cusum'?'CARTA CUSUM (suma acumulada)':'CARTA DE CONTROL I-mR (tendencia + σ)'}</div>
                         <div style={{position:'relative',minHeight:200}}><canvas ref={function(el){chartRefs.current[c.key]=el;}}/></div>
                       </div>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
