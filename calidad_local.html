@@ -6867,6 +6867,15 @@ function SettingsScreen({account,onBack,onLogout}){
   var[newAnalista,setNewAnalista]=useState('');
   var[newPlanta,setNewPlanta]=useState('Arenas');
   var[loadingAn,setLoadingAn]=useState(false);
+  var[audit,setAudit]=useState([]);
+  var[loadingAudit,setLoadingAudit]=useState(false);
+  var[auditDetail,setAuditDetail]=useState(null);
+  // Alta de usuarios
+  var[uEmail,setUEmail]=useState('');
+  var[uPass,setUPass]=useState('');
+  var[uRol,setURol]=useState('viewer');
+  var[uMsg,setUMsg]=useState(null);
+  var[uLoading,setULoading]=useState(false);
 
   function refresh(){setPendA(getPending());setPendC(getPendingCuarzo());}
 
@@ -6875,8 +6884,37 @@ function SettingsScreen({account,onBack,onLogout}){
     supabase.from('analistas').select('*').order('nombre')
       .then(function(res){setLoadingAn(false);if(!res.error)setAnalistas(res.data||[]);});
   }
+  function fetchAudit(){
+    setLoadingAudit(true);
+    supabase.from('audit_log').select('*').order('created_at',{ascending:false}).limit(100)
+      .then(function(res){setLoadingAudit(false);if(!res.error)setAudit(res.data||[]);
+        else setToast({msg:'No se pudo cargar auditoría: '+res.error.message,type:'error'});});
+  }
 
-  useEffect(function(){if(isAdmin)fetchAnalistas();},[isAdmin]);
+  useEffect(function(){if(isAdmin){fetchAnalistas();fetchAudit();}},[isAdmin]);
+
+  async function delAnalista(id){
+    if(!confirm('Eliminar este analista de la lista?'))return;
+    var res=await supabase.from('analistas').delete().eq('id',id);
+    if(res.error)setToast({msg:'Error: '+res.error.message,type:'error'});
+    else{setToast({msg:'Analista eliminado',type:'success'});fetchAnalistas();}
+  }
+  async function crearUsuario(){
+    var em=uEmail.trim().toLowerCase();
+    if(!em||!uPass){setUMsg({t:'error',m:'Email y contraseña requeridos.'});return;}
+    if(uPass.length<6){setUMsg({t:'error',m:'La contraseña debe tener al menos 6 caracteres.'});return;}
+    setULoading(true);setUMsg(null);
+    try{
+      var res=await supabase.functions.invoke('crear-usuario',{body:{email:em,password:uPass,rol:uRol}});
+      if(res.error)throw res.error;
+      if(res.data&&res.data.error)throw new Error(res.data.error);
+      setUMsg({t:'ok',m:'Usuario '+em+' creado como '+(uRol==='admin'?'administrador':'visualizador')+'.'});
+      setUEmail('');setUPass('');
+    }catch(e){
+      setUMsg({t:'error',m:'No se pudo crear: '+(e.message||e)+'. ¿Desplegaste la función crear-usuario?'});
+    }
+    setULoading(false);
+  }
 
   async function addAnalista(){
     var n=newAnalista.trim();if(!n)return;
@@ -6984,10 +7022,14 @@ function SettingsScreen({account,onBack,onLogout}){
                         <td>{a.nombre}</td>
                         <td style={{fontSize:'.8rem',color:'var(--text-secondary)'}}>{a.planta||'Arenas'}</td>
                         <td><span className={'badge '+(a.activo?'badge-s':'badge-w')} style={{fontSize:'.75rem'}}>{a.activo?'Activo':'Inactivo'}</span></td>
-                        <td><button className="btn btn-secondary" style={{padding:'3px 9px',fontSize:'.78rem'}}
-                          onClick={function(){toggleAnalista(a.id,a.activo);}}>
-                          {a.activo?'Desactivar':'Activar'}
-                        </button></td>
+                        <td style={{display:'flex',gap:5}}>
+                          <button className="btn btn-secondary" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                            onClick={function(){toggleAnalista(a.id,a.activo);}}>
+                            {a.activo?'Desactivar':'Activar'}
+                          </button>
+                          <button className="btn btn-danger" style={{padding:'3px 9px',fontSize:'.78rem'}}
+                            onClick={function(){delAnalista(a.id);}}>Eliminar</button>
+                        </td>
                       </tr>
                     );})}</tbody>
                   </table>
@@ -7006,10 +7048,83 @@ function SettingsScreen({account,onBack,onLogout}){
                 </div>
               </>
             )}
+            {/* ── Usuarios y accesos ── */}
+            <div style={{height:1,background:'var(--border)',margin:'18px 0'}}/>
+            <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Usuarios y accesos</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr',gap:8,maxWidth:420,marginBottom:8}}>
+              <input type="email" value={uEmail} placeholder="correo@migrin.cl"
+                onChange={function(e){setUEmail(e.target.value);}}
+                style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}/>
+              <div style={{display:'flex',gap:8}}>
+                <input type="text" value={uPass} placeholder="contraseña temporal"
+                  onChange={function(e){setUPass(e.target.value);}}
+                  style={{flex:1,padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}/>
+                <select value={uRol} onChange={function(e){setURol(e.target.value);}}
+                  style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}>
+                  <option value="viewer">Visualizador</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <button className="btn btn-primary" onClick={crearUsuario} disabled={uLoading}>
+                {uLoading?'Creando...':'Crear usuario'}
+              </button>
+              {uMsg&&<div style={{fontSize:'.82rem',fontWeight:600,
+                color:uMsg.t==='ok'?'var(--success)':'var(--error)'}}>{uMsg.m}</div>}
+            </div>
+            <div style={{fontSize:'.74rem',color:'var(--text-muted)',marginBottom:4}}>
+              Requiere desplegar la función <strong>crear-usuario</strong> en Supabase (ver supabase-edge-function-usuarios.ts).
+              El visualizador solo ve Reportes e Historial. Para cambiar contraseñas o borrar usuarios, usa Supabase → Authentication.
+            </div>
+
+            {/* ── Registro de auditoría ── */}
+            <div style={{height:1,background:'var(--border)',margin:'18px 0'}}/>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:8}}>
+              <div style={{fontWeight:700,fontSize:'.9rem'}}>Registro de auditoría (últimos 100)</div>
+              <button className="btn btn-secondary" style={{padding:'5px 12px',fontSize:'.78rem'}} onClick={fetchAudit}>↻ Actualizar</button>
+            </div>
+            {loadingAudit?<div className="spinner"/>:(
+              audit.length===0
+                ?<p style={{color:'var(--text-muted)',fontSize:'.85rem'}}>Sin movimientos registrados.</p>
+                :<div style={{overflowX:'auto'}}>
+                  <table className="htbl">
+                    <thead><tr><th>Fecha</th><th>Acción</th><th>Usuario</th><th>Ensayo</th><th></th></tr></thead>
+                    <tbody>{audit.map(function(a){
+                      var color=a.accion==='DELETE'?'#c0392b':a.accion==='UPDATE'?'#b7791f':'#1a5276';
+                      return(
+                        <tr key={a.id}>
+                          <td style={{whiteSpace:'nowrap',fontSize:'.78rem'}}>{(a.created_at||'').replace('T',' ').slice(0,16)}</td>
+                          <td><span className="badge" style={{background:color+'22',color:color,fontWeight:700,fontSize:'.74rem'}}>{a.accion}</span></td>
+                          <td style={{fontSize:'.8rem'}}>{a.usuario||'—'}</td>
+                          <td style={{fontSize:'.72rem',color:'var(--text-muted)'}}>{a.ensayo_id||'—'}</td>
+                          <td>{a.datos_previos&&<button className="btn btn-secondary" style={{padding:'3px 9px',fontSize:'.74rem'}}
+                            onClick={function(){setAuditDetail(a);}}>Ver datos</button>}</td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+            )}
+
             <EettEditor account={account}/>
           </div>
         }
       </SecCard>
+
+      {auditDetail&&(
+        <div className="rmodal-ov" onClick={function(){setAuditDetail(null);}}>
+          <div className="rmodal-wrap" style={{maxWidth:640}} onClick={function(e){e.stopPropagation();}}>
+            <div className="rmodal-bar">
+              <div className="rmodal-bar-title">Datos previos — {auditDetail.accion} · {auditDetail.usuario}</div>
+              <button className="back-btn" onClick={function(){setAuditDetail(null);}}>✕</button>
+            </div>
+            <div style={{padding:'16px 18px',maxHeight:'70vh',overflowY:'auto'}}>
+              <pre style={{fontSize:'.74rem',whiteSpace:'pre-wrap',wordBreak:'break-word',background:'#f8fafc',padding:12,borderRadius:8}}>
+                {JSON.stringify(auditDetail.datos_previos,null,2)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
