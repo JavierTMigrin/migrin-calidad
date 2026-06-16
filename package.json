@@ -1,0 +1,14 @@
+{
+  "name": "ap_calidad",
+  "version": "1.0.0",
+  "description": "Control de Calidad MIGRIN — build de precompilacion JSX",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "type": "module",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/preset-react": "^8.0.0",
+    "@babel/standalone": "^8.0.0"
+  }
+}
