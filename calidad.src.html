@@ -397,6 +397,23 @@ const GOLF_SIEVES=[ // Arena Golf: agrega #12 al inicio
   {us:'#70',mm:'0,212'},{us:'#100',mm:'0,150'},{us:'#140',mm:'0,106'},
   {us:'#200',mm:'0,075'},{us:'#270',mm:'0,053'},
 ];
+// ── CUARZO PROCESO (Yacimiento / Chancador / VSI) ──
+const YACIM_SIEVES=[
+  {us:'1"',mm:'25,400'},{us:'3/4"',mm:'19,050'},{us:'1/2"',mm:'12,700'},
+  {us:'5/16"',mm:'8,000'},{us:'1/4"',mm:'6,350'},{us:'#4',mm:'4,750'},
+  {us:'#5',mm:'4,000'},{us:'#6',mm:'3,350'},{us:'#8',mm:'2,360'},
+  {us:'#12',mm:'1,680'},{us:'#16',mm:'1,180'},{us:'#20',mm:'0,850'},
+  {us:'#100',mm:'0,150'},
+];
+const CHANC_SIEVES=[
+  {us:'1"',mm:'25,400'},{us:'3/4"',mm:'19,050'},
+  {us:'1/2"',mm:'12,700'},{us:'#6',mm:'3,350'},
+];
+const VSI_SIEVES=[
+  {us:'1"',mm:'25,400'},{us:'3/4"',mm:'19,050'},{us:'1/2"',mm:'12,700'},
+  {us:'5/16"',mm:'8,000'},{us:'1/4"',mm:'6,350'},{us:'#4',mm:'4,750'},
+  {us:'#5',mm:'4,000'},{us:'#6',mm:'3,350'},
+];
 const SIEVE_CONFIG={
   // ── ARENAS ──
   'A36':[
@@ -515,6 +532,14 @@ const SIEVE_CONFIG={
     {us:'#400',mm:'0,038'},
   ],
   'CLODOS':[{us:'#120',mm:'0,125'}],
+  // ── CUARZO PROCESO ──
+  'YACIMIENTO':YACIM_SIEVES,
+  'ARCILLAS':[],
+  'LODOS_CZ':[{us:'#120',mm:'0,125'}],
+  'CHANC_ENT':CHANC_SIEVES,
+  'CHANC_SAL':CHANC_SIEVES,
+  'VSI_ENT':VSI_SIEVES,
+  'VSI_SAL':VSI_SIEVES,
 };
 const PRODUCT_CONFIG={
   'A36':    {quimica:true, humedad:true, tipoMuestra:true },
@@ -552,6 +577,13 @@ const PRODUCT_CONFIG={
   'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
   'CDLK':   {quimica:true, humedad:true, tipoMuestra:false},
   'CLODOS': {quimica:false,humedad:false,tipoMuestra:false},
+  'YACIMIENTO':{quimica:true, humedad:false,tipoMuestra:false},
+  'ARCILLAS':  {quimica:false,humedad:false,tipoMuestra:false},
+  'LODOS_CZ':  {quimica:false,humedad:false,tipoMuestra:false},
+  'CHANC_ENT': {quimica:false,humedad:false,tipoMuestra:false},
+  'CHANC_SAL': {quimica:false,humedad:false,tipoMuestra:false},
+  'VSI_ENT':   {quimica:false,humedad:false,tipoMuestra:false},
+  'VSI_SAL':   {quimica:false,humedad:false,tipoMuestra:false},
 };
 const GRANU_TITLE={
   A36:'A36 TLH',A38:'A38 Fierrillo',ALIM:'Alimentacion a Planta',
@@ -566,6 +598,9 @@ const GRANU_TITLE={
   TT_ARCILLAS:'% Arcillas',TT_FLOC:'Floculante',TT_AMCRIST:'Arena Mina Cristaleria',
   TT_GOLF:'Arena Golf',
   CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
+  YACIMIENTO:'Yacimiento',ARCILLAS:'Arcillas',LODOS_CZ:'Lodos Proceso',
+  CHANC_ENT:'Chancador Entrada',CHANC_SAL:'Chancador Salida',
+  VSI_ENT:'VSI Entrada',VSI_SAL:'VSI Salida',
 };
 /* Texto descriptivo para productos sin EETT: qué se controla / qué muestra el reporte */
 const NO_EETT_DETALLE={
@@ -1031,6 +1066,26 @@ const CUARZO_PRODUCTS=[
   {value:'CDLK',  label:'DLK'},
   {value:'CLODOS',label:'Lodos Cuarzo'},
 ];
+/* Cuarzo proceso (Yacimiento / Chancador / VSI / Arcillas / Lodos).
+   CUARZO_PROC_KEYS = productos reales que se guardan en `ensayos`
+   (Chancador y VSI se dividen en Entrada y Salida = dos registros).
+   CUARZO_PROC_NAV  = botones de navegacion del menu Proceso Cuarzo. */
+const CUARZO_PROC_KEYS=[
+  {value:'YACIMIENTO',label:'Yacimiento'},
+  {value:'ARCILLAS',  label:'Arcillas'},
+  {value:'LODOS_CZ',  label:'Lodos Proceso'},
+  {value:'CHANC_ENT', label:'Chancador Entrada'},
+  {value:'CHANC_SAL', label:'Chancador Salida'},
+  {value:'VSI_ENT',   label:'VSI Entrada'},
+  {value:'VSI_SAL',   label:'VSI Salida'},
+];
+const CUARZO_PROC_NAV=[
+  {value:'YACIMIENTO',label:'Yacimiento'},
+  {value:'ARCILLAS',  label:'Arcillas'},
+  {value:'LODOS_CZ',  label:'Lodos'},
+  {value:'CHANCADOR', label:'Chancador'},
+  {value:'VSI',       label:'VSI'},
+];
 const DESPACHO_PRODUCTS=[
   {value:'DESP_PH',  label:'Despacho Padre Hurtado'},
   {value:'DESP_LIR', label:'Despacho Lirquen'},
@@ -1131,11 +1186,11 @@ const SPECS_TT_GOLF={
   },
   humedad:{max:5.0},
 };
-const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS);
+const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(CUARZO_PROC_KEYS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS);
 /* Productos agrupados por planta para el filtro en cascada de Reportes */
 const PLANTAS_PROD={
   'Arenas':ARENA_PRODUCTS.concat(OTROS_PRODUCTS.filter(function(p){return p.value==='CGRANOS';})),
-  'Cuarzo':CUARZO_PRODUCTS.concat(OTROS_PRODUCTS.filter(function(p){return p.value==='MPRIMA';})),
+  'Cuarzo':CUARZO_PRODUCTS.concat(CUARZO_PROC_KEYS).concat(OTROS_PRODUCTS.filter(function(p){return p.value==='MPRIMA';})),
   'Despachos':DESPACHO_PRODUCTS,
   'Lavado Turco':LAVTURCO_PRODUCTS,
 };
@@ -3951,10 +4006,561 @@ function ArenasForm({account,onBack,onSuccess}){
     }}/>;
 }
 
+/* ── CUARZO PROCESO: encabezado comun ── */
+function CzPageHdr({onBack,sub}){
+  return(
+    <div className="page-hdr">
+      <button className="back-btn" onClick={onBack}>&#8592;</button>
+      <div>
+        <h2>Planta Cuarzo</h2>
+        <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+/* Helper: envia uno o mas registros (Entrada/Salida) a Supabase.
+   Devuelve true si todos se enviaron, false si alguno quedo pendiente. */
+async function enviarRegistrosCuarzo(records,account){
+  records.forEach(addPending);
+  var ok=true;
+  for(var i=0;i<records.length;i++){
+    try{await sendTurcoToSupabase(records[i],account);delPending(records[i].id);}
+    catch(err){console.error(err);ok=false;}
+  }
+  return ok;
+}
+
+/* ── ARCILLAS: peso inicial/final, % arena y % arcilla (calculados por lavado) ── */
+function ArcillasForm({account,onBack,onSuccess}){
+  var[fecha,setFecha]=useState(today());
+  var[ident,setIdent]=useState('');
+  var[pesoInicial,setPesoInicial]=useState('');
+  var[pesoFinal,setPesoFinal]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
+  var pctArena=(!isNaN(pi)&&pi>0&&!isNaN(pf))?(pf/pi*100):null;
+  var pctArcilla=(pctArena!=null)?(100-pctArena):null;
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!ident)e.ident='Identificacion de muestra requerida';
+    if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
+    if(!pesoFinal)e.pesoFinal='Peso final requerido';
+    else if(!isNaN(pi)&&pi>0&&!isNaN(pf)&&pf>pi)e.pesoFinal='El peso final no puede superar al inicial';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'ARCILLAS',productoLabel:'Arcillas',
+      tipoMuestra:ident,numAcopio:'',
+      pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:[],pesoFondo:null,
+      pctHumedad:'',quimica:{},observaciones:'',
+      extra:{identificacion:ident,pctArena:pctArena,pctArcilla:pctArcilla},
+    };
+    var ok=await enviarRegistrosCuarzo([data],account);
+    setSending(false);
+    onSuccess(ok?'Control de arcillas registrado exitosamente.':'Sin conexion: registro guardado localmente como pendiente.');
+  }
+
+  function chip(label,val){
+    return(
+      <div style={{padding:'10px 16px',borderRadius:10,minWidth:130,textAlign:'center',
+        background:'#f7fafc',border:'1.5px solid var(--border)'}}>
+        <div style={{fontSize:'.74rem',fontWeight:700,color:'var(--text-secondary)'}}>{label}</div>
+        <div style={{fontSize:'1.1rem',fontWeight:800}}>{val!=null?fmt(val,2)+' %':'—'}</div>
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <CzPageHdr onBack={onBack} sub="Arcillas"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Control de Arcillas" icon="&#129521;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaARC" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="identARC" label="Identificacion de Muestra" required value={ident}
+            onChange={function(e){setIdent(e.target.value);}} error={errors.ident} placeholder="Ej: Acopio 3"/>
+        </div>
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="piARC" label="Peso Inicial (g)" type="decimal" required value={pesoInicial}
+            onChange={function(e){setPesoInicial(e.target.value);}} error={errors.pesoInicial} placeholder="0,00"/>
+          <Field name="pfARC" label="Peso Final (g)" type="decimal" required value={pesoFinal}
+            onChange={function(e){setPesoFinal(e.target.value);}} error={errors.pesoFinal} placeholder="0,00"/>
+        </div>
+        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          {chip('Arena (%)',pctArena)}
+          {chip('Arcilla (%)',pctArcilla)}
+        </div>
+        <div style={{marginTop:8,fontSize:'.78rem',color:'var(--text-secondary)'}}>
+          Arena % = Peso Final / Peso Inicial × 100 · Arcilla % = 100 − Arena %
+        </div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Arcillas'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── LODOS PROCESO: masa #120 y PAN; calcula +#120 y PAN en % ── */
+function LodosCuarzoForm({account,onBack,onSuccess}){
+  var[fecha,setFecha]=useState(today());
+  var[hora,setHora]=useState(nowTime());
+  var[m120,setM120]=useState('');
+  var[mPan,setMPan]=useState('');
+  var[obs,setObs]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  var n120=parseDecimal(m120),nPan=parseDecimal(mPan);
+  var suma=(isNaN(n120)?0:n120)+(isNaN(nPan)?0:nPan);
+  var pct120=suma>0?((isNaN(n120)?0:n120)/suma*100):null;
+  var pctPan=suma>0?((isNaN(nPan)?0:nPan)/suma*100):null;
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!m120&&!mPan)e.masa='Ingrese al menos una masa (#120 o PAN)';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',producto:'LODOS_CZ',productoLabel:'Lodos Proceso',
+      tipoMuestra:'',numAcopio:'',
+      pesoInicial:'',pesoFinal:String(suma).replace('.',','),granu:[m120],pesoFondo:isNaN(nPan)?0:nPan,
+      pctHumedad:'',quimica:{},observaciones:obs,
+      extra:{hora:hora,mas120:pct120,pan:pctPan,suma:suma},
+    };
+    var ok=await enviarRegistrosCuarzo([data],account);
+    setSending(false);
+    onSuccess(ok?'Registro de lodos enviado exitosamente.':'Sin conexion: registro guardado localmente como pendiente.');
+  }
+
+  function chip(label,val){
+    return(
+      <div style={{padding:'10px 16px',borderRadius:10,minWidth:120,textAlign:'center',
+        background:'#f7fafc',border:'1.5px solid var(--border)'}}>
+        <div style={{fontSize:'.74rem',fontWeight:700,color:'var(--text-secondary)'}}>{label}</div>
+        <div style={{fontSize:'1.1rem',fontWeight:800}}>{val!=null?fmt(val,2)+' %':'—'}</div>
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <CzPageHdr onBack={onBack} sub="Lodos"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div className="fg fg-2">
+          <Field name="fechaLOC" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaLOC" label="Hora" type="time" value={hora}
+            onChange={function(e){setHora(e.target.value);}}/>
+        </div>
+      </SecCard>
+      <SecCard title="Masa (g)" icon="&#9878;&#65039;">
+        <div className="fg-quim">
+          <Field name="m120LOC" label="#120 (0,125 mm) g" type="decimal" value={m120}
+            onChange={function(e){setM120(e.target.value);}} placeholder="0,00"/>
+          <Field name="mpanLOC" label="PAN (g)" type="decimal" value={mPan}
+            onChange={function(e){setMPan(e.target.value);}} placeholder="0,00"/>
+          <div className="field">
+            <label>SUMA (g)<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" value={suma?fmt(suma,2):''} style={{fontWeight:700}}/>
+          </div>
+        </div>
+      </SecCard>
+      <SecCard title="ASTM (%)" icon="&#128202;">
+        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          {chip('+#120',pct120)}
+          {chip('PAN',pctPan)}
+        </div>
+      </SecCard>
+      <SecCard title="Observaciones" icon="&#128221;">
+        <Field name="obsLOC" label="Observaciones" type="textarea" value={obs}
+          onChange={function(e){if(e.target.value.length<=300)setObs(e.target.value);}}
+          placeholder="Observaciones adicionales (opcional)" maxLength={300}/>
+        <div className="cc">{obs.length}/300</div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Lodos'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── YACIMIENTO: granulometria por masa + quimica + % arcilla ── */
+function YacimientoForm({account,onBack,onSuccess}){
+  var[fecha,setFecha]=useState(today());
+  var[turno,setTurno]=useState('');
+  var[yac,setYac]=useState('');
+  var[sector,setSector]=useState('');
+  var[pesoInicial,setPesoInicial]=useState('');
+  var[pesoFinal,setPesoFinal]=useState('');
+  var[gv,setGv]=useState(Array((SIEVE_CONFIG['YACIMIENTO']||[]).length).fill(''));
+  var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
+  var[pctArcilla,setPctArcilla]=useState('');
+  var[obs,setObs]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+  var gc=useMemo(function(){return calcGranu('YACIMIENTO',gv,pesoFinal);},[gv,pesoFinal]);
+  function setQ(k){return function(e){setQuimica(function(p){var n=Object.assign({},p);n[k]=e.target.value;return n;});};}
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!yac)e.yac='Yacimiento requerido';
+    if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
+    if(!pesoFinal)e.pesoFinal='Peso final requerido';
+    if(pesoFinal&&!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var data={
+      id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:turno,analista:account?account.email:'',producto:'YACIMIENTO',productoLabel:'Yacimiento',
+      tipoMuestra:yac,numAcopio:sector,
+      pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
+      pctHumedad:'',quimica:quimica,observaciones:obs,
+      extra:{yacimiento:yac,sector:sector,pctArcilla:pctArcilla},
+    };
+    var ok=await enviarRegistrosCuarzo([data],account);
+    setSending(false);
+    onSuccess(ok?'Yacimiento registrado exitosamente.':'Sin conexion: registro guardado localmente como pendiente.');
+  }
+
+  return(
+    <div>
+      <CzPageHdr onBack={onBack} sub="Yacimiento"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaYAC" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Sel name="turnoYAC" label="Turno" options={TURNOS} value={turno}
+            onChange={function(e){setTurno(e.target.value);}}/>
+        </div>
+        <div className="fg fg-2">
+          <Field name="yacYAC" label="Yacimiento" required value={yac}
+            onChange={function(e){setYac(e.target.value);}} error={errors.yac} placeholder="Nombre del yacimiento"/>
+          <Field name="sectorYAC" label="Sector" value={sector}
+            onChange={function(e){setSector(e.target.value);}} placeholder="Sector / frente"/>
+        </div>
+      </SecCard>
+      <SecCard title="Pesos" icon="&#9878;&#65039;">
+        <div className="fg fg-2">
+          <Field name="piYAC" label="Peso Inicial (g)" type="decimal" required value={pesoInicial}
+            onChange={function(e){setPesoInicial(e.target.value);}} error={errors.pesoInicial} placeholder="0,00"/>
+          <Field name="pfYAC" label="Peso Final (g)" type="decimal" required value={pesoFinal}
+            onChange={function(e){setPesoFinal(e.target.value);}} error={errors.pesoFinal} placeholder="0,00"/>
+        </div>
+      </SecCard>
+      <SecCard title="Granulometria — Yacimiento" icon="&#128300;">
+        <GranuTable producto="YACIMIENTO" pesoFinal={pesoFinal} pesoInicial={pesoInicial} values={gv} onChange={updGv}/>
+        {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors.granu}
+        </div>}
+      </SecCard>
+      <SecCard title="Quimica (%)" icon="&#9879;&#65039;">
+        <div className="fg-quim">
+          <Field name="sio2YAC" label="SiO₂ (%)" type="decimal" value={quimica.sio2} onChange={setQ('sio2')} placeholder="0,00"/>
+          <Field name="al2o3YAC" label="Al₂O₃ (%)" type="decimal" value={quimica.al2o3} onChange={setQ('al2o3')} placeholder="0,00"/>
+          <Field name="fe2o3YAC" label="Fe₂O₃ (%)" type="decimal" value={quimica.fe2o3} onChange={setQ('fe2o3')} placeholder="0,00"/>
+          <Field name="caoYAC" label="CaO (%)" type="decimal" value={quimica.cao} onChange={setQ('cao')} placeholder="0,00"/>
+          <Field name="mgoYAC" label="MgO (%)" type="decimal" value={quimica.mgo} onChange={setQ('mgo')} placeholder="0,00"/>
+          <Field name="k2oYAC" label="K₂O (%)" type="decimal" value={quimica.k2o} onChange={setQ('k2o')} placeholder="0,00"/>
+          <Field name="na2oYAC" label="Na₂O (%)" type="decimal" value={quimica.na2o} onChange={setQ('na2o')} placeholder="0,00"/>
+          <Field name="tio2YAC" label="TiO₂ (%)" type="decimal" value={quimica.tio2} onChange={setQ('tio2')} placeholder="0,00"/>
+          <Field name="arcYAC" label="% Arcilla" type="decimal" value={pctArcilla}
+            onChange={function(e){setPctArcilla(e.target.value);}} placeholder="0,00"/>
+        </div>
+      </SecCard>
+      <SecCard title="Observaciones" icon="&#128221;">
+        <Field name="obsYAC" label="Observaciones" type="textarea" value={obs}
+          onChange={function(e){if(e.target.value.length<=300)setObs(e.target.value);}}
+          placeholder="Observaciones adicionales (opcional)" maxLength={300}/>
+        <div className="cc">{obs.length}/300</div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Yacimiento'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── CHANCADOR: Entrada + Salida (dos registros) por masa + CONTROL manual ── */
+function ChancadorForm({account,onBack,onSuccess}){
+  var sieves=SIEVE_CONFIG['CHANC_ENT']||[];
+  var[fecha,setFecha]=useState(today());
+  var[hora,setHora]=useState(nowTime());
+  var[gvE,setGvE]=useState(Array(sieves.length).fill(''));
+  var[panE,setPanE]=useState('');
+  var[ctrlE,setCtrlE]=useState('');
+  var[gvS,setGvS]=useState(Array(sieves.length).fill(''));
+  var[panS,setPanS]=useState('');
+  var[ctrlS,setCtrlS]=useState('');
+  var[obs,setObs]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function upd(setter){return function(i,v){setter(function(p){var n=p.slice();n[i]=v;return n;});};}
+  var updE=upd(setGvE),updS=upd(setGvS);
+  function total(arr,pan){
+    var t=arr.reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0);
+    var pn=parseDecimal(pan);return t+(isNaN(pn)?0:pn);
+  }
+  var totE=total(gvE,panE),totS=total(gvS,panS);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!gvE.some(function(v){return v!=='';})&&!panE)e.entrada='Ingrese la granulometria de entrada';
+    if(!gvS.some(function(v){return v!=='';})&&!panS)e.salida='Ingrese la granulometria de salida';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var base={fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',pctHumedad:'',quimica:{},observaciones:obs};
+    var recE=Object.assign({},base,{id:uid(),producto:'CHANC_ENT',productoLabel:'Chancador Entrada',
+      tipoMuestra:'Entrada',numAcopio:'',pesoInicial:'',pesoFinal:String(totE).replace('.',','),
+      granu:gvE,pesoFondo:parseDecimal(panE)||0,extra:{punto:'Entrada',control:ctrlE,hora:hora}});
+    var recS=Object.assign({},base,{id:uid(),producto:'CHANC_SAL',productoLabel:'Chancador Salida',
+      tipoMuestra:'Salida',numAcopio:'',pesoInicial:'',pesoFinal:String(totS).replace('.',','),
+      granu:gvS,pesoFondo:parseDecimal(panS)||0,extra:{punto:'Salida',control:ctrlS,hora:hora}});
+    var ok=await enviarRegistrosCuarzo([recE,recS],account);
+    setSending(false);
+    onSuccess(ok?'Chancador (entrada y salida) registrado exitosamente.':'Sin conexion: registro(s) guardado(s) localmente como pendiente(s).');
+  }
+
+  function granuGrid(label,arr,updFn,pan,setPan,tot,ctrl,setCtrl,errKey){
+    return(
+      <SecCard title={label} icon="&#128300;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return <Field key={s.us} name={errKey+i} label={s.us+' ('+s.mm+' mm) g'} type="decimal"
+              value={arr[i]} onChange={function(e){updFn(i,e.target.value);}} placeholder="0,00"/>;
+          })}
+          <Field name={errKey+'pan'} label="PAN (g)" type="decimal" value={pan}
+            onChange={function(e){setPan(e.target.value);}} placeholder="0,00"/>
+          <div className="field">
+            <label>TOTAL (g)<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" value={tot?fmt(tot,2):''} style={{fontWeight:700}}/>
+          </div>
+          <Field name={errKey+'ctrl'} label="Control" type="decimal" value={ctrl}
+            onChange={function(e){setCtrl(e.target.value);}} placeholder="0,00"/>
+        </div>
+        {errors[errKey]&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors[errKey]}
+        </div>}
+      </SecCard>
+    );
+  }
+
+  return(
+    <div>
+      <CzPageHdr onBack={onBack} sub="Chancador — Entrada y Salida"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div className="fg fg-2">
+          <Field name="fechaCH" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaCH" label="Hora" type="time" value={hora}
+            onChange={function(e){setHora(e.target.value);}}/>
+        </div>
+      </SecCard>
+      {granuGrid('Entrada Chancador (g)',gvE,updE,panE,setPanE,totE,ctrlE,setCtrlE,'entrada')}
+      {granuGrid('Salida Chancador (g)',gvS,updS,panS,setPanS,totS,ctrlS,setCtrlS,'salida')}
+      <SecCard title="Observaciones" icon="&#128221;">
+        <Field name="obsCH" label="Observaciones" type="textarea" value={obs}
+          onChange={function(e){if(e.target.value.length<=300)setObs(e.target.value);}}
+          placeholder="Observaciones adicionales (opcional)" maxLength={300}/>
+        <div className="cc">{obs.length}/300</div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar Chancador'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── VSI: Entrada + Salida (dos registros) + Alim. Cuarzo/Integral, Humedad Entrante ── */
+function VsiForm({account,onBack,onSuccess}){
+  var sieves=SIEVE_CONFIG['VSI_ENT']||[];
+  var[fecha,setFecha]=useState(today());
+  var[hora,setHora]=useState(nowTime());
+  var[alimCuarzo,setAlimCuarzo]=useState('');
+  var[alimIntegral,setAlimIntegral]=useState('');
+  var[humedadEnt,setHumedadEnt]=useState('');
+  var[gvE,setGvE]=useState(Array(sieves.length).fill(''));
+  var[panE,setPanE]=useState('');
+  var[ctrlE,setCtrlE]=useState('');var[mas6E,setMas6E]=useState('');var[menos6E,setMenos6E]=useState('');
+  var[gvS,setGvS]=useState(Array(sieves.length).fill(''));
+  var[panS,setPanS]=useState('');
+  var[ctrlS,setCtrlS]=useState('');var[mas6S,setMas6S]=useState('');var[menos6S,setMenos6S]=useState('');
+  var[obs,setObs]=useState('');
+  var[errors,setErrors]=useState({});
+  var[sending,setSending]=useState(false);
+
+  function upd(setter){return function(i,v){setter(function(p){var n=p.slice();n[i]=v;return n;});};}
+  var updE=upd(setGvE),updS=upd(setGvS);
+  function total(arr,pan){
+    var t=arr.reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0);
+    var pn=parseDecimal(pan);return t+(isNaN(pn)?0:pn);
+  }
+  var totE=total(gvE,panE),totS=total(gvS,panS);
+
+  function validate(){
+    var e={};
+    if(!fecha)e.fecha='Fecha requerida';
+    if(!gvE.some(function(v){return v!=='';})&&!panE)e.entrada='Ingrese la granulometria de entrada';
+    if(!gvS.some(function(v){return v!=='';})&&!panS)e.salida='Ingrese la granulometria de salida';
+    return e;
+  }
+
+  async function handleSend(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
+    setErrors({});setSending(true);
+    var now=new Date();
+    var base={fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
+      turno:'',analista:account?account.email:'',pctHumedad:humedadEnt,quimica:{},observaciones:obs};
+    var cab={alimCuarzo:alimCuarzo,alimIntegral:alimIntegral,humedadEntrante:humedadEnt,hora:hora};
+    var recE=Object.assign({},base,{id:uid(),producto:'VSI_ENT',productoLabel:'VSI Entrada',
+      tipoMuestra:'Entrada',numAcopio:'',pesoInicial:'',pesoFinal:String(totE).replace('.',','),
+      granu:gvE,pesoFondo:parseDecimal(panE)||0,
+      extra:Object.assign({punto:'Entrada',control:ctrlE,mas6:mas6E,menos6:menos6E},cab)});
+    var recS=Object.assign({},base,{id:uid(),producto:'VSI_SAL',productoLabel:'VSI Salida',
+      tipoMuestra:'Salida',numAcopio:'',pesoInicial:'',pesoFinal:String(totS).replace('.',','),
+      granu:gvS,pesoFondo:parseDecimal(panS)||0,
+      extra:Object.assign({punto:'Salida',control:ctrlS,mas6:mas6S,menos6:menos6S},cab)});
+    var ok=await enviarRegistrosCuarzo([recE,recS],account);
+    setSending(false);
+    onSuccess(ok?'VSI (entrada y salida) registrado exitosamente.':'Sin conexion: registro(s) guardado(s) localmente como pendiente(s).');
+  }
+
+  function granuGrid(label,arr,updFn,pan,setPan,tot,ctrl,setCtrl,mas6,setMas6,menos6,setMenos6,errKey){
+    return(
+      <SecCard title={label} icon="&#128300;">
+        <div className="fg-quim">
+          {sieves.map(function(s,i){
+            return <Field key={s.us} name={errKey+i} label={s.us+' ('+s.mm+' mm) g'} type="decimal"
+              value={arr[i]} onChange={function(e){updFn(i,e.target.value);}} placeholder="0,00"/>;
+          })}
+          <Field name={errKey+'pan'} label="PAN (g)" type="decimal" value={pan}
+            onChange={function(e){setPan(e.target.value);}} placeholder="0,00"/>
+          <div className="field">
+            <label>TOTAL (g)<span className="calc-badge">Calculado</span></label>
+            <input type="text" readOnly className="f-ro" value={tot?fmt(tot,2):''} style={{fontWeight:700}}/>
+          </div>
+          <Field name={errKey+'ctrl'} label="Control" type="decimal" value={ctrl}
+            onChange={function(e){setCtrl(e.target.value);}} placeholder="0,00"/>
+          <Field name={errKey+'mas6'} label="+#6 (%)" type="decimal" value={mas6}
+            onChange={function(e){setMas6(e.target.value);}} placeholder="0,00"/>
+          <Field name={errKey+'menos6'} label="-#6 (%)" type="decimal" value={menos6}
+            onChange={function(e){setMenos6(e.target.value);}} placeholder="0,00"/>
+        </div>
+        {errors[errKey]&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>
+          Aviso: {errors[errKey]}
+        </div>}
+      </SecCard>
+    );
+  }
+
+  return(
+    <div>
+      <CzPageHdr onBack={onBack} sub="VSI — Entrada y Salida"/>
+      <TurcoErrBox errors={errors}/>
+      <SecCard title="Informacion General" icon="&#128203;">
+        <div className="fg fg-2" style={{marginBottom:14}}>
+          <Field name="fechaVSI" label="Fecha" type="date" required value={fecha}
+            onChange={function(e){setFecha(e.target.value);}} error={errors.fecha}/>
+          <Field name="horaVSI" label="Hora" type="time" value={hora}
+            onChange={function(e){setHora(e.target.value);}}/>
+        </div>
+        <div className="fg-quim">
+          <Field name="acVSI" label="Alim. Cuarzo" type="decimal" value={alimCuarzo}
+            onChange={function(e){setAlimCuarzo(e.target.value);}} placeholder="0,00"/>
+          <Field name="aiVSI" label="Alim. Integral" type="decimal" value={alimIntegral}
+            onChange={function(e){setAlimIntegral(e.target.value);}} placeholder="0,00"/>
+          <Field name="heVSI" label="Humedad Entrante (%)" type="decimal" value={humedadEnt}
+            onChange={function(e){setHumedadEnt(e.target.value);}} placeholder="0,00"/>
+        </div>
+      </SecCard>
+      {granuGrid('Entrada VSI (g)',gvE,updE,panE,setPanE,totE,ctrlE,setCtrlE,mas6E,setMas6E,menos6E,setMenos6E,'entrada')}
+      {granuGrid('Salida VSI (g)',gvS,updS,panS,setPanS,totS,ctrlS,setCtrlS,mas6S,setMas6S,menos6S,setMenos6S,'salida')}
+      <SecCard title="Observaciones" icon="&#128221;">
+        <Field name="obsVSI" label="Observaciones" type="textarea" value={obs}
+          onChange={function(e){if(e.target.value.length<=300)setObs(e.target.value);}}
+          placeholder="Observaciones adicionales (opcional)" maxLength={300}/>
+        <div className="cc">{obs.length}/300</div>
+      </SecCard>
+      <div className="form-actions">
+        <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
+        <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
+          {sending?'Enviando...':'Registrar VSI'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CuarzoForm({account,onBack,onSuccess}){
+  var[proc,setProc]=useState(null);
+  function back(){setProc(null);}
+  if(proc==='YACIMIENTO')return <YacimientoForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(proc==='ARCILLAS')return <ArcillasForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(proc==='LODOS_CZ')return <LodosCuarzoForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(proc==='CHANCADOR')return <ChancadorForm account={account} onBack={back} onSuccess={onSuccess}/>;
+  if(proc==='VSI')return <VsiForm account={account} onBack={back} onSuccess={onSuccess}/>;
   return <PlantaForm account={account} onBack={onBack} onSuccess={onSuccess}
     plantaLabel="Planta Cuarzo" products={CUARZO_PRODUCTS}
-    lsGet={getPendingCuarzo} lsAdd={addPendingCuarzo} lsDel={delPendingCuarzo}/>;
+    lsGet={getPendingCuarzo} lsAdd={addPendingCuarzo} lsDel={delPendingCuarzo}
+    otrosGroup={{
+      label:'Proceso Cuarzo',icon:'⚙️',color:'#b7791f',
+      inline:[],nav:CUARZO_PROC_NAV,onNav:setProc,
+    }}/>;
 }
 
 var ACOPIO_OPTS=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia'];
