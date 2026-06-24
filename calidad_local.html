@@ -9522,6 +9522,7 @@ function DashboardScreen({
   var [showMA, setShowMA] = useState(false);
   var [showAvg, setShowAvg] = useState(true);
   var [showLims, setShowLims] = useState(true);
+  var [selIdx, setSelIdx] = useState(null); // muestra seleccionada (null = ultima)
   var [filterTipoMuestra, setFilterTipoMuestra] = useState(['Puntual', 'Acopio']);
   var [filterNumAcopio, setFilterNumAcopio] = useState(ACOPIO_OPTS.slice());
   // chart refs — granu curves
@@ -10221,6 +10222,11 @@ function DashboardScreen({
     });
     return f && f.valor != null && !isNaN(f.valor) ? f.valor : null;
   }
+
+  // Al cambiar el set filtrado (producto, mes, turno...) vuelve a la ultima muestra
+  useEffect(function () {
+    setSelIdx(null);
+  }, [filtered]);
   var ctrlStats = useMemo(function () {
     return allCtrls.map(function (ctrl) {
       var valsRaw = filtered.map(function (r, i) {
@@ -10235,8 +10241,16 @@ function DashboardScreen({
         return v !== null && !isNaN(v);
       });
       var n = vals.length;
-      var last = n ? vals[n - 1] : null,
-        prev = n > 1 ? vals[n - 2] : null;
+      // muestra seleccionada (clic en grafico); null = ultima
+      var selI = selIdx != null && selIdx >= 0 && selIdx < valsRaw.length ? selIdx : valsRaw.length - 1;
+      var last = selI >= 0 && valsRaw[selI] != null && !isNaN(valsRaw[selI]) ? valsRaw[selI] : null;
+      var prev = null;
+      for (var pj = selI - 1; pj >= 0; pj--) {
+        if (valsRaw[pj] != null && !isNaN(valsRaw[pj])) {
+          prev = valsRaw[pj];
+          break;
+        }
+      }
       var last5 = vals.slice(-5);
       var ult5N = last5.length;
       var avg5 = ult5N ? last5.reduce(function (a, b) {
@@ -10272,7 +10286,7 @@ function DashboardScreen({
         perVar: last != null && perAvg != null ? last - perAvg : null
       });
     });
-  }, [filteredStats, filtered, prod, allCtrls, turcoRecInds]);
+  }, [filteredStats, filtered, prod, allCtrls, turcoRecInds, selIdx]);
   var granuCurveData = useMemo(function () {
     var sieves = SIEVE_CONFIG[prod] || [];
     if (!sieves.length) return {
@@ -10282,7 +10296,8 @@ function DashboardScreen({
       avgPar: [],
       avgPas: []
     };
-    var lastSt = filteredStats.length ? filteredStats[filteredStats.length - 1] : null;
+    var selI = selIdx != null && selIdx >= 0 && selIdx < filteredStats.length ? selIdx : filteredStats.length - 1;
+    var lastSt = selI >= 0 ? filteredStats[selI] : null;
     var allSts = filteredStats.filter(Boolean);
     return {
       labels: sieves.map(function (s) {
@@ -10315,12 +10330,13 @@ function DashboardScreen({
         }, 0) / vs.length).toFixed(2) : null;
       })
     };
-  }, [filteredStats, filtered, prod]);
+  }, [filteredStats, filtered, prod, selIdx]);
   var granuTableData = useMemo(function () {
     var sieves = SIEVE_CONFIG[prod] || [];
     var ps = getSpecs(prod),
       gs = ps ? ps.granulometria : {};
-    var lastSt = filteredStats.length ? filteredStats[filteredStats.length - 1] : null;
+    var selI = selIdx != null && selIdx >= 0 && selIdx < filteredStats.length ? selIdx : filteredStats.length - 1;
+    var lastSt = selI >= 0 ? filteredStats[selI] : null;
     var allSts = filteredStats.filter(Boolean);
     return sieves.map(function (s) {
       var ls = lastSt ? lastSt[s.us] : null;
@@ -10356,7 +10372,7 @@ function DashboardScreen({
         semP: g && (g.pasMax != null || g.pasMin != null) ? calcSemaforo(ls ? ls.pctPas : null, g.pasMin, g.pasMax) : 'info'
       };
     });
-  }, [filteredStats, filtered, prod]);
+  }, [filteredStats, filtered, prod, selIdx]);
 
   // === CHART: Granulometric Curves ===
   useEffect(function () {
@@ -10419,7 +10435,7 @@ function DashboardScreen({
       });
     }
     var dsPar = [{
-      label: 'Último ensayo',
+      label: 'Muestra seleccionada',
       data: granuCurveData.lastPar,
       borderColor: '#1a5276',
       backgroundColor: '#1a527622',
@@ -10429,7 +10445,7 @@ function DashboardScreen({
       spanGaps: true
     }];
     var dsPas = [{
-      label: 'Último ensayo',
+      label: 'Muestra seleccionada',
       data: granuCurveData.lastPas,
       borderColor: '#1a5276',
       backgroundColor: '#1a527622',
@@ -10540,6 +10556,7 @@ function DashboardScreen({
     var tLbls = filtered.map(function (r) {
       return fmtXDate(r.FechaMuestreo || r.fecha);
     });
+    var selI = selIdx != null && selIdx >= 0 && selIdx < filtered.length ? selIdx : filtered.length - 1;
     allCtrls.forEach(function (ctrl, i) {
       if (i >= 6 || !trList[i] || !trList[i].current) return;
       var vals = filtered.map(function (r, ri) {
@@ -10569,7 +10586,15 @@ function DashboardScreen({
         borderColor: ctrl.color,
         backgroundColor: 'transparent',
         borderWidth: 1.5,
-        pointRadius: 3,
+        pointRadius: vals.map(function (v, j) {
+          return j === selI ? 7 : 3;
+        }),
+        pointBorderColor: vals.map(function (v, j) {
+          return j === selI ? '#111' : 'transparent';
+        }),
+        pointBorderWidth: vals.map(function (v, j) {
+          return j === selI ? 2 : 0;
+        }),
         pointBackgroundColor: semC,
         tension: .3,
         spanGaps: true
@@ -10633,6 +10658,16 @@ function DashboardScreen({
           },
           responsive: true,
           maintainAspectRatio: false,
+          onClick: function (evt, els, chart) {
+            var c = chart || this;
+            var pts = c.getElementsAtEventForMode(evt, 'index', {
+              intersect: false
+            }, true);
+            if (pts && pts.length) {
+              var ix = pts[0].index != null ? pts[0].index : pts[0]._index;
+              if (ix != null) setSelIdx(ix);
+            }
+          },
           plugins: {
             legend: {
               display: false
@@ -10669,7 +10704,7 @@ function DashboardScreen({
         }
       });
     };
-  }, [tab, filtered, prod, maWin, allCtrls, showMA, showAvg, showLims, turcoRecInds]);
+  }, [tab, filtered, prod, maWin, allCtrls, showMA, showAvg, showLims, turcoRecInds, selIdx]);
 
   // === CHART: Comparador (retenido parcial promedio A vs B) ===
   useEffect(function () {
@@ -11788,7 +11823,48 @@ function DashboardScreen({
       background: '#fff',
       paddingBottom: 6
     }
-  }, expHdr(), hasSpecs && /*#__PURE__*/React.createElement("div", {
+  }, expHdr(), filtered.length > 0 && function () {
+    var si = selIdx != null && selIdx >= 0 && selIdx < filtered.length ? selIdx : filtered.length - 1;
+    var r = filtered[si] || {};
+    var f = fmtXDate(r.FechaMuestreo || r.fecha);
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+        background: selIdx != null ? '#eaf4ff' : '#f7fafc',
+        border: '1px solid ' + (selIdx != null ? '#90caf9' : 'var(--border)'),
+        borderRadius: 10,
+        padding: '8px 14px',
+        marginBottom: 14
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '.86rem'
+      }
+    }, /*#__PURE__*/React.createElement("b", null, "Muestra:"), " ", f, r.Folio ? ' · Folio ' + r.Folio : '', r.Analista ? ' · ' + r.Analista : '', /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--text-secondary)'
+      }
+    }, " (", si + 1, "/", filtered.length, ")")), selIdx != null && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      style: {
+        padding: '4px 12px',
+        minHeight: 0,
+        fontSize: '.78rem'
+      },
+      onClick: function () {
+        setSelIdx(null);
+      }
+    }, "↻ Última"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '.74rem',
+        color: 'var(--text-secondary)',
+        marginLeft: 'auto'
+      }
+    }, "Toca un punto de los gráficos de tendencia para cambiarla"));
+  }(), hasSpecs && /*#__PURE__*/React.createElement("div", {
     className: "kpi4-grid"
   }, ctrlStats.slice(0, 4).map(function (k, i) {
     var bd = k.sem === 'ok' ? 'bd-ok' : k.sem === 'warning' ? 'bd-warn' : k.sem === 'error' ? 'bd-err' : '';

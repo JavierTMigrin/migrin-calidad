@@ -4596,6 +4596,7 @@ function DashboardScreen({account,onBack}){
   var[showMA,setShowMA]=useState(false);
   var[showAvg,setShowAvg]=useState(true);
   var[showLims,setShowLims]=useState(true);
+  var[selIdx,setSelIdx]=useState(null); // muestra seleccionada (null = ultima)
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
   var[filterNumAcopio,setFilterNumAcopio]=useState(ACOPIO_OPTS.slice());
   // chart refs — granu curves
@@ -5044,6 +5045,9 @@ function DashboardScreen({account,onBack}){
     return f&&f.valor!=null&&!isNaN(f.valor)?f.valor:null;
   }
 
+  // Al cambiar el set filtrado (producto, mes, turno...) vuelve a la ultima muestra
+  useEffect(function(){setSelIdx(null);},[filtered]);
+
   var ctrlStats=useMemo(function(){
     return allCtrls.map(function(ctrl){
       var valsRaw=filtered.map(function(r,i){
@@ -5055,7 +5059,10 @@ function DashboardScreen({account,onBack}){
       });
       var vals=valsRaw.filter(function(v){return v!==null&&!isNaN(v);});
       var n=vals.length;
-      var last=n?vals[n-1]:null,prev=n>1?vals[n-2]:null;
+      // muestra seleccionada (clic en grafico); null = ultima
+      var selI=(selIdx!=null&&selIdx>=0&&selIdx<valsRaw.length)?selIdx:valsRaw.length-1;
+      var last=(selI>=0&&valsRaw[selI]!=null&&!isNaN(valsRaw[selI]))?valsRaw[selI]:null;
+      var prev=null;for(var pj=selI-1;pj>=0;pj--){if(valsRaw[pj]!=null&&!isNaN(valsRaw[pj])){prev=valsRaw[pj];break;}}
       var last5=vals.slice(-5);
       var ult5N=last5.length;
       var avg5=ult5N?last5.reduce(function(a,b){return a+b;},0)/ult5N:null;
@@ -5071,12 +5078,13 @@ function DashboardScreen({account,onBack}){
         perVar:last!=null&&perAvg!=null?last-perAvg:null,
       });
     });
-  },[filteredStats,filtered,prod,allCtrls,turcoRecInds]);
+  },[filteredStats,filtered,prod,allCtrls,turcoRecInds,selIdx]);
 
   var granuCurveData=useMemo(function(){
     var sieves=SIEVE_CONFIG[prod]||[];
     if(!sieves.length)return{labels:[],lastPar:[],lastPas:[],avgPar:[],avgPas:[]};
-    var lastSt=filteredStats.length?filteredStats[filteredStats.length-1]:null;
+    var selI=(selIdx!=null&&selIdx>=0&&selIdx<filteredStats.length)?selIdx:filteredStats.length-1;
+    var lastSt=selI>=0?filteredStats[selI]:null;
     var allSts=filteredStats.filter(Boolean);
     return{
       labels:sieves.map(function(s){return s.us;}),
@@ -5091,12 +5099,13 @@ function DashboardScreen({account,onBack}){
         return vs.length?+(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(2):null;
       }),
     };
-  },[filteredStats,filtered,prod]);
+  },[filteredStats,filtered,prod,selIdx]);
 
   var granuTableData=useMemo(function(){
     var sieves=SIEVE_CONFIG[prod]||[];
     var ps=getSpecs(prod),gs=ps?ps.granulometria:{};
-    var lastSt=filteredStats.length?filteredStats[filteredStats.length-1]:null;
+    var selI=(selIdx!=null&&selIdx>=0&&selIdx<filteredStats.length)?selIdx:filteredStats.length-1;
+    var lastSt=selI>=0?filteredStats[selI]:null;
     var allSts=filteredStats.filter(Boolean);
     return sieves.map(function(s){
       var ls=lastSt?lastSt[s.us]:null;
@@ -5112,7 +5121,7 @@ function DashboardScreen({account,onBack}){
         semA:g&&(g.retMax!=null||g.retMin!=null)?calcSemaforo(ls?ls.pctA:null,g.retMin,g.retMax):'info',
         semP:g&&(g.pasMax!=null||g.pasMin!=null)?calcSemaforo(ls?ls.pctPas:null,g.pasMin,g.pasMax):'info'};
     });
-  },[filteredStats,filtered,prod]);
+  },[filteredStats,filtered,prod,selIdx]);
 
   // === CHART: Granulometric Curves ===
   useEffect(function(){
@@ -5127,10 +5136,10 @@ function DashboardScreen({account,onBack}){
           scales:{x:{ticks:{font:{size:8,family:'Inter'},maxRotation:45}},y:{min:0,max:100,ticks:{font:{size:9,family:'Inter'}}}}}});
     }
     var dsPar=[
-      {label:'Último ensayo',data:granuCurveData.lastPar,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
+      {label:'Muestra seleccionada',data:granuCurveData.lastPar,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
     ];
     var dsPas=[
-      {label:'Último ensayo',data:granuCurveData.lastPas,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
+      {label:'Muestra seleccionada',data:granuCurveData.lastPas,borderColor:'#1a5276',backgroundColor:'#1a527622',borderWidth:2,pointRadius:4,tension:.3,spanGaps:true},
     ];
     if(showAvg){
       dsPar.push({label:'Prom.período',data:granuCurveData.avgPar,borderColor:'#888',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,tension:.3,spanGaps:true,borderDash:[4,2]});
@@ -5155,6 +5164,7 @@ function DashboardScreen({account,onBack}){
     var trList=[tr0,tr1,tr2,tr3,tr4,tr5];
     tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});
     var tLbls=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
+    var selI=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
     allCtrls.forEach(function(ctrl,i){
       if(i>=6||!trList[i]||!trList[i].current)return;
       var vals=filtered.map(function(r,ri){
@@ -5169,7 +5179,11 @@ function DashboardScreen({account,onBack}){
       var pAvg=vld.length?vld.reduce(function(a,b){return a+b;},0)/vld.length:null;
       var semC=vals.map(function(v){return SEM_COLOR[calcSemaforo(v,ctrl.limMin,ctrl.limMax)]||'#888';});
       var ds=[
-        {label:ctrl.label,data:vals,borderColor:ctrl.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,pointBackgroundColor:semC,tension:.3,spanGaps:true},
+        {label:ctrl.label,data:vals,borderColor:ctrl.color,backgroundColor:'transparent',borderWidth:1.5,
+          pointRadius:vals.map(function(v,j){return j===selI?7:3;}),
+          pointBorderColor:vals.map(function(v,j){return j===selI?'#111':'transparent';}),
+          pointBorderWidth:vals.map(function(v,j){return j===selI?2:0;}),
+          pointBackgroundColor:semC,tension:.3,spanGaps:true},
       ];
       if(showMA)ds.push({label:'MA'+maWin,data:ma,borderColor:'#e67e22',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
       if(showAvg)ds.push({label:'Prom.',data:vals.map(function(){return pAvg;}),borderColor:'#aaa',backgroundColor:'transparent',borderWidth:1,pointRadius:0,spanGaps:true,borderDash:[3,3]});
@@ -5178,11 +5192,16 @@ function DashboardScreen({account,onBack}){
       tInsts.current[i]=new window.Chart(trList[i].current,{type:'line',
         data:{labels:tLbls,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          onClick:function(evt,els,chart){
+            var c=chart||this;
+            var pts=c.getElementsAtEventForMode(evt,'index',{intersect:false},true);
+            if(pts&&pts.length){var ix=pts[0].index!=null?pts[0].index:pts[0]._index;if(ix!=null)setSelIdx(ix);}
+          },
           plugins:{legend:{display:false}},
           scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8,family:'Inter'}}}}}});
     });
     return function(){tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});};
-  },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims,turcoRecInds]);
+  },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims,turcoRecInds,selIdx]);
 
   // === CHART: Comparador (retenido parcial promedio A vs B) ===
   useEffect(function(){
@@ -5713,6 +5732,30 @@ function DashboardScreen({account,onBack}){
               {/* ══ PÁGINA 1 ══ */}
               <div id="export-page1" style={{background:'#fff',paddingBottom:6}}>
                 {expHdr()}
+
+                {/* Barra de muestra seleccionada (clic en grafico de tendencia) */}
+                {filtered.length>0&&(function(){
+                  var si=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
+                  var r=filtered[si]||{};
+                  var f=fmtXDate(r.FechaMuestreo||r.fecha);
+                  return(
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
+                      background:selIdx!=null?'#eaf4ff':'#f7fafc',border:'1px solid '+(selIdx!=null?'#90caf9':'var(--border)'),
+                      borderRadius:10,padding:'8px 14px',marginBottom:14}}>
+                      <span style={{fontSize:'.86rem'}}>
+                        <b>Muestra:</b> {f}{r.Folio?' · Folio '+r.Folio:''}{r.Analista?' · '+r.Analista:''}
+                        <span style={{color:'var(--text-secondary)'}}> ({si+1}/{filtered.length})</span>
+                      </span>
+                      {selIdx!=null&&(
+                        <button className="btn btn-secondary" style={{padding:'4px 12px',minHeight:0,fontSize:'.78rem'}}
+                          onClick={function(){setSelIdx(null);}}>&#8635; Última</button>
+                      )}
+                      <span style={{fontSize:'.74rem',color:'var(--text-secondary)',marginLeft:'auto'}}>
+                        Toca un punto de los gráficos de tendencia para cambiarla
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* KPIs 4 tarjetas */}
                 {hasSpecs&&(
