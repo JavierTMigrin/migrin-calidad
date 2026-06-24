@@ -5012,14 +5012,15 @@ function DashboardScreen({account,onBack}){
       var n=vld.length;
       var avg=n?vld.reduce(function(a,b){return a+b;},0)/n:null;
       var std=n>1?Math.sqrt(vld.reduce(function(a,b){return a+Math.pow(b-avg,2);},0)/(n-1)):null;
-      var last=null;for(var i=vals.length-1;i>=0;i--){if(vals[i]!=null){last=vals[i];break;}}
+      var selI=(selIdx!=null&&selIdx>=0&&selIdx<vals.length)?selIdx:vals.length-1;
+      var last=(selI>=0&&vals[selI]!=null)?vals[selI]:null;
       var ma=movAvg(vals,maWin);
       var lastMa=null;for(var j=ma.length-1;j>=0;j--){if(ma[j]!=null){lastMa=ma[j];break;}}
       return{ctrl:c,vals:vals,ma:ma,n:n,avg:avg,std:std,last:last,lastMa:lastMa,
         min:n?Math.min.apply(null,vld):null,max:n?Math.max.apply(null,vld):null,
         sem:calcSemaforo(last,c.limMin,c.limMax)};
     });
-  },[chemActive,filtered,maWin]);
+  },[chemActive,filtered,maWin,selIdx]);
 
   var allCtrls=useMemo(function(){
     var ps=getSpecs(prod);
@@ -5231,6 +5232,7 @@ function DashboardScreen({account,onBack}){
       if(chemInsts.current[k]){chemInsts.current[k].destroy();chemInsts.current[k]=null;}
     });
     var lbs=filtered.map(function(r){return fmtXDate(r.FechaMuestreo||r.fecha);});
+    var selI=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
     chemStats.forEach(function(st){
       var el=chemRefs.current[st.ctrl.key];
       if(!el)return;
@@ -5238,7 +5240,10 @@ function DashboardScreen({account,onBack}){
       var semC=st.vals.map(function(v){return SEM_COLOR[calcSemaforo(v,c.limMin,c.limMax)]||'#888';});
       var ds=[
         {label:c.label,data:st.vals.map(function(v){return v!=null?+v.toFixed(3):null;}),
-          borderColor:c.color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,
+          borderColor:c.color,backgroundColor:'transparent',borderWidth:1.5,
+          pointRadius:st.vals.map(function(v,j){return j===selI?7:3;}),
+          pointBorderColor:st.vals.map(function(v,j){return j===selI?'#111':'transparent';}),
+          pointBorderWidth:st.vals.map(function(v,j){return j===selI?2:0;}),
           pointBackgroundColor:semC,tension:.3,spanGaps:true},
       ];
       if(showMA)ds.push({label:'MA'+maWin,data:st.ma,borderColor:'#e67e22',backgroundColor:'transparent',
@@ -5252,6 +5257,12 @@ function DashboardScreen({account,onBack}){
       chemInsts.current[st.ctrl.key]=new window.Chart(el,{type:'line',
         data:{labels:lbs,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          interaction:{mode:'index',intersect:false},
+          onClick:function(evt,els,chart){
+            var ix=(els&&els.length)?els[0].index:null;
+            if(ix==null){var cc=chart||this;var pp=cc.getElementsAtEventForMode(evt,'index',{intersect:false},true);if(pp&&pp.length)ix=(pp[0].index!=null?pp[0].index:pp[0]._index);}
+            if(ix!=null)setSelIdx(ix);
+          },
           plugins:{legend:{display:false}},
           scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},
                   y:{ticks:{font:{size:8,family:'Inter'}}}}}});
@@ -5261,7 +5272,7 @@ function DashboardScreen({account,onBack}){
         if(chemInsts.current[k]){chemInsts.current[k].destroy();chemInsts.current[k]=null;}
       });
     };
-  },[tab,chemStats,filtered,maWin,showMA,showAvg,showLims]);
+  },[tab,chemStats,filtered,maWin,showMA,showAvg,showLims,selIdx]);
 
   // === RENDER HELPERS ===
   function getTRef(i){return [tr0,tr1,tr2,tr3,tr4,tr5][i]||null;}
@@ -5276,6 +5287,39 @@ function DashboardScreen({account,onBack}){
     var isPos=isLow?v<0:v>0;
     var cls=v===0?'neu':isPos?'pos':'neg';
     return <span className={'tkp-vb '+cls}>{label} {(v>0?'+':'')+fmt(v,dp)}</span>;
+  }
+
+  function periodWord(){return periodType==='week'?'semana':periodType==='month'?'mes':periodType==='year'?'año':'período';}
+
+  // Barra selectora de muestra (compartida por Granulometria y Quimica)
+  function muestraSelBar(){
+    if(!filtered.length)return null;
+    var si=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
+    var btnSt={padding:'4px 10px',minHeight:0,fontSize:'1rem',lineHeight:1};
+    return(
+      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
+        background:selIdx!=null?'#eaf4ff':'#f7fafc',border:'1px solid '+(selIdx!=null?'#90caf9':'var(--border)'),
+        borderRadius:10,padding:'8px 12px',marginBottom:14}}>
+        <b style={{fontSize:'.86rem'}}>Muestra:</b>
+        <button className="btn btn-secondary" style={btnSt} disabled={si<=0}
+          onClick={function(){setSelIdx(Math.max(0,si-1));}}>&#9664;</button>
+        <select value={si} onChange={function(e){setSelIdx(parseInt(e.target.value,10));}}
+          style={{flex:'1 1 180px',minWidth:140,maxWidth:340,padding:'6px 8px',borderRadius:8,
+            border:'1px solid var(--border)',fontSize:'.82rem'}}>
+          {filtered.map(function(rec,j){
+            var ff=fmtXDate(rec.FechaMuestreo||rec.fecha);
+            return <option key={j} value={j}>{ff}{rec.Folio?(' · F'+rec.Folio):''}{rec.Analista?(' · '+rec.Analista):''}</option>;
+          })}
+        </select>
+        <button className="btn btn-secondary" style={btnSt} disabled={si>=filtered.length-1}
+          onClick={function(){setSelIdx(Math.min(filtered.length-1,si+1));}}>&#9654;</button>
+        <span style={{fontSize:'.78rem',color:'var(--text-secondary)'}}>{si+1}/{filtered.length}</span>
+        {selIdx!=null&&(
+          <button className="btn btn-secondary" style={{padding:'4px 12px',minHeight:0,fontSize:'.78rem'}}
+            onClick={function(){setSelIdx(null);}}>&#8635; Última</button>
+        )}
+      </div>
+    );
   }
 
   function kpiPanelRow(stat){
@@ -5734,35 +5778,7 @@ function DashboardScreen({account,onBack}){
               <div id="export-page1" style={{background:'#fff',paddingBottom:6}}>
                 {expHdr()}
 
-                {/* Barra selector de muestra (flechas + lista + clic en grafico) */}
-                {filtered.length>0&&(function(){
-                  var si=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
-                  var btnSt={padding:'4px 10px',minHeight:0,fontSize:'1rem',lineHeight:1};
-                  return(
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
-                      background:selIdx!=null?'#eaf4ff':'#f7fafc',border:'1px solid '+(selIdx!=null?'#90caf9':'var(--border)'),
-                      borderRadius:10,padding:'8px 12px',marginBottom:14}}>
-                      <b style={{fontSize:'.86rem'}}>Muestra:</b>
-                      <button className="btn btn-secondary" style={btnSt} disabled={si<=0}
-                        onClick={function(){setSelIdx(Math.max(0,si-1));}}>&#9664;</button>
-                      <select value={si} onChange={function(e){setSelIdx(parseInt(e.target.value,10));}}
-                        style={{flex:'1 1 180px',minWidth:140,maxWidth:340,padding:'6px 8px',borderRadius:8,
-                          border:'1px solid var(--border)',fontSize:'.82rem'}}>
-                        {filtered.map(function(rec,j){
-                          var ff=fmtXDate(rec.FechaMuestreo||rec.fecha);
-                          return <option key={j} value={j}>{ff}{rec.Folio?(' · F'+rec.Folio):''}{rec.Analista?(' · '+rec.Analista):''}</option>;
-                        })}
-                      </select>
-                      <button className="btn btn-secondary" style={btnSt} disabled={si>=filtered.length-1}
-                        onClick={function(){setSelIdx(Math.min(filtered.length-1,si+1));}}>&#9654;</button>
-                      <span style={{fontSize:'.78rem',color:'var(--text-secondary)'}}>{si+1}/{filtered.length}</span>
-                      {selIdx!=null&&(
-                        <button className="btn btn-secondary" style={{padding:'4px 12px',minHeight:0,fontSize:'.78rem'}}
-                          onClick={function(){setSelIdx(null);}}>&#8635; Última</button>
-                      )}
-                    </div>
-                  );
-                })()}
+                {muestraSelBar()}
 
                 {/* KPIs 4 tarjetas */}
                 {hasSpecs&&(
@@ -5775,6 +5791,7 @@ function DashboardScreen({account,onBack}){
                       <div key={i} className={'kpi4-card '+bd}>
                         <div className="kpi4-name">{k.label}</div>
                         <div className="kpi4-val" style={{color:sc}}>{k.last!=null?fmt(k.last,dp):'-'}</div>
+                        <div className="kpi4-lim" style={{fontWeight:700,color:'var(--text)'}}>Prom {periodWord()}: {k.perAvg!=null?fmt(k.perAvg,dp):'-'}{k.n?' (n='+k.n+')':''}</div>
                         <div className="kpi4-lim">{k.limMax!=null?'máx '+k.limMax:k.limMin!=null?'mín '+k.limMin:'informativo'}</div>
                         <div className="kpi4-sem" style={{color:sc}}>{SEM_ICON[k.sem]} {SEM_LABEL[k.sem]}</div>
                       </div>
@@ -5797,7 +5814,7 @@ function DashboardScreen({account,onBack}){
 
                 {/* Tabla granulométrica */}
                 <div className="sec-card" style={{marginBottom:0}}>
-                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Granulométrica — último ensayo vs promedio período</div>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Granulométrica — muestra seleccionada vs promedio período</div>
                   <div style={{padding:'10px 14px',overflowX:'auto'}}>
                     <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.74rem',minWidth:540}}>
                       <thead>
@@ -5981,8 +5998,9 @@ function DashboardScreen({account,onBack}){
           {tab==='quim'&&(
             <div>
               {lineTogglesBar()}
+              {muestraSelBar()}
 
-              {/* KPIs por oxido (ultimo valor vs EETT) */}
+              {/* KPIs por oxido (muestra seleccionada vs EETT) */}
               <div className="kpi4-grid" style={{marginBottom:16}}>
                 {chemStats.filter(function(st){return st.ctrl.limMin!=null||st.ctrl.limMax!=null;}).slice(0,4).map(function(st,i){
                   var c=st.ctrl;var sc=SEM_COLOR[st.sem]||'#999';
@@ -5991,6 +6009,7 @@ function DashboardScreen({account,onBack}){
                     <div key={i} className={'kpi4-card '+bd}>
                       <div className="kpi4-name">{c.label}</div>
                       <div className="kpi4-val" style={{color:sc}}>{st.last!=null?fmt(st.last,3):'-'}</div>
+                      <div className="kpi4-lim" style={{fontWeight:700,color:'var(--text)'}}>Prom {periodWord()}: {st.avg!=null?fmt(st.avg,3):'-'}{st.n?' (n='+st.n+')':''}</div>
                       <div className="kpi4-lim">
                         EETT: {c.limMax!=null&&c.limMin!=null?c.limMin+' – '+c.limMax:
                          c.limMax!=null?'≤ '+c.limMax:c.limMin!=null?'≥ '+c.limMin:'—'}
@@ -6005,7 +6024,7 @@ function DashboardScreen({account,onBack}){
               {/* Tabla de datos quimica */}
               {chemStats.length>0&&(
                 <div className="sec-card" style={{marginBottom:14}}>
-                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Química — último ensayo vs promedio período</div>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Tabla Química — muestra seleccionada vs promedio período</div>
                   <div style={{padding:'8px 14px',overflowX:'auto'}}>
                     <table className="dtbl" style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
                       <thead><tr style={{background:'var(--primary)',color:'#fff'}}>
