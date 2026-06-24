@@ -3,10 +3,12 @@
 // Asistente de consultas en lenguaje natural sobre la BD (text-to-SQL).
 // Pega TODO este archivo como el index.ts de la funcion en Supabase.
 //
-// En el panel: "Verify JWT" = OFF.
+// En el panel: "Verify JWT" = OFF (la validación de admin va en el código).
 // SECRETS requeridos:
 //   ANTHROPIC_API_KEY      = sk-ant-...
 //   READONLY_DATABASE_URL  = postgresql://ia_readonly:CLAVE@HOST:5432/postgres?sslmode=require
+//   SB_URL                 = https://wxjclxmtceuhlbwxtptc.supabase.co
+//   SB_SERVICE_ROLE        = service role key (Project Settings -> API)
 // ============================================================
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
@@ -165,6 +167,20 @@ function cors(origin: string | null) {
   };
 }
 
+// Verifica que quien llama sea un usuario ADMIN (rol en user_metadata.is_admin).
+async function verificarAdmin(req: Request): Promise<{ ok: boolean; status: number; motivo: string }> {
+  const sbUrl = Deno.env.get("SB_URL") ?? "";
+  const sbKey = Deno.env.get("SB_SERVICE_ROLE") ?? "";
+  if (!sbUrl || !sbKey) return { ok: false, status: 500, motivo: "Faltan secrets SB_URL / SB_SERVICE_ROLE." };
+  const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return { ok: false, status: 401, motivo: "No autenticado." };
+  const r = await fetch(`${sbUrl}/auth/v1/user`, { headers: { Authorization: `Bearer ${token}`, apikey: sbKey } });
+  if (!r.ok) return { ok: false, status: 401, motivo: "Sesión inválida o expirada." };
+  const user = await r.json();
+  if (user?.user_metadata?.is_admin === true) return { ok: true, status: 200, motivo: "" };
+  return { ok: false, status: 403, motivo: "Solo el administrador puede usar esta función." };
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const ch = { ...cors(origin), "Content-Type": "application/json; charset=utf-8" };
@@ -176,10 +192,16 @@ Deno.serve(async (req) => {
       estado: "activa",
       ANTHROPIC_API_KEY: (Deno.env.get("ANTHROPIC_API_KEY") ?? "") ? "presente" : "FALTA",
       READONLY_DATABASE_URL: (Deno.env.get("READONLY_DATABASE_URL") ?? "") ? "presente" : "FALTA",
+      SB_URL: (Deno.env.get("SB_URL") ?? "") ? "presente" : "FALTA",
+      SB_SERVICE_ROLE: (Deno.env.get("SB_SERVICE_ROLE") ?? "") ? "presente" : "FALTA",
     }, null, 2), { status: 200, headers: ch });
   }
 
   try {
+    // Candado: solo administradores
+    const adm = await verificarAdmin(req);
+    if (!adm.ok) return new Response(JSON.stringify({ error: adm.motivo }), { status: adm.status, headers: ch });
+
     const { pregunta } = await req.json();
     if (!pregunta || typeof pregunta !== "string") {
       return new Response(JSON.stringify({ error: "Falta 'pregunta' (texto)." }), { status: 400, headers: ch });
