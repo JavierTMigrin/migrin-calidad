@@ -5192,10 +5192,11 @@ function DashboardScreen({account,onBack}){
       tInsts.current[i]=new window.Chart(trList[i].current,{type:'line',
         data:{labels:tLbls,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          interaction:{mode:'index',intersect:false},
           onClick:function(evt,els,chart){
-            var c=chart||this;
-            var pts=c.getElementsAtEventForMode(evt,'index',{intersect:false},true);
-            if(pts&&pts.length){var ix=pts[0].index!=null?pts[0].index:pts[0]._index;if(ix!=null)setSelIdx(ix);}
+            var ix=(els&&els.length)?els[0].index:null;
+            if(ix==null){var c=chart||this;var pts=c.getElementsAtEventForMode(evt,'index',{intersect:false},true);if(pts&&pts.length)ix=(pts[0].index!=null?pts[0].index:pts[0]._index);}
+            if(ix!=null)setSelIdx(ix);
           },
           plugins:{legend:{display:false}},
           scales:{x:{ticks:{font:{size:7,family:'Inter'},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8,family:'Inter'}}}}}});

@@ -10658,15 +10658,20 @@ function DashboardScreen({
           },
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
           onClick: function (evt, els, chart) {
-            var c = chart || this;
-            var pts = c.getElementsAtEventForMode(evt, 'index', {
-              intersect: false
-            }, true);
-            if (pts && pts.length) {
-              var ix = pts[0].index != null ? pts[0].index : pts[0]._index;
-              if (ix != null) setSelIdx(ix);
+            var ix = els && els.length ? els[0].index : null;
+            if (ix == null) {
+              var c = chart || this;
+              var pts = c.getElementsAtEventForMode(evt, 'index', {
+                intersect: false
+              }, true);
+              if (pts && pts.length) ix = pts[0].index != null ? pts[0].index : pts[0]._index;
             }
+            if (ix != null) setSelIdx(ix);
           },
           plugins: {
             legend: {
