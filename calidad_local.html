@@ -11830,29 +11830,68 @@ function DashboardScreen({
     }
   }, expHdr(), filtered.length > 0 && function () {
     var si = selIdx != null && selIdx >= 0 && selIdx < filtered.length ? selIdx : filtered.length - 1;
-    var r = filtered[si] || {};
-    var f = fmtXDate(r.FechaMuestreo || r.fecha);
+    var btnSt = {
+      padding: '4px 10px',
+      minHeight: 0,
+      fontSize: '1rem',
+      lineHeight: 1
+    };
     return /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
         flexWrap: 'wrap',
         background: selIdx != null ? '#eaf4ff' : '#f7fafc',
         border: '1px solid ' + (selIdx != null ? '#90caf9' : 'var(--border)'),
         borderRadius: 10,
-        padding: '8px 14px',
+        padding: '8px 12px',
         marginBottom: 14
       }
-    }, /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement("b", {
       style: {
         fontSize: '.86rem'
       }
-    }, /*#__PURE__*/React.createElement("b", null, "Muestra:"), " ", f, r.Folio ? ' · Folio ' + r.Folio : '', r.Analista ? ' · ' + r.Analista : '', /*#__PURE__*/React.createElement("span", {
+    }, "Muestra:"), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      style: btnSt,
+      disabled: si <= 0,
+      onClick: function () {
+        setSelIdx(Math.max(0, si - 1));
+      }
+    }, "◀"), /*#__PURE__*/React.createElement("select", {
+      value: si,
+      onChange: function (e) {
+        setSelIdx(parseInt(e.target.value, 10));
+      },
       style: {
+        flex: '1 1 180px',
+        minWidth: 140,
+        maxWidth: 340,
+        padding: '6px 8px',
+        borderRadius: 8,
+        border: '1px solid var(--border)',
+        fontSize: '.82rem'
+      }
+    }, filtered.map(function (rec, j) {
+      var ff = fmtXDate(rec.FechaMuestreo || rec.fecha);
+      return /*#__PURE__*/React.createElement("option", {
+        key: j,
+        value: j
+      }, ff, rec.Folio ? ' · F' + rec.Folio : '', rec.Analista ? ' · ' + rec.Analista : '');
+    })), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      style: btnSt,
+      disabled: si >= filtered.length - 1,
+      onClick: function () {
+        setSelIdx(Math.min(filtered.length - 1, si + 1));
+      }
+    }, "▶"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '.78rem',
         color: 'var(--text-secondary)'
       }
-    }, " (", si + 1, "/", filtered.length, ")")), selIdx != null && /*#__PURE__*/React.createElement("button", {
+    }, si + 1, "/", filtered.length), selIdx != null && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-secondary",
       style: {
         padding: '4px 12px',
@@ -11862,13 +11901,7 @@ function DashboardScreen({
       onClick: function () {
         setSelIdx(null);
       }
-    }, "↻ Última"), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: '.74rem',
-        color: 'var(--text-secondary)',
-        marginLeft: 'auto'
-      }
-    }, "Toca un punto de los gráficos de tendencia para cambiarla"));
+    }, "↻ Última"));
   }(), hasSpecs && /*#__PURE__*/React.createElement("div", {
     className: "kpi4-grid"
   }, ctrlStats.slice(0, 4).map(function (k, i) {

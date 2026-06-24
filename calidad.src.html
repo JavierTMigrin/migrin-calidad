@@ -5734,26 +5734,32 @@ function DashboardScreen({account,onBack}){
               <div id="export-page1" style={{background:'#fff',paddingBottom:6}}>
                 {expHdr()}
 
-                {/* Barra de muestra seleccionada (clic en grafico de tendencia) */}
+                {/* Barra selector de muestra (flechas + lista + clic en grafico) */}
                 {filtered.length>0&&(function(){
                   var si=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
-                  var r=filtered[si]||{};
-                  var f=fmtXDate(r.FechaMuestreo||r.fecha);
+                  var btnSt={padding:'4px 10px',minHeight:0,fontSize:'1rem',lineHeight:1};
                   return(
-                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
                       background:selIdx!=null?'#eaf4ff':'#f7fafc',border:'1px solid '+(selIdx!=null?'#90caf9':'var(--border)'),
-                      borderRadius:10,padding:'8px 14px',marginBottom:14}}>
-                      <span style={{fontSize:'.86rem'}}>
-                        <b>Muestra:</b> {f}{r.Folio?' · Folio '+r.Folio:''}{r.Analista?' · '+r.Analista:''}
-                        <span style={{color:'var(--text-secondary)'}}> ({si+1}/{filtered.length})</span>
-                      </span>
+                      borderRadius:10,padding:'8px 12px',marginBottom:14}}>
+                      <b style={{fontSize:'.86rem'}}>Muestra:</b>
+                      <button className="btn btn-secondary" style={btnSt} disabled={si<=0}
+                        onClick={function(){setSelIdx(Math.max(0,si-1));}}>&#9664;</button>
+                      <select value={si} onChange={function(e){setSelIdx(parseInt(e.target.value,10));}}
+                        style={{flex:'1 1 180px',minWidth:140,maxWidth:340,padding:'6px 8px',borderRadius:8,
+                          border:'1px solid var(--border)',fontSize:'.82rem'}}>
+                        {filtered.map(function(rec,j){
+                          var ff=fmtXDate(rec.FechaMuestreo||rec.fecha);
+                          return <option key={j} value={j}>{ff}{rec.Folio?(' · F'+rec.Folio):''}{rec.Analista?(' · '+rec.Analista):''}</option>;
+                        })}
+                      </select>
+                      <button className="btn btn-secondary" style={btnSt} disabled={si>=filtered.length-1}
+                        onClick={function(){setSelIdx(Math.min(filtered.length-1,si+1));}}>&#9654;</button>
+                      <span style={{fontSize:'.78rem',color:'var(--text-secondary)'}}>{si+1}/{filtered.length}</span>
                       {selIdx!=null&&(
                         <button className="btn btn-secondary" style={{padding:'4px 12px',minHeight:0,fontSize:'.78rem'}}
                           onClick={function(){setSelIdx(null);}}>&#8635; Última</button>
                       )}
-                      <span style={{fontSize:'.74rem',color:'var(--text-secondary)',marginLeft:'auto'}}>
-                        Toca un punto de los gráficos de tendencia para cambiarla
-                      </span>
                     </div>
                   );
                 })()}
