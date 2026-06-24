@@ -8105,6 +8105,141 @@ function AuthScreen({onLogin}){
   );
 }
 
+/* ── PREGUNTALE A LOS DATOS (asistente IA / text-to-SQL) ── */
+function ConsultaIAScreen({account,onBack}){
+  var[pregunta,setPregunta]=useState('');
+  var[cargando,setCargando]=useState(false);
+  var[resp,setResp]=useState(null);
+  var[error,setError]=useState('');
+  var[verSql,setVerSql]=useState(false);
+
+  var EJEMPLOS=[
+    '¿Cuál fue el SiO₂ promedio del A36 este año?',
+    '¿Cuántos ensayos por producto y turno hubo en junio?',
+    'Humedad promedio mensual del A38 este año',
+  ];
+
+  async function preguntar(q){
+    var texto=((q!==undefined&&typeof q==='string')?q:pregunta).trim();
+    if(!texto||cargando)return;
+    setCargando(true);setError('');setResp(null);
+    try{
+      var res=await supabase.functions.invoke('consulta-ia',{body:{pregunta:texto}});
+      if(res.error)throw res.error;
+      var d=res.data||{};
+      if(d.error){setError(d.error);}
+      else setResp(d);
+    }catch(e){
+      setError((e&&e.message)?e.message:String(e));
+    }
+    setCargando(false);
+  }
+
+  function usarEjemplo(q){setPregunta(q);preguntar(q);}
+
+  function celda(v){
+    if(v===null||v===undefined||v==='')return '—';
+    var s=String(v);
+    // redondear numeros largos
+    if(/^-?\d+\.\d{3,}$/.test(s)){var n=parseFloat(s);return fmt(n,2);}
+    // fechas ISO -> solo fecha
+    if(/^\d{4}-\d{2}-\d{2}T/.test(s))return s.slice(0,10);
+    return s;
+  }
+
+  var cols=(resp&&resp.datos&&resp.datos.length)?Object.keys(resp.datos[0]):[];
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div>
+          <h2>Pregúntale a los datos</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>
+            Escribe una pregunta en español sobre los ensayos y la responde con tus datos.
+          </div>
+        </div>
+      </div>
+
+      <SecCard title="Tu pregunta" icon="&#129302;">
+        <textarea value={pregunta} rows={3}
+          onChange={function(e){setPregunta(e.target.value);}}
+          onKeyDown={function(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))preguntar();}}
+          placeholder="Ej: ¿Cuál fue el Fe2O3 promedio del A36 en marzo?"
+          style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid var(--border)',
+            fontFamily:'inherit',fontSize:'.95rem',resize:'vertical'}}/>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10,alignItems:'center'}}>
+          <button className="btn btn-primary" disabled={cargando||!pregunta.trim()}
+            onClick={function(){preguntar();}}>
+            {cargando?'Pensando…':'Preguntar'}
+          </button>
+          <span style={{fontSize:'.74rem',color:'var(--text-secondary)'}}>Ctrl+Enter para enviar</span>
+        </div>
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:'.74rem',color:'var(--text-secondary)',marginBottom:6}}>Ejemplos:</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {EJEMPLOS.map(function(q,i){
+              return <button key={i} className="btn btn-secondary"
+                style={{padding:'5px 12px',minHeight:0,fontSize:'.78rem'}}
+                disabled={cargando} onClick={function(){usarEjemplo(q);}}>{q}</button>;
+            })}
+          </div>
+        </div>
+      </SecCard>
+
+      {cargando&&(
+        <div style={{display:'flex',justifyContent:'center',padding:30}}><div className="spinner"/></div>
+      )}
+
+      {error&&(
+        <div className="err-box"><strong>No se pudo responder:</strong><div style={{marginTop:6}}>{error}</div></div>
+      )}
+
+      {resp&&(
+        <>
+          <SecCard title="Respuesta" icon="&#128172;">
+            <div style={{whiteSpace:'pre-wrap',fontSize:'.95rem',lineHeight:1.55}}>{resp.respuesta}</div>
+          </SecCard>
+
+          {cols.length>0&&(
+            <SecCard title={'Datos ('+resp.n_filas+' fila'+(resp.n_filas===1?'':'s')+')'} icon="&#128202;">
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                  <thead>
+                    <tr style={{background:'var(--primary)',color:'#fff'}}>
+                      {cols.map(function(c){return <th key={c} style={{padding:'6px 10px',textAlign:'left'}}>{c}</th>;})}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resp.datos.slice(0,200).map(function(row,i){
+                      return(
+                        <tr key={i} style={{background:i%2===0?'#fff':'#f8f9fa',borderBottom:'1px solid var(--border)'}}>
+                          {cols.map(function(c){return <td key={c} style={{padding:'5px 10px'}}>{celda(row[c])}</td>;})}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </SecCard>
+          )}
+
+          <div style={{marginTop:6}}>
+            <button className="btn btn-secondary" style={{padding:'5px 12px',minHeight:0,fontSize:'.78rem'}}
+              onClick={function(){setVerSql(!verSql);}}>
+              {verSql?'Ocultar SQL':'Ver consulta SQL'}
+            </button>
+            {verSql&&(
+              <pre style={{marginTop:8,padding:'10px 12px',background:'#1e1e1e',color:'#dcdcdc',
+                borderRadius:8,overflowX:'auto',fontSize:'.78rem'}}>{resp.sql_usada}</pre>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── APP ROOT ── */
 function App(){
   var[account,setAccount]=useState(null);
@@ -8172,6 +8307,9 @@ function App(){
           <button className="btn-hdr" onClick={function(){setScreen('history');}}>
             <span className="lbl">Historial </span>&#128202;
           </button>
+          <button className="btn-hdr" onClick={function(){setScreen('consulta-ia');}}>
+            <span className="lbl">Preguntar </span>&#129302;
+          </button>
           {isAdmin&&(
             <button className="btn-hdr" onClick={function(){setScreen('estadisticas');}}>
               <span className="lbl">Estadísticas </span>&#128201;
@@ -8217,6 +8355,7 @@ function App(){
         {!isViewer&&screen==='lavado-turco'&&<LavadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='consulta-ia'&&<ConsultaIAScreen account={account} onBack={function(){setScreen('home');}}/>}
         {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>

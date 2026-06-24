@@ -1,0 +1,205 @@
+// ============================================================
+// Edge Function: consulta-ia  (VERSION DE UN SOLO ARCHIVO)
+// Asistente de consultas en lenguaje natural sobre la BD (text-to-SQL).
+// Pega TODO este archivo como el index.ts de la funcion en Supabase.
+//
+// En el panel: "Verify JWT" = OFF.
+// SECRETS requeridos:
+//   ANTHROPIC_API_KEY      = sk-ant-...
+//   READONLY_DATABASE_URL  = postgresql://ia_readonly:CLAVE@HOST:5432/postgres?sslmode=require
+// ============================================================
+import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
+
+const ALLOWED_ORIGIN = "https://javiertmigrin.github.io";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const LIMIT_DEFECTO = 200;
+const TIMEOUT_MS = 8000;
+const PREFERIDAS = ["v_ia_ensayos", "v_ia_resumen_mensual"];
+const PROHIBIDAS = [
+  "insert","update","delete","drop","alter","create","truncate","grant","revoke",
+  "comment","copy","vacuum","analyze","call","do","merge","refresh","reindex","lock","set","reset",
+];
+
+// ── Conexion BD (solo lectura) ──
+let _sql: ReturnType<typeof postgres> | null = null;
+function db() {
+  if (_sql) return _sql;
+  const url = Deno.env.get("READONLY_DATABASE_URL") ?? "";
+  if (!url) throw new Error("Falta el secret READONLY_DATABASE_URL");
+  _sql = postgres(url, { ssl: "require", max: 1, prepare: false, idle_timeout: 20 });
+  return _sql;
+}
+
+// ── Helper Claude API ──
+async function claude(system: string, userText: string, maxTokens: number): Promise<string> {
+  const res = await fetch(ANTHROPIC_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") ?? "",
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-opus-4-8",
+      max_tokens: maxTokens,
+      thinking: { type: "adaptive" },
+      system,
+      messages: [{ role: "user", content: userText }],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error("Claude API error: " + JSON.stringify(data));
+  return (data.content || [])
+    .filter((b: { type: string }) => b.type === "text")
+    .map((b: { text: string }) => b.text).join("").trim();
+}
+
+// ── Introspeccion del esquema (cacheada) ──
+let _esquemaCache: string | null = null;
+async function obtenerEsquema(): Promise<string> {
+  if (_esquemaCache) return _esquemaCache;
+  const sql = db();
+  const filas = await sql<{ tabla: string; columna: string; tipo: string; descripcion: string | null; tabla_desc: string | null; }[]>`
+    SELECT c.relname AS tabla, a.attname AS columna,
+           format_type(a.atttypid, a.atttypmod) AS tipo,
+           col_description(c.oid, a.attnum) AS descripcion,
+           obj_description(c.oid) AS tabla_desc
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_attribute a ON a.attrelid = c.oid
+    WHERE n.nspname='public' AND c.relkind IN ('r','v','m')
+      AND a.attnum>0 AND NOT a.attisdropped
+    ORDER BY c.relname, a.attnum`;
+  const porTabla = new Map<string, { desc: string | null; cols: string[] }>();
+  for (const f of filas) {
+    if (!porTabla.has(f.tabla)) porTabla.set(f.tabla, { desc: f.tabla_desc, cols: [] });
+    porTabla.get(f.tabla)!.cols.push(`    ${f.columna} ${f.tipo}` + (f.descripcion ? `  -- ${f.descripcion}` : ""));
+  }
+  let tablas = [...porTabla.keys()];
+  if (PREFERIDAS.some((t) => porTabla.has(t))) {
+    tablas = tablas.filter((t) => PREFERIDAS.includes(t) || t.startsWith("v_ia_"));
+  }
+  _esquemaCache = tablas.map((t) => {
+    const info = porTabla.get(t)!;
+    return (info.desc ? `-- ${info.desc}\n` : "") + `TABLE ${t} (\n${info.cols.join(",\n")}\n);`;
+  }).join("\n\n");
+  return _esquemaCache;
+}
+
+// ── Generacion de SQL ──
+function limpiarSQL(t: string): string {
+  return t.trim().replace(/^```(?:sql)?\s*/i, "").replace(/\s*```$/i, "").replace(/;\s*$/, "").trim();
+}
+async function generarSQL(pregunta: string, esquema: string, errorPrevio?: string): Promise<string> {
+  const system = [
+    "Eres un experto en PostgreSQL que traduce preguntas en español a una consulta SQL.",
+    "",
+    "REGLAS ESTRICTAS:",
+    "- Genera EXACTAMENTE UNA consulta SQL de tipo SELECT (puede empezar con WITH).",
+    "- PROHIBIDO: INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, etc. Solo lectura.",
+    "- Usa SOLO las tablas y columnas que aparecen en el ESQUEMA. No inventes nombres.",
+    "- Dialecto PostgreSQL. Para filtrar por mes usa date_trunc('month', fecha).",
+    "- Prefiere la vista v_ia_ensayos (química ya expandida a columnas).",
+    "- Devuelve SOLO la consulta SQL, sin explicación, sin markdown, sin punto y coma final.",
+    "- Si la pregunta NO se puede responder con este esquema, devuelve exactamente:",
+    "  SELECT 'NO_RESPONDIBLE' AS error",
+    "",
+    "ESQUEMA DISPONIBLE:",
+    esquema,
+  ].join("\n");
+  let user = `Pregunta: ${pregunta}\n\nDevuelve solo la consulta SQL.`;
+  if (errorPrevio) user += `\n\nLa consulta anterior falló con este error de PostgreSQL. Corrígela:\n${errorPrevio}`;
+  return limpiarSQL(await claude(system, user, 1500));
+}
+
+// ── Validacion + ejecucion segura ──
+function validarSelect(sqlRaw: string): { ok: boolean; motivo?: string } {
+  const s = (sqlRaw || "").trim().replace(/;+\s*$/g, "");
+  if (!s) return { ok: false, motivo: "Consulta vacía." };
+  if (s.includes(";")) return { ok: false, motivo: "Solo se permite una sentencia." };
+  if (s.includes("--") || s.includes("/*")) return { ok: false, motivo: "No se permiten comentarios." };
+  if (!/^\s*(select|with)\b/i.test(s)) return { ok: false, motivo: "Solo se permiten consultas SELECT." };
+  for (const kw of PROHIBIDAS) {
+    if (new RegExp(`\\b${kw}\\b`, "i").test(s)) return { ok: false, motivo: `Operación no permitida: ${kw.toUpperCase()}.` };
+  }
+  return { ok: true };
+}
+async function ejecutar(sqlRaw: string, limit = LIMIT_DEFECTO): Promise<Record<string, unknown>[]> {
+  const v = validarSelect(sqlRaw);
+  if (!v.ok) throw new Error("Consulta rechazada: " + v.motivo);
+  const consulta = sqlRaw.trim().replace(/;+\s*$/g, "");
+  const acotada = `SELECT * FROM ( ${consulta} ) AS _sub LIMIT ${limit}`;
+  const sql = db();
+  const filas = await sql.begin(async (tx: any) => {
+    await tx.unsafe("SET LOCAL transaction read only");
+    await tx.unsafe(`SET LOCAL statement_timeout = ${TIMEOUT_MS}`);
+    return await tx.unsafe(acotada);
+  });
+  return filas as unknown as Record<string, unknown>[];
+}
+
+// ── Respuesta en lenguaje natural ──
+async function responder(pregunta: string, sqlUsada: string, filas: Record<string, unknown>[]): Promise<string> {
+  const system = [
+    "Eres un asistente de control de calidad de una planta minera (MIGRIN).",
+    "Respondes en español, de forma clara, breve y profesional.",
+    "Te basas ÚNICAMENTE en los datos entregados; no inventes cifras.",
+    "Si el resultado viene vacío, dilo claramente.",
+    "Si ves un único valor 'NO_RESPONDIBLE', explica que la pregunta no se puede responder con los datos disponibles.",
+    "Cuando haya números, redondéalos de forma sensata e incluye unidades (%, g) si corresponde.",
+  ].join("\n");
+  const user = [
+    `Pregunta del usuario: ${pregunta}`, ``,
+    `Consulta SQL ejecutada:`, sqlUsada, ``,
+    `Resultado (JSON, hasta 50 filas):`, JSON.stringify(filas.slice(0, 50)), ``,
+    `Redacta la respuesta para el usuario.`,
+  ].join("\n");
+  return await claude(system, user, 1024);
+}
+
+// ── Orquestacion ──
+function cors(origin: string | null) {
+  return {
+    "Access-Control-Allow-Origin": origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+}
+
+Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const ch = { ...cors(origin), "Content-Type": "application/json; charset=utf-8" };
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors(origin) });
+
+  if (req.method === "GET") {
+    return new Response(JSON.stringify({
+      funcion: "consulta-ia (text-to-SQL)",
+      estado: "activa",
+      ANTHROPIC_API_KEY: (Deno.env.get("ANTHROPIC_API_KEY") ?? "") ? "presente" : "FALTA",
+      READONLY_DATABASE_URL: (Deno.env.get("READONLY_DATABASE_URL") ?? "") ? "presente" : "FALTA",
+    }, null, 2), { status: 200, headers: ch });
+  }
+
+  try {
+    const { pregunta } = await req.json();
+    if (!pregunta || typeof pregunta !== "string") {
+      return new Response(JSON.stringify({ error: "Falta 'pregunta' (texto)." }), { status: 400, headers: ch });
+    }
+    const esquema = await obtenerEsquema();
+    let sql = await generarSQL(pregunta, esquema);
+    if (/no_respondible/i.test(sql)) sql = "SELECT 'NO_RESPONDIBLE' AS error";
+    let filas: Record<string, unknown>[];
+    try {
+      filas = await ejecutar(sql);
+    } catch (err1) {
+      const motivo = String((err1 as Error)?.message ?? err1);
+      sql = await generarSQL(pregunta, esquema, motivo);
+      const v = validarSelect(sql);
+      if (!v.ok) return new Response(JSON.stringify({ error: "No se pudo generar una consulta segura: " + v.motivo }), { status: 422, headers: ch });
+      filas = await ejecutar(sql);
+    }
+    const respuesta = await responder(pregunta, sql, filas);
+    return new Response(JSON.stringify({ respuesta, sql_usada: sql, datos: filas, n_filas: filas.length }, null, 2), { status: 200, headers: ch });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), { status: 500, headers: ch });
+  }
+});
