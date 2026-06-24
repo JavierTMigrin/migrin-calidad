@@ -17490,7 +17490,7 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "lbl"
-  }, "Historial "), "📊"), /*#__PURE__*/React.createElement("button", {
+  }, "Historial "), "📊"), isAdmin && /*#__PURE__*/React.createElement("button", {
     className: "btn-hdr",
     onClick: function () {
       setScreen('consulta-ia');
@@ -17571,7 +17571,7 @@ function App() {
     onBack: function () {
       setScreen('home');
     }
-  }), screen === 'consulta-ia' && /*#__PURE__*/React.createElement(ConsultaIAScreen, {
+  }), isAdmin && screen === 'consulta-ia' && /*#__PURE__*/React.createElement(ConsultaIAScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
