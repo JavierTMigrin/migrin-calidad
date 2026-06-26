@@ -9686,13 +9686,18 @@ function DashboardScreen({
         return;
       }
       var opts = {
-        scale: 2,
+        scale: 1.4,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
         windowWidth: 1200
       };
-      var pdf = new JsPDF('p', 'mm', 'a4');
+      var pdf = new JsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
       var pageW = 210,
         pageH = 297,
         margin = 8,
@@ -9708,7 +9713,7 @@ function DashboardScreen({
         }
         if (!primero) pdf.addPage();
         primero = false;
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (pageW - w) / 2, margin, w, h);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.7), 'JPEG', (pageW - w) / 2, margin, w, h);
       }
       var b64 = pdf.output('datauristring').split(',')[1];
       var prodLbl = GRANU_TITLE[prod] || prod,

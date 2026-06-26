@@ -4702,15 +4702,15 @@ function DashboardScreen({account,onBack}){
       if(!nodos.length){setMsgPdf('No hay reporte visible para enviar.');setEnviandoPdf(false);return;}
       var JsPDF=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
       if(!JsPDF){setMsgPdf('No se pudo cargar el generador de PDF.');setEnviandoPdf(false);return;}
-      var opts={scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200};
-      var pdf=new JsPDF('p','mm','a4');
+      var opts={scale:1.4,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200};
+      var pdf=new JsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
       var pageW=210,pageH=297,margin=8,primero=true;
       for(var i=0;i<nodos.length;i++){
         var canvas=await window.html2canvas(nodos[i],opts);
         var w=pageW-margin*2, h=w*(canvas.height/canvas.width), maxH=pageH-margin*2;
         if(h>maxH){h=maxH;w=h*(canvas.width/canvas.height);}
         if(!primero)pdf.addPage(); primero=false;
-        pdf.addImage(canvas.toDataURL('image/png'),'PNG',(pageW-w)/2,margin,w,h);
+        pdf.addImage(canvas.toDataURL('image/jpeg',0.7),'JPEG',(pageW-w)/2,margin,w,h);
       }
       var b64=pdf.output('datauristring').split(',')[1];
       var prodLbl=GRANU_TITLE[prod]||prod, periodo=getPeriodoLabel();
