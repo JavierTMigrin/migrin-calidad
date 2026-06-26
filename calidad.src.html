@@ -4705,12 +4705,23 @@ function DashboardScreen({account,onBack}){
       var opts={scale:1.4,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200};
       var pdf=new JsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
       var pageW=210,pageH=297,margin=8,primero=true;
+      var contentW=pageW-margin*2, contentH=pageH-margin*2;
       for(var i=0;i<nodos.length;i++){
         var canvas=await window.html2canvas(nodos[i],opts);
-        var w=pageW-margin*2, h=w*(canvas.height/canvas.width), maxH=pageH-margin*2;
-        if(h>maxH){h=maxH;w=h*(canvas.width/canvas.height);}
-        if(!primero)pdf.addPage(); primero=false;
-        pdf.addImage(canvas.toDataURL('image/jpeg',0.7),'JPEG',(pageW-w)/2,margin,w,h);
+        var pxPerMm=canvas.width/contentW;          // px del canvas por mm a ancho completo
+        var pageHpx=Math.floor(contentH*pxPerMm);   // px que caben en una pagina
+        var y=0;
+        while(y<canvas.height){
+          var sliceH=Math.min(pageHpx,canvas.height-y);
+          var slc=document.createElement('canvas');
+          slc.width=canvas.width; slc.height=sliceH;
+          var cx=slc.getContext('2d');
+          cx.fillStyle='#ffffff'; cx.fillRect(0,0,slc.width,slc.height);
+          cx.drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+          if(!primero)pdf.addPage(); primero=false;
+          pdf.addImage(slc.toDataURL('image/jpeg',0.7),'JPEG',margin,margin,contentW,sliceH/pxPerMm);
+          y+=sliceH;
+        }
       }
       var b64=pdf.output('datauristring').split(',')[1];
       var prodLbl=GRANU_TITLE[prod]||prod, periodo=getPeriodoLabel();
