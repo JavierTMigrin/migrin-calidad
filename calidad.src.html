@@ -8308,11 +8308,6 @@ function App(){
             <span className="lbl">Historial </span>&#128202;
           </button>
           {isAdmin&&(
-            <button className="btn-hdr" onClick={function(){setScreen('consulta-ia');}}>
-              <span className="lbl">Preguntar </span>&#129302;
-            </button>
-          )}
-          {isAdmin&&(
             <button className="btn-hdr" onClick={function(){setScreen('estadisticas');}}>
               <span className="lbl">Estadísticas </span>&#128201;
             </button>
@@ -8357,7 +8352,7 @@ function App(){
         {!isViewer&&screen==='lavado-turco'&&<LavadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
-        {isAdmin&&screen==='consulta-ia'&&<ConsultaIAScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {/* Pantalla 'Preguntar' (consulta-ia) oculta: requiere ANTHROPIC_API_KEY. Reactivar el boton y esta ruta si se repone la key. */}
         {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>

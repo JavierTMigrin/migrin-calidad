@@ -17493,13 +17493,6 @@ function App() {
   }, "Historial "), "📊"), isAdmin && /*#__PURE__*/React.createElement("button", {
     className: "btn-hdr",
     onClick: function () {
-      setScreen('consulta-ia');
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lbl"
-  }, "Preguntar "), "🤖"), isAdmin && /*#__PURE__*/React.createElement("button", {
-    className: "btn-hdr",
-    onClick: function () {
       setScreen('estadisticas');
     }
   }, /*#__PURE__*/React.createElement("span", {
@@ -17567,11 +17560,6 @@ function App() {
       setScreen('home');
     }
   }), screen === 'history' && /*#__PURE__*/React.createElement(HistoryScreen, {
-    account: account,
-    onBack: function () {
-      setScreen('home');
-    }
-  }), isAdmin && screen === 'consulta-ia' && /*#__PURE__*/React.createElement(ConsultaIAScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
