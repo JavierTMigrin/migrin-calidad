@@ -10031,12 +10031,39 @@ function DashboardScreen({
         if (vio.length) nFuera++;
       }
     });
+    var avgRP = sumRP.map(function (x) {
+      return x.n ? +(x.s / x.n).toFixed(2) : null;
+    });
+    // Pasante acumulado promedio por malla
+    var cum = 0;
+    var pas = avgRP.map(function (rp) {
+      cum += rp != null ? rp : 0;
+      return +(100 - cum).toFixed(2);
+    });
+    // Percentil: tamano (mm) por el que pasa 'target' % (interpola la curva)
+    function mmDe(mm) {
+      return parseFloat(String(mm).replace(',', '.')) || 0;
+    }
+    function percMm(target) {
+      for (var i = 0; i < sieves.length - 1; i++) {
+        var pa = pas[i],
+          pb = pas[i + 1];
+        if (pa >= target && pb < target && pa !== pb) {
+          var ma = mmDe(sieves[i].mm),
+            mb = mmDe(sieves[i + 1].mm);
+          return +(ma + (mb - ma) * ((pa - target) / (pa - pb))).toFixed(3);
+        }
+      }
+      return null;
+    }
     return {
       n: recs.length,
       sieves: sieves,
-      avgRP: sumRP.map(function (x) {
-        return x.n ? +(x.s / x.n).toFixed(2) : null;
-      }),
+      avgRP: avgRP,
+      pas: pas,
+      p80: percMm(80),
+      p50: percMm(50),
+      p20: percMm(20),
       quim: oxs.map(function (o) {
         return {
           label: o[1],
@@ -13102,7 +13129,220 @@ function DashboardScreen({
           color: d == null ? '#999' : d > 0 ? '#c0392b' : d < 0 ? '#1e7e44' : '#555'
         }
       }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 3)));
-    }))))));
+    }))))), /*#__PURE__*/React.createElement("div", {
+      className: "sec-card",
+      style: {
+        marginTop: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "sec-card-hdr",
+      style: {
+        fontSize: '.8rem'
+      }
+    }, "Granulometría — pasante acumulado y cortes (P80 / P50 / P20) — A vs B"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 14px',
+        overflowX: 'auto'
+      }
+    }, /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '.82rem',
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+      style: {
+        background: '#f0f4f8'
+      }
+    }, /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'left',
+        color: '#555'
+      }
+    }, "Tamaño de corte"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: '#1a5276'
+      }
+    }, "A (mm)"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: '#c0392b'
+      }
+    }, "B (mm)"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: '#555'
+      }
+    }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, [['P80 — 80% pasa', 'p80'], ['P50 — mediana', 'p50'], ['P20 — 20% pasa', 'p20']].map(function (row) {
+      var a = A[row[1]],
+        b = B[row[1]];
+      var d = a != null && b != null ? +(b - a).toFixed(3) : null;
+      return /*#__PURE__*/React.createElement("tr", {
+        key: row[1],
+        style: {
+          borderBottom: '1px solid #f0f0f0'
+        }
+      }, /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          fontWeight: 600
+        }
+      }, row[0]), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          textAlign: 'center'
+        }
+      }, a != null ? fmt(a, 3) : '—'), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          textAlign: 'center'
+        }
+      }, b != null ? fmt(b, 3) : '—'), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          textAlign: 'center',
+          fontWeight: 700,
+          color: '#555'
+        }
+      }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 3)));
+    }))), /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '.8rem'
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+      style: {
+        background: '#f0f4f8'
+      }
+    }, /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'left',
+        color: '#555'
+      }
+    }, "Malla"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: '#1a5276'
+      }
+    }, "% Pasante A"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: '#c0392b'
+      }
+    }, "% Pasante B"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: '#555'
+      }
+    }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, function () {
+      var labels = A.sieves.map(function (s) {
+        return s.us;
+      });
+      B.sieves.forEach(function (s) {
+        if (labels.indexOf(s.us) < 0) labels.push(s.us);
+      });
+      function pasDe(lado, us) {
+        var i = lado.sieves.findIndex(function (s) {
+          return s.us === us;
+        });
+        return i >= 0 ? lado.pas[i] : null;
+      }
+      return labels.map(function (us, i) {
+        var pa = pasDe(A, us),
+          pb = pasDe(B, us);
+        var d = pa != null && pb != null ? +(pb - pa).toFixed(2) : null;
+        return /*#__PURE__*/React.createElement("tr", {
+          key: i,
+          style: {
+            borderBottom: '1px solid #f0f0f0'
+          }
+        }, /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: '4px 10px',
+            fontWeight: 600
+          }
+        }, us), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: '4px 10px',
+            textAlign: 'center'
+          }
+        }, pa != null ? fmt(pa, 2) : '—'), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: '4px 10px',
+            textAlign: 'center'
+          }
+        }, pb != null ? fmt(pb, 2) : '—'), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: '4px 10px',
+            textAlign: 'center',
+            fontWeight: 700,
+            color: d == null ? '#999' : d > 0 ? '#c0392b' : d < 0 ? '#1e7e44' : '#555'
+          }
+        }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 2)));
+      });
+    }())))), /*#__PURE__*/React.createElement("div", {
+      className: "sec-card",
+      style: {
+        marginTop: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "sec-card-hdr",
+      style: {
+        fontSize: '.8rem'
+      }
+    }, "Comentario — diferencias A vs B"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '10px 16px',
+        fontSize: '.86rem',
+        lineHeight: 1.6
+      }
+    }, function () {
+      var nA = GRANU_TITLE[prod] || prod,
+        nB = GRANU_TITLE[cmpProd] || cmpProd,
+        f = [];
+      function ox(lado, lbl) {
+        var o = lado.quim.find(function (x) {
+          return x.label === lbl;
+        });
+        return o ? o.avg : null;
+      }
+      if (A.p80 != null && B.p80 != null) {
+        var d = +(B.p80 - A.p80).toFixed(3);
+        if (Math.abs(d) < 0.005) f.push('Granulometría muy similar (P80 ' + fmt(A.p80, 3) + ' vs ' + fmt(B.p80, 3) + ' mm).');else f.push((A.p80 < B.p80 ? nA : nB) + ' es más fino (P80 ' + fmt(Math.min(A.p80, B.p80), 3) + ' vs ' + fmt(Math.max(A.p80, B.p80), 3) + ' mm).');
+      }
+      var siA = ox(A, 'SiO₂'),
+        siB = ox(B, 'SiO₂');
+      if (siA != null && siB != null && Math.abs(siB - siA) >= 0.1) f.push('SiO₂ más alto en ' + (siB > siA ? nB : nA) + ' (' + fmt(Math.max(siA, siB), 2) + '% vs ' + fmt(Math.min(siA, siB), 2) + '%).');
+      var feA = ox(A, 'Fe₂O₃'),
+        feB = ox(B, 'Fe₂O₃');
+      if (feA != null && feB != null && Math.abs(feB - feA) >= 0.02) f.push('Fe₂O₃ (hierro) más bajo en ' + (feB < feA ? nB : nA) + ' (' + fmt(Math.min(feA, feB), 3) + '% vs ' + fmt(Math.max(feA, feB), 3) + '%).');
+      if (A.pct != null && B.pct != null && Math.abs(A.pct - B.pct) >= 1) f.push('Mejor cumplimiento EETT en ' + (A.pct > B.pct ? nA : nB) + ' (' + fmt(Math.max(A.pct, B.pct), 1) + '% vs ' + fmt(Math.min(A.pct, B.pct), 1) + '%).');
+      if (!f.length) f.push('No se observan diferencias relevantes entre A y B en el período comparado.');
+      return /*#__PURE__*/React.createElement("ul", {
+        style: {
+          margin: 0,
+          paddingLeft: 18
+        }
+      }, f.map(function (t, i) {
+        return /*#__PURE__*/React.createElement("li", {
+          key: i,
+          style: {
+            marginBottom: 4
+          }
+        }, t);
+      }));
+    }())));
   }(), !loading && tab === 'tabla' && function () {
     var sieves = SIEVE_CONFIG[prod] || [];
     var gspec = prod === 'A36' ? SPECS_A36.LIRQUEN.granulometria || {} : (getSpecs(prod) || {}).granulometria || {};
