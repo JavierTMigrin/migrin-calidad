@@ -1,16 +1,17 @@
 // ============================================================
-// Edge Function: quick-processor (BREVO)
-// Envia el correo de alerta cuando un ensayo queda fuera de norma.
+// Edge Function: quick-processor (Microsoft Graph)
+// Envia el correo de alerta cuando un ensayo queda fuera de norma,
+// desde el buzon jtorres@migrin.cl via Microsoft Graph.
 //
 // IMPORTANTE: en el panel de Supabase esta funcion debe tener
-//   "Verify JWT" = OFF  (igual que informe-mensual).
+//   "Verify JWT" = OFF.
 //
-// MODO DIAGNOSTICO: abre la URL de la funcion en el navegador
-//   (peticion GET) y la pagina te dira si el secret BREVO_API_KEY
-//   esta presente y que responde Brevo al enviar un correo de prueba.
+// MODO ESTADO: abre la URL de la funcion en el navegador (GET) y te
+//   dice si los secrets de Microsoft estan presentes (no envia nada).
 //
-// SECRET requerido (Project Settings -> Edge Functions -> Secrets):
-//   BREVO_API_KEY = xkeysib-xxxxxxxx
+// SECRETS requeridos (Project Settings -> Edge Functions -> Secrets):
+//   MS_TENANT_ID, MS_CLIENT_ID, MS_REFRESH_TOKEN
+//   (permiso delegado Mail.Send + offline_access de jtorres@migrin.cl)
 // ============================================================
 
 const REMITENTE     = { name: 'Alertas Calidad MIGRIN', email: 'jtorres@migrin.cl' };
@@ -24,22 +25,43 @@ function corsHeaders(origin: string | null) {
   };
 }
 
-// Envia un correo via Brevo. Devuelve el detalle para poder diagnosticar.
-async function enviarBrevo(asunto: string, html: string, texto: string) {
-  const key = Deno.env.get('BREVO_API_KEY') ?? '';
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+// Access token a partir del refresh token (permiso delegado de jtorres@migrin.cl).
+async function tokenGraph() {
+  const tenant = Deno.env.get('MS_TENANT_ID') ?? '';
+  const clientId = Deno.env.get('MS_CLIENT_ID') ?? '';
+  const refresh = Deno.env.get('MS_REFRESH_TOKEN') ?? '';
+  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'api-key': key },
-    body: JSON.stringify({
-      sender: REMITENTE,
-      to: DESTINATARIOS.map((email) => ({ email })),
-      subject: asunto,
-      htmlContent: html,
-      textContent: texto,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+      scope: 'https://graph.microsoft.com/Mail.Send offline_access',
     }),
   });
-  let body: unknown;
-  try { body = await res.json(); } catch { body = await res.text(); }
+  const data = await res.json();
+  if (!res.ok) throw new Error('Token Microsoft error: ' + JSON.stringify(data));
+  return data.access_token as string;
+}
+
+// Envia un correo via Microsoft Graph, desde el buzon jtorres@migrin.cl.
+async function enviarCorreoGraph(asunto: string, html: string, _texto?: string) {
+  const access = await tokenGraph();
+  const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: {
+        subject: asunto,
+        body: { contentType: 'HTML', content: html },
+        toRecipients: DESTINATARIOS.map((email) => ({ emailAddress: { address: email } })),
+      },
+      saveToSentItems: true,
+    }),
+  });
+  let body: unknown = null;
+  if (!res.ok) { try { body = await res.json(); } catch { body = await res.text(); } }
   return { ok: res.ok, status: res.status, body };
 }
 
@@ -50,15 +72,17 @@ Deno.serve(async (req) => {
 
   if (req.method === 'OPTIONS') return new Response('ok', { headers: ch });
 
-  const keyPresente = (Deno.env.get('BREVO_API_KEY') ?? '') !== '';
+  const secretsPresentes = !!(Deno.env.get('MS_TENANT_ID') && Deno.env.get('MS_CLIENT_ID') && Deno.env.get('MS_REFRESH_TOKEN'));
 
   // ── MODO ESTADO (abrir la URL en el navegador = GET; NO envia correos) ──
   if (req.method === 'GET') {
     return new Response(JSON.stringify({
       funcion: 'quick-processor (alertas de calidad MIGRIN)',
       estado: 'activa',
-      secret_BREVO_API_KEY: keyPresente ? 'PRESENTE (ok)' : 'FALTA — agrega el secret BREVO_API_KEY',
-      remitente: REMITENTE,
+      envio: 'Microsoft Graph',
+      MS_TENANT_ID: Deno.env.get('MS_TENANT_ID') ? 'presente' : 'FALTA',
+      MS_CLIENT_ID: Deno.env.get('MS_CLIENT_ID') ? 'presente' : 'FALTA',
+      MS_REFRESH_TOKEN: Deno.env.get('MS_REFRESH_TOKEN') ? 'presente' : 'FALTA',
       destinatarios: DESTINATARIOS,
       nota: 'Esta vista solo informa el estado. El envio de alertas ocurre cuando la app hace POST con un ensayo fuera de norma.',
     }, null, 2), { status: 200, headers: jsonHdr });
@@ -200,14 +224,14 @@ Deno.serve(async (req) => {
       : tipoMuestra === 'Despacho' ? 'NO DESPACHAR'
       : 'FUERA DE NORMA'} - ${producto} (${fechaFmt})`;
 
-    if (!keyPresente) {
-      return new Response(JSON.stringify({ error: 'Falta el secret BREVO_API_KEY en la funcion.' }), {
+    if (!secretsPresentes) {
+      return new Response(JSON.stringify({ error: 'Faltan secrets de Microsoft Graph (MS_TENANT_ID, MS_CLIENT_ID, MS_REFRESH_TOKEN).' }), {
         status: 500, headers: jsonHdr,
       });
     }
 
-    const r = await enviarBrevo(asunto, html, texto);
-    return new Response(JSON.stringify(r.ok ? r.body : { error_brevo: r.body, brevo_status: r.status }), {
+    const r = await enviarCorreoGraph(asunto, html, texto);
+    return new Response(JSON.stringify(r.ok ? { ok: true, status: r.status } : { error_graph: r.body, graph_status: r.status }), {
       status: r.ok ? 200 : 502,
       headers: jsonHdr,
     });
