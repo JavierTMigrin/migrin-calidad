@@ -844,7 +844,7 @@ const SEM_ICON={ok:'✓',warning:'⚠',error:'✗',info:'—'};
 /* ── DETECCION FUERA DE NORMA ──
    Devuelve lista de violaciones [{param,valor,limite,spec}] para el ensayo.
    A36 se evalua contra ambas especificaciones (Lirquen y Cristalerias) en paralelo. */
-function collectViolations(data,gc){
+function evalParams(data,gc){
   var producto=data.producto;
   var sieves=SIEVE_CONFIG[producto]||[];
   var sieveRows=(gc&&gc.rows?gc.rows:[]).filter(function(r){return !r.isFondo;});
@@ -867,8 +867,9 @@ function collectViolations(data,gc){
   var out=[];
   function chk(nombre,val,min,max,unit,dec,specName){
     if(val===null||val===undefined||isNaN(val))return;
-    if(max!==null&&max!==undefined&&val>max)out.push({param:nombre,valor:fmt(val,dec)+' '+unit,limite:'<= '+fmt(max,dec)+' '+unit,spec:specName||''});
-    else if(min!==null&&min!==undefined&&val<min)out.push({param:nombre,valor:fmt(val,dec)+' '+unit,limite:'>= '+fmt(min,dec)+' '+unit,spec:specName||''});
+    var over=(max!==null&&max!==undefined&&val>max);
+    var under=(min!==null&&min!==undefined&&val<min);
+    out.push({param:nombre,val:val,min:(min==null?null:min),max:(max==null?null:max),unit:unit,dec:dec,spec:specName||'',over:over,under:under,ok:!(over||under)});
   }
   var q=data.quimica||{};
   var qv={SiO2:parseDecimal(q.sio2),Al2O3:parseDecimal(q.al2o3),Fe2O3:parseDecimal(q.fe2o3),
@@ -923,6 +924,19 @@ function collectViolations(data,gc){
   chkChem(ps.quimica,'');
   if(ps.humedad)chk('Humedad',hum,null,ps.humedad.max,'%',2,'');
   return out;
+}
+
+/* Wrapper historico: lista solo los parametros fuera de norma, en el
+   formato {param, valor, limite, spec} que esperan alerta/dashboard. */
+function collectViolations(data,gc){
+  return evalParams(data,gc).filter(function(p){return !p.ok;}).map(function(p){
+    return{
+      param:p.param,
+      valor:fmt(p.val,p.dec)+' '+p.unit,
+      limite:(p.over?'<= '+fmt(p.max,p.dec):'>= '+fmt(p.min,p.dec))+' '+p.unit,
+      spec:p.spec,
+    };
+  });
 }
 
 /* ══ INDICADORES DE CONTROL TURCO ══
@@ -6661,6 +6675,453 @@ function Boxplot({st,color}){
     </svg>
   );
 }
+/* ══ ANALISIS QC — pantalla separada, SOLO ADMINISTRADOR ══
+   Reune cuatro herramientas avanzadas que comparten un unico evaluador
+   de cumplimiento (evalParams):
+     1. Certificado de Calidad (PDF) por ensayo, con sello CUMPLE/NO CUMPLE
+     2. Capacidad de proceso (Cp / Cpk) por parametro con limites EETT
+     3. Alertas de tendencia (cercania al limite y deriva)
+     4. KPIs y registro de no conformidades del periodo                    */
+function cpkVerdict(cpk){
+  if(cpk==null)return{txt:'—',color:'#999'};
+  if(cpk>=1.33)return{txt:'Capaz',color:'#1e7e44'};
+  if(cpk>=1.0)return{txt:'Marginal',color:'#b7791f'};
+  return{txt:'No capaz',color:'#c0392b'};
+}
+function QCAvanzadoScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[loading,setLoading]=useState(true);
+  var[tab,setTab]=useState('cert');
+  var[planta,setPlanta]=useState('Arenas');
+  var[prod,setProd]=useState('A36');
+  var[desde,setDesde]=useState('');
+  var[hasta,setHasta]=useState('');
+  var[ensayoId,setEnsayoId]=useState('');
+  var[enviando,setEnviando]=useState(false);
+  var[msg,setMsg]=useState('');
+  var certRef=useRef(null);
+  var logoSrc=useMemo(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'';},[]);
+
+  useEffect(function(){load();},[]);
+  async function load(){
+    setLoading(true);
+    var cloud=[];try{cloud=await loadEnsayos();}catch(e){console.error(e);}
+    var pa=getPending(),pc=getPendingCuarzo();
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pa.filter(function(r){return !ids.has(r.id);}))
+                    .concat(pc.filter(function(r){return !ids.has(r.id);}));
+    merged.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    setRecords(merged);setLoading(false);
+  }
+
+  function recProd(r){return r.ProductoKey||r.producto||'';}
+  function recFecha(r){return r.FechaMuestreo||r.fecha||'';}
+  function recId(r){return r.ID||r.id||'';}
+  function recParams(r){
+    var pk=recProd(r);var sieves=SIEVE_CONFIG[pk]||[];
+    var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+    var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+    var gc=calcGranu(pk,gv,pf);
+    var data={producto:pk,quimica:r.quimica||{},pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')};
+    return evalParams(data,gc);
+  }
+
+  var tieneEett=specHasLimits(getSpecs(prod))||prod==='A36';
+  var prodLbl=GRANU_TITLE[prod]||prod;
+
+  var filtered=useMemo(function(){
+    return records.filter(function(r){
+      if(recProd(r)!==prod)return false;
+      var f=recFecha(r);
+      if(desde&&f<desde)return false;
+      if(hasta&&f>hasta)return false;
+      return true;
+    });
+  },[records,prod,desde,hasta]);
+
+  // Agrupa por parametro con limites: param -> {min,max,unit,dec,vals[]}
+  function paramSeries(){
+    var map={};
+    filtered.forEach(function(r){
+      recParams(r).forEach(function(p){
+        if(p.min==null&&p.max==null)return;
+        var key=p.param+(p.spec?(' ['+p.spec+']'):'');
+        if(!map[key])map[key]={key:key,param:p.param,spec:p.spec,unit:p.unit,dec:p.dec,min:p.min,max:p.max,vals:[]};
+        if(p.val!=null&&!isNaN(p.val))map[key].vals.push(p.val);
+      });
+    });
+    return map;
+  }
+
+  var capacidad=useMemo(function(){
+    var map=paramSeries();
+    return Object.keys(map).map(function(k){
+      var d=map[k];var st=statSummary(d.vals);
+      if(!st||st.n<2)return Object.assign({},d,{st:st,sigma:null,cp:null,cpk:null});
+      var mr=[];for(var i=1;i<d.vals.length;i++)mr.push(Math.abs(d.vals[i]-d.vals[i-1]));
+      var mrBar=mr.length?mr.reduce(function(a,b){return a+b;},0)/mr.length:0;
+      var sigma=mrBar/1.128;if(!(sigma>0))sigma=st.sd;
+      var cp=null,cpk=null;
+      if(sigma>0){
+        if(d.min!=null&&d.max!=null)cp=(d.max-d.min)/(6*sigma);
+        var cpu=d.max!=null?(d.max-st.mean)/(3*sigma):null;
+        var cpl=d.min!=null?(st.mean-d.min)/(3*sigma):null;
+        var arr=[cpu,cpl].filter(function(x){return x!=null;});
+        cpk=arr.length?Math.min.apply(null,arr):null;
+      }
+      return Object.assign({},d,{st:st,sigma:sigma,cp:cp,cpk:cpk});
+    }).filter(function(x){return x.st;});
+  },[filtered]);
+
+  var tendencias=useMemo(function(){
+    var N=6,map=paramSeries(),alerts=[];
+    Object.keys(map).forEach(function(k){
+      var d=map[k],v=d.vals;if(v.length<3)return;
+      var last=v.slice(-N),cur=last[last.length-1];
+      var subiendo=true,bajando=true;
+      for(var i=1;i<last.length;i++){if(last[i]<=last[i-1])subiendo=false;if(last[i]>=last[i-1])bajando=false;}
+      var rango=(d.min!=null&&d.max!=null)?(d.max-d.min):(Math.abs(d.max!=null?d.max:d.min)||1);
+      var margen=rango*0.1;
+      function warn(level,txt){alerts.push({param:d.param,spec:d.spec,level:level,txt:txt});}
+      if(d.max!=null){
+        if(cur>d.max)warn('error','Fuera de norma: '+fmt(cur,d.dec)+d.unit+' > máx '+fmt(d.max,d.dec)+d.unit);
+        else if(cur>d.max-margen)warn('warn',(subiendo?'Acercándose al máximo y subiendo':'Cerca del máximo')+' ('+fmt(cur,d.dec)+d.unit+', máx '+fmt(d.max,d.dec)+d.unit+')');
+        else if(subiendo&&last.length>=4)warn('info','Tendencia al alza '+last.length+' muestras (actual '+fmt(cur,d.dec)+d.unit+')');
+      }
+      if(d.min!=null){
+        if(cur<d.min)warn('error','Fuera de norma: '+fmt(cur,d.dec)+d.unit+' < mín '+fmt(d.min,d.dec)+d.unit);
+        else if(cur<d.min+margen)warn('warn',(bajando?'Acercándose al mínimo y bajando':'Cerca del mínimo')+' ('+fmt(cur,d.dec)+d.unit+', mín '+fmt(d.min,d.dec)+d.unit+')');
+        else if(bajando&&last.length>=4)warn('info','Tendencia a la baja '+last.length+' muestras (actual '+fmt(cur,d.dec)+d.unit+')');
+      }
+    });
+    var order={error:0,warn:1,info:2};
+    alerts.sort(function(a,b){return order[a.level]-order[b.level];});
+    return alerts;
+  },[filtered]);
+
+  var kpis=useMemo(function(){
+    var evaluados=0,fuera=0,nc=[];
+    if(tieneEett)filtered.forEach(function(r){
+      var ps=recParams(r),fails=ps.filter(function(p){return !p.ok;});
+      evaluados++;
+      if(fails.length){fuera++;
+        nc.push({id:recId(r),fecha:recFecha(r),turno:r.Turno||r.turno||'',analista:r.Analista||r.analista||'',
+          fails:fails.map(function(p){return{param:p.param+(p.spec?(' ['+p.spec+']'):''),val:fmt(p.val,p.dec)+p.unit,
+            lim:(p.over?'máx '+fmt(p.max,p.dec):'mín '+fmt(p.min,p.dec))+p.unit};})});
+      }
+    });
+    nc.sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
+    return{evaluados:evaluados,fuera:fuera,ok:evaluados-fuera,pct:evaluados?Math.round((evaluados-fuera)/evaluados*1000)/10:null,nc:nc};
+  },[filtered,tieneEett]);
+
+  var ensayoSel=useMemo(function(){
+    if(!filtered.length)return null;
+    var r=ensayoId?filtered.find(function(x){return String(recId(x))===String(ensayoId);}):null;
+    return r||filtered[filtered.length-1];
+  },[filtered,ensayoId]);
+  var certParams=useMemo(function(){return ensayoSel?recParams(ensayoSel):[];},[ensayoSel]);
+  var certCumple=useMemo(function(){return certParams.length?certParams.every(function(p){return p.ok;}):null;},[certParams]);
+
+  async function generarCertificado(enviar){
+    if(enviando||!ensayoSel)return;
+    setMsg('');setEnviando(true);
+    try{
+      var node=certRef.current;
+      if(!node){setMsg('No hay certificado para generar.');setEnviando(false);return;}
+      var JsPDF=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
+      if(!JsPDF){setMsg('No se pudo cargar el generador de PDF.');setEnviando(false);return;}
+      var canvas=await window.html2canvas(node,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:900});
+      var pdf=new JsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
+      var pageW=210,pageH=297,margin=10,contentW=pageW-margin*2,contentH=pageH-margin*2;
+      var pxPerMm=canvas.width/contentW,pageHpx=Math.floor(contentH*pxPerMm),y=0,primero=true;
+      while(y<canvas.height){
+        var sliceH=Math.min(pageHpx,canvas.height-y);
+        var slc=document.createElement('canvas');slc.width=canvas.width;slc.height=sliceH;
+        var cx=slc.getContext('2d');cx.fillStyle='#ffffff';cx.fillRect(0,0,slc.width,slc.height);
+        cx.drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+        if(!primero)pdf.addPage();primero=false;
+        pdf.addImage(slc.toDataURL('image/jpeg',0.85),'JPEG',margin,margin,contentW,sliceH/pxPerMm);
+        y+=sliceH;
+      }
+      var folio=String(recId(ensayoSel)).slice(-8).toUpperCase();
+      var filename='Certificado_'+prodLbl.replace(/\s/g,'_')+'_'+recFecha(ensayoSel)+'.pdf';
+      if(enviar){
+        var b64=pdf.output('datauristring').split(',')[1];
+        var cuerpo='<div style="font-family:Arial"><h2 style="color:#1a5276">Certificado de Calidad — '+prodLbl+'</h2>'
+          +'<p>Folio: <b>'+folio+'</b><br>Fecha de muestreo: <b>'+recFecha(ensayoSel)+'</b><br>'
+          +'Estado: <b style="color:'+(certCumple?'#1e7e44':'#c0392b')+'">'+(certCumple?'CUMPLE':'NO CUMPLE')+'</b></p>'
+          +'<p>Certificado adjunto en PDF.</p>'
+          +'<p style="font-size:11px;color:#999">Sistema de Control de Calidad MIGRIN S.A.</p></div>';
+        var res=await supabase.functions.invoke('enviar-reporte',{body:{
+          asunto:'Certificado de Calidad — '+prodLbl+' · '+recFecha(ensayoSel),
+          cuerpo_html:cuerpo,pdf_base64:b64,filename:filename}});
+        if(res.error)throw res.error;
+        if(res.data&&res.data.error)throw new Error(res.data.error_graph?JSON.stringify(res.data.error_graph):res.data.error);
+        setMsg('✓ Certificado enviado a tu correo.');
+      }else{pdf.save(filename);setMsg('✓ Certificado descargado.');}
+    }catch(e){setMsg('Error: '+((e&&e.message)?e.message:String(e)));}
+    setEnviando(false);
+  }
+
+  var TABS=[['cert','Certificado'],['cpk','Capacidad (Cpk)'],['tend','Tendencias'],['kpi','KPIs / No conformidades']];
+  var folio=ensayoSel?String(recId(ensayoSel)).slice(-8).toUpperCase():'';
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <h2>Análisis QC <span style={{fontSize:'.7rem',fontWeight:600,color:'#c0392b',background:'#fdecea',padding:'2px 8px',borderRadius:10,verticalAlign:'middle'}}>solo administrador</span></h2>
+      </div>
+
+      <div className="db-filter-row">
+        <div className="dff">
+          <label>Planta</label>
+          <select value={planta} onChange={function(e){var pl=e.target.value;setPlanta(pl);var l=PLANTAS_PROD[pl]||[];if(l.length)setProd(l[0].value);setEnsayoId('');}}>
+            {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+          </select>
+        </div>
+        <div className="dff">
+          <label>Producto</label>
+          <select value={prod} onChange={function(e){setProd(e.target.value);setEnsayoId('');}}>
+            {(PLANTAS_PROD[planta]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+          </select>
+        </div>
+        <div className="dff"><label>Desde</label><input type="date" value={desde} onChange={function(e){setDesde(e.target.value);}}/></div>
+        <div className="dff"><label>Hasta</label><input type="date" value={hasta} onChange={function(e){setHasta(e.target.value);}}/></div>
+        <div style={{display:'flex',gap:6,alignSelf:'flex-end'}}>
+          <button className="btn btn-secondary" onClick={load} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#8635; Actualizar</button>
+        </div>
+      </div>
+
+      {!tieneEett&&(
+        <div style={{background:'#fffbea',border:'1px solid #f6e05e',borderRadius:8,padding:'10px 14px',fontSize:'.84rem',color:'#7a5c00',marginBottom:12}}>
+          {prodLbl} no tiene límites EETT definidos. El certificado lista los datos registrados, pero las pestañas de capacidad, tendencias y no conformidades requieren especificaciones (configúralas en Ajustes).
+        </div>
+      )}
+
+      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+
+      {!loading&&(
+        <div className="dash-tabs">
+          {TABS.map(function(t){return <button key={t[0]} className={'dash-tab'+(tab===t[0]?' act':'')} onClick={function(){setTab(t[0]);}}>{t[1]}</button>;})}
+        </div>
+      )}
+
+      {!loading&&filtered.length===0&&(
+        <div style={{textAlign:'center',padding:40,color:'#888'}}>No hay ensayos de {prodLbl} en el período seleccionado.</div>
+      )}
+
+      {/* ── CERTIFICADO ── */}
+      {!loading&&filtered.length>0&&tab==='cert'&&(
+        <>
+          <div className="db-filter-row" style={{marginBottom:12}}>
+            <div className="dff" style={{minWidth:280}}>
+              <label>Ensayo a certificar</label>
+              <select value={ensayoId||(ensayoSel?recId(ensayoSel):'')} onChange={function(e){setEnsayoId(e.target.value);}}>
+                {filtered.slice().reverse().map(function(r){return <option key={recId(r)} value={recId(r)}>{recFecha(r)} · {(r.Turno||r.turno||'')} · {(r.Analista||r.analista||'')}</option>;})}
+              </select>
+            </div>
+            <div style={{display:'flex',gap:6,alignSelf:'flex-end',flexWrap:'wrap'}}>
+              <button className="btn btn-secondary" disabled={enviando} onClick={function(){generarCertificado(false);}} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#11015; Descargar PDF</button>
+              <button className="btn btn-primary" disabled={enviando} onClick={function(){generarCertificado(true);}} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>{enviando?'Enviando…':'✉ Enviar por correo'}</button>
+            </div>
+          </div>
+          {msg&&<div style={{fontSize:'.82rem',marginBottom:8,color:msg.indexOf('Error')===0?'var(--error)':'var(--success)'}}>{msg}</div>}
+
+          <div style={{display:'flex',justifyContent:'center'}}>
+            <div ref={certRef} style={{width:780,maxWidth:'100%',background:'#fff',border:'1px solid #e2e8f0',borderRadius:6,padding:'28px 34px',fontFamily:'Arial,sans-serif',color:'#1a202c'}}>
+              <div style={{display:'flex',alignItems:'center',gap:14,borderBottom:'3px solid #1a5276',paddingBottom:14,marginBottom:18}}>
+                {logoSrc&&<img src={logoSrc} alt="" style={{height:54,width:54,objectFit:'contain'}}/>}
+                <div style={{flex:1}}>
+                  <div style={{fontSize:'.72rem',letterSpacing:1,color:'#718096',textTransform:'uppercase'}}>MIGRIN S.A. — Control de Calidad</div>
+                  <div style={{fontSize:'1.45rem',fontWeight:800,color:'#1a5276'}}>Certificado de Calidad</div>
+                </div>
+                <div style={{textAlign:'right',fontSize:'.74rem',color:'#718096'}}>Folio<br/><b style={{fontSize:'1rem',color:'#1a202c'}}>{folio}</b></div>
+              </div>
+
+              <table style={{width:'100%',fontSize:'.84rem',marginBottom:18}}>
+                <tbody>
+                  <tr>
+                    <td style={{padding:'3px 0',color:'#718096',width:'25%'}}>Producto</td><td style={{padding:'3px 0',fontWeight:700}}>{prodLbl}</td>
+                    <td style={{padding:'3px 0',color:'#718096',width:'25%'}}>Planta</td><td style={{padding:'3px 0',fontWeight:700}}>{planta}</td>
+                  </tr>
+                  <tr>
+                    <td style={{padding:'3px 0',color:'#718096'}}>Fecha muestreo</td><td style={{padding:'3px 0',fontWeight:700}}>{recFecha(ensayoSel)}</td>
+                    <td style={{padding:'3px 0',color:'#718096'}}>Turno</td><td style={{padding:'3px 0',fontWeight:700}}>{ensayoSel.Turno||ensayoSel.turno||'—'}</td>
+                  </tr>
+                  <tr>
+                    <td style={{padding:'3px 0',color:'#718096'}}>Analista</td><td style={{padding:'3px 0',fontWeight:700}}>{ensayoSel.Analista||ensayoSel.analista||'—'}</td>
+                    <td style={{padding:'3px 0',color:'#718096'}}>Emitido</td><td style={{padding:'3px 0',fontWeight:700}}>{today()}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={{display:'inline-block',padding:'8px 22px',borderRadius:8,fontWeight:800,fontSize:'1.05rem',marginBottom:18,
+                background:certCumple==null?'#edf2f7':certCumple?'#f0fff4':'#fff5f5',
+                color:certCumple==null?'#718096':certCumple?'#1e7e44':'#c0392b',
+                border:'2px solid '+(certCumple==null?'#cbd5e0':certCumple?'#9ae6b4':'#feb2b2')}}>
+                {certCumple==null?'SIN EVALUACIÓN':certCumple?'✓ CUMPLE ESPECIFICACIÓN':'✗ NO CUMPLE ESPECIFICACIÓN'}
+              </div>
+
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                <thead><tr style={{background:'#1a5276',color:'#fff'}}>
+                  <th style={{padding:'7px 10px',textAlign:'left'}}>Parámetro</th>
+                  <th style={{padding:'7px 10px',textAlign:'center'}}>Resultado</th>
+                  <th style={{padding:'7px 10px',textAlign:'center'}}>Especificación</th>
+                  <th style={{padding:'7px 10px',textAlign:'center'}}>Estado</th>
+                </tr></thead>
+                <tbody>
+                  {certParams.map(function(p,i){
+                    var lim=(p.min!=null&&p.max!=null)?(fmt(p.min,p.dec)+' – '+fmt(p.max,p.dec)+' '+p.unit)
+                      :(p.max!=null?('≤ '+fmt(p.max,p.dec)+' '+p.unit):(p.min!=null?('≥ '+fmt(p.min,p.dec)+' '+p.unit):'—'));
+                    var conLim=(p.min!=null||p.max!=null);
+                    return(
+                      <tr key={i} style={{borderBottom:'1px solid #edf2f7',background:i%2?'#f9fafb':'#fff'}}>
+                        <td style={{padding:'5px 10px',fontWeight:600}}>{p.param}{p.spec?(' ['+p.spec+']'):''}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center'}}>{fmt(p.val,p.dec)} {p.unit}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center',color:'#718096'}}>{lim}</td>
+                        <td style={{padding:'5px 10px',textAlign:'center',fontWeight:700,color:!conLim?'#a0aec0':p.ok?'#1e7e44':'#c0392b'}}>{!conLim?'—':p.ok?'OK':'FUERA'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div style={{borderTop:'1px solid #e2e8f0',marginTop:18,paddingTop:10,fontSize:'.68rem',color:'#a0aec0',textAlign:'center'}}>
+                Documento emitido por el Sistema de Control de Calidad MIGRIN S.A. · El estado refleja la comparación con las especificaciones técnicas (EETT) vigentes.
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── CAPACIDAD Cp/Cpk ── */}
+      {!loading&&filtered.length>0&&tab==='cpk'&&(
+        <div className="sec-card">
+          <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Capacidad de proceso — {prodLbl} · {filtered.length} ensayos</div>
+          <div style={{padding:'8px 14px',overflowX:'auto'}}>
+            {!tieneEett||capacidad.length===0
+              ?<div style={{padding:20,color:'#888',fontSize:'.85rem'}}>No hay parámetros con límites EETT y datos suficientes (mínimo 2 muestras) para calcular capacidad.</div>
+              :<>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                  <thead><tr style={{background:'#f0f4f8'}}>
+                    <th style={{padding:'6px 10px',textAlign:'left',color:'#555'}}>Parámetro</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>n</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>Media</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>σ</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>Especificación</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>Cp</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>Cpk</th>
+                    <th style={{padding:'6px 10px',textAlign:'center',color:'#555'}}>Veredicto</th>
+                  </tr></thead>
+                  <tbody>
+                    {capacidad.map(function(c,i){
+                      var v=cpkVerdict(c.cpk);
+                      var lim=(c.min!=null&&c.max!=null)?(fmt(c.min,c.dec)+'–'+fmt(c.max,c.dec)):(c.max!=null?('≤'+fmt(c.max,c.dec)):('≥'+fmt(c.min,c.dec)));
+                      return(
+                        <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
+                          <td style={{padding:'5px 10px',fontWeight:600}}>{c.param}{c.spec?(' ['+c.spec+']'):''}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center'}}>{c.st.n}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center'}}>{fmt(c.st.mean,c.dec)} {c.unit}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center'}}>{c.sigma!=null?fmt(c.sigma,Math.min(c.dec+1,4)):'—'}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center',color:'#718096'}}>{lim} {c.unit}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center'}}>{c.cp!=null?fmt(c.cp,2):'—'}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center',fontWeight:700,color:v.color}}>{c.cpk!=null?fmt(c.cpk,2):'—'}</td>
+                          <td style={{padding:'5px 10px',textAlign:'center',fontWeight:700,color:v.color}}>{v.txt}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div style={{fontSize:'.74rem',color:'#888',marginTop:10,lineHeight:1.5}}>
+                  σ estimada por rango móvil (I-mR, d₂=1,128). <b>Cpk ≥ 1,33</b> proceso capaz · <b>1,0–1,33</b> marginal · <b>&lt; 1,0</b> no capaz.
+                  Cp solo se calcula cuando el parámetro tiene límite mínimo y máximo.
+                </div>
+              </>}
+          </div>
+        </div>
+      )}
+
+      {/* ── TENDENCIAS ── */}
+      {!loading&&filtered.length>0&&tab==='tend'&&(
+        <div className="sec-card">
+          <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Alertas de tendencia — {prodLbl}</div>
+          <div style={{padding:'12px 16px'}}>
+            {!tieneEett||tendencias.length===0
+              ?<div style={{color:'#1e7e44',fontSize:'.88rem'}}>✓ Sin alertas: ningún parámetro se acerca a sus límites ni muestra deriva relevante en el período.</div>
+              :tendencias.map(function(a,i){
+                var col=a.level==='error'?'#c0392b':a.level==='warn'?'#b7791f':'#1a5276';
+                var bg=a.level==='error'?'#fff5f5':a.level==='warn'?'#fffbea':'#f0f7ff';
+                var ic=a.level==='error'?'⛔':a.level==='warn'?'⚠️':'📈';
+                return(
+                  <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'9px 12px',borderLeft:'4px solid '+col,background:bg,borderRadius:'0 6px 6px 0',marginBottom:8}}>
+                    <span style={{fontSize:'1rem'}}>{ic}</span>
+                    <div style={{fontSize:'.85rem'}}>
+                      <b>{a.param}{a.spec?(' ['+a.spec+']'):''}</b> — {a.txt}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* ── KPIs / NO CONFORMIDADES ── */}
+      {!loading&&filtered.length>0&&tab==='kpi'&&(
+        <>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:16}}>
+            {[
+              {lbl:'Ensayos evaluados',val:kpis.evaluados,color:'#1a56db'},
+              {lbl:'Cumplen EETT',val:kpis.ok,color:'#0e9f6e'},
+              {lbl:'No conformidades',val:kpis.fuera,color:'#c0392b'},
+              {lbl:'% Cumplimiento',val:kpis.pct!=null?kpis.pct+'%':'—',color:kpis.pct==null?'#718096':kpis.pct>=95?'#0e9f6e':kpis.pct>=85?'#b7791f':'#c0392b'},
+            ].map(function(c,i){return(
+              <div key={i} style={{flex:'1 1 160px',background:c.color,color:'#fff',borderRadius:10,padding:'16px 18px',textAlign:'center'}}>
+                <div style={{fontSize:'1.8rem',fontWeight:800,lineHeight:1}}>{c.val}</div>
+                <div style={{fontSize:'.72rem',marginTop:4,opacity:.9}}>{c.lbl}</div>
+              </div>
+            );})}
+          </div>
+          <div className="sec-card">
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Registro de no conformidades — {prodLbl} · {kpis.nc.length} ensayos fuera de norma</div>
+            <div style={{padding:'8px 14px',overflowX:'auto'}}>
+              {!tieneEett
+                ?<div style={{padding:16,color:'#888',fontSize:'.85rem'}}>{prodLbl} no tiene límites EETT definidos.</div>
+                :kpis.nc.length===0
+                  ?<div style={{padding:16,color:'#1e7e44',fontSize:'.88rem'}}>✓ Sin no conformidades en el período.</div>
+                  :<table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                    <thead><tr style={{background:'#f0f4f8'}}>
+                      <th style={{padding:'6px 10px',textAlign:'left',color:'#555'}}>Fecha</th>
+                      <th style={{padding:'6px 10px',textAlign:'left',color:'#555'}}>Turno</th>
+                      <th style={{padding:'6px 10px',textAlign:'left',color:'#555'}}>Analista</th>
+                      <th style={{padding:'6px 10px',textAlign:'left',color:'#555'}}>Parámetros fuera de norma</th>
+                    </tr></thead>
+                    <tbody>
+                      {kpis.nc.map(function(n,i){
+                        return(
+                          <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
+                            <td style={{padding:'5px 10px',fontWeight:600,whiteSpace:'nowrap'}}>{n.fecha}</td>
+                            <td style={{padding:'5px 10px'}}>{n.turno||'—'}</td>
+                            <td style={{padding:'5px 10px'}}>{n.analista||'—'}</td>
+                            <td style={{padding:'5px 10px'}}>
+                              {n.fails.map(function(f,j){return(
+                                <span key={j} style={{display:'inline-block',background:'#fff5f5',color:'#c0392b',border:'1px solid #feb2b2',borderRadius:6,padding:'1px 7px',margin:'2px 4px 2px 0',fontSize:'.76rem'}}>
+                                  {f.param}: {f.val} ({f.lim})
+                                </span>
+                              );})}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function EstadisticasScreen({account,onBack}){
   var[records,setRecords]=useState([]);
   var[loading,setLoading]=useState(true);
@@ -8456,6 +8917,11 @@ function App(){
               <span className="lbl">Estadísticas </span>&#128201;
             </button>
           )}
+          {isAdmin&&(
+            <button className="btn-hdr" onClick={function(){setScreen('qc');}}>
+              <span className="lbl">Análisis QC </span>&#129518;
+            </button>
+          )}
           {!isViewer&&(
             <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
               <span className="lbl">Ajustes </span>&#9881;&#65039;
@@ -8498,6 +8964,7 @@ function App(){
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
         {/* Pantalla 'Preguntar' (consulta-ia) oculta: requiere ANTHROPIC_API_KEY. Reactivar el boton y esta ruta si se repone la key. */}
         {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {isAdmin&&screen==='qc'&&<QCAvanzadoScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
     </>
