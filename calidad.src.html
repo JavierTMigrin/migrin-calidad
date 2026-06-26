@@ -17,6 +17,7 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -4597,6 +4598,8 @@ function DashboardScreen({account,onBack}){
   var[showAvg,setShowAvg]=useState(true);
   var[showLims,setShowLims]=useState(true);
   var[selIdx,setSelIdx]=useState(null); // muestra seleccionada (null = ultima)
+  var[enviandoPdf,setEnviandoPdf]=useState(false);
+  var[msgPdf,setMsgPdf]=useState('');
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
   var[filterNumAcopio,setFilterNumAcopio]=useState(ACOPIO_OPTS.slice());
   // chart refs — granu curves
@@ -4687,6 +4690,49 @@ function DashboardScreen({account,onBack}){
       }else if(hP&&!hA)tipoLbl='_Puntual';
     }
     return 'Reporte_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+tipoLbl+'_'+getPeriodoLabel()+'_'+suffix+'_'+dd+'-'+mm2+'-'+now.getFullYear()+'.png';
+  }
+
+  // Genera un PDF del reporte visible y lo envia por correo (Microsoft Graph)
+  async function enviarReportePDF(){
+    if(enviandoPdf)return;
+    setMsgPdf(''); setEnviandoPdf(true);
+    try{
+      var ids=['export-page1','export-page2','export-quim'];
+      var nodos=ids.map(function(id){return document.getElementById(id);}).filter(Boolean);
+      if(!nodos.length){setMsgPdf('No hay reporte visible para enviar.');setEnviandoPdf(false);return;}
+      var JsPDF=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
+      if(!JsPDF){setMsgPdf('No se pudo cargar el generador de PDF.');setEnviandoPdf(false);return;}
+      var opts={scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200};
+      var pdf=new JsPDF('p','mm','a4');
+      var pageW=210,pageH=297,margin=8,primero=true;
+      for(var i=0;i<nodos.length;i++){
+        var canvas=await window.html2canvas(nodos[i],opts);
+        var w=pageW-margin*2, h=w*(canvas.height/canvas.width), maxH=pageH-margin*2;
+        if(h>maxH){h=maxH;w=h*(canvas.width/canvas.height);}
+        if(!primero)pdf.addPage(); primero=false;
+        pdf.addImage(canvas.toDataURL('image/png'),'PNG',(pageW-w)/2,margin,w,h);
+      }
+      var b64=pdf.output('datauristring').split(',')[1];
+      var prodLbl=GRANU_TITLE[prod]||prod, periodo=getPeriodoLabel();
+      var si=(selIdx!=null&&selIdx>=0&&selIdx<filtered.length)?selIdx:filtered.length-1;
+      var muestraTxt=(selIdx!=null&&filtered[si])?('Muestra: '+fmtXDate(filtered[si].FechaMuestreo||filtered[si].fecha)):'Promedio del período';
+      var cuerpo='<div style="font-family:Arial"><h2 style="color:#1a5276">Reporte de Calidad — '+prodLbl+'</h2>'
+        +'<p>Producto: <b>'+prodLbl+'</b><br>Período: <b>'+periodo+'</b><br>'+muestraTxt+'</p>'
+        +(cumplimiento?('<p>Cumplimiento EETT: <b>'+cumplimiento.pct+'%</b> ('+cumplimiento.ok+'/'+cumplimiento.evaluados+' ensayos'+(cumplimiento.fuera?(' — '+cumplimiento.fuera+' fuera de norma'):'')+')</p>'):'')
+        +'<p>Detalle completo con curvas en el PDF adjunto.</p>'
+        +'<p style="font-size:11px;color:#999">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</p></div>';
+      var filename=getFilename('Reporte').replace(/\.png$/i,'.pdf');
+      var res=await supabase.functions.invoke('enviar-reporte',{body:{
+        asunto:'Reporte de Calidad — '+prodLbl+' · '+periodo,
+        cuerpo_html:cuerpo, pdf_base64:b64, filename:filename,
+      }});
+      if(res.error)throw res.error;
+      if(res.data&&res.data.error)throw new Error(res.data.error_graph?JSON.stringify(res.data.error_graph):res.data.error);
+      setMsgPdf('✓ Reporte enviado a tu correo.');
+    }catch(e){
+      setMsgPdf('Error: '+((e&&e.message)?e.message:String(e)));
+    }
+    setEnviandoPdf(false);
   }
 
   async function exportarReporte(){
@@ -5725,11 +5771,13 @@ function DashboardScreen({account,onBack}){
             );})}
           </div>
         </div>
-        <div style={{display:'flex',gap:6,alignSelf:'flex-end'}}>
+        <div style={{display:'flex',gap:6,alignSelf:'flex-end',flexWrap:'wrap'}}>
           <button className="btn btn-secondary" onClick={loadData} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#8635; Actualizar</button>
-          <button className="btn btn-primary" onClick={exportarReporte} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#11015; Exportar</button>
+          <button className="btn btn-secondary" onClick={exportarReporte} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#11015; Exportar</button>
+          <button className="btn btn-primary" disabled={enviandoPdf||filtered.length===0} onClick={enviarReportePDF} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>{enviandoPdf?'Enviando…':'✉ Enviar PDF'}</button>
         </div>
       </div>
+      {msgPdf&&<div style={{textAlign:'right',fontSize:'.8rem',marginTop:4,color:msgPdf.indexOf('Error')===0?'var(--error)':'var(--success)'}}>{msgPdf}</div>}
 
       {/* ── BADGES ── */}
       <div className="db-badge-bar">
@@ -5996,7 +6044,7 @@ function DashboardScreen({account,onBack}){
           )}
 
           {tab==='quim'&&(
-            <div>
+            <div id="export-quim">
               {lineTogglesBar()}
               {muestraSelBar()}
 
