@@ -13750,7 +13750,7 @@ function DashboardScreen({
             padding: '4px 7px',
             textAlign: 'center'
           }, cellSt(sm))
-        }, stat[s.us] ? fmt(stat[s.us].pctA, 1) : '—');
+        }, stat[s.us] ? fmt(stat[s.us].pctA, 2) : '—');
       }), activeOx.map(function (o) {
         var q = r.quimica || {};
         var v = parseDecimal(q[o[0]]);
@@ -13767,7 +13767,7 @@ function DashboardScreen({
           padding: '4px 7px',
           textAlign: 'center'
         }, cellSt(humSem))
-      }, !isNaN(hum) ? fmt(hum, 1) : '—'));
+      }, !isNaN(hum) ? fmt(hum, 2) : '—'));
     })))), /*#__PURE__*/React.createElement("div", {
       style: {
         padding: '8px 14px',

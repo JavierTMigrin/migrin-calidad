@@ -6629,10 +6629,10 @@ function DashboardScreen({account,onBack}){
                           <td style={{padding:'4px 7px',textAlign:'center'}}>{r.Turno||r.turno||'—'}</td>
                           <td style={{padding:'4px 7px',whiteSpace:'nowrap',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{r.Analista||r.analista||'—'}</td>
                           {sieves.map(function(s){var sm=sieveSem(s.us,stat[s.us]);
-                            return <td key={s.us} style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(sm))}>{stat[s.us]?fmt(stat[s.us].pctA,1):'—'}</td>;})}
+                            return <td key={s.us} style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(sm))}>{stat[s.us]?fmt(stat[s.us].pctA,2):'—'}</td>;})}
                           {activeOx.map(function(o){var q=r.quimica||{};var v=parseDecimal(q[o[0]]);var sm=calcSemaforo(v,qspecT[o[2]]?qspecT[o[2]].min:null,qspecT[o[2]]?qspecT[o[2]].max:null);
                             return <td key={o[0]} style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(sm))}>{v!=null&&!isNaN(v)?fmt(v,2):'—'}</td>;})}
-                          {hspecT&&<td style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(humSem))}>{!isNaN(hum)?fmt(hum,1):'—'}</td>}
+                          {hspecT&&<td style={Object.assign({padding:'4px 7px',textAlign:'center'},cellSt(humSem))}>{!isNaN(hum)?fmt(hum,2):'—'}</td>}
                         </tr>
                       );
                     })}
