@@ -66,28 +66,29 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Faltan secrets de Microsoft Graph.' }), { status: 500, headers: ch });
     }
     const { asunto, cuerpo_html, pdf_base64, filename, destinatarios } = await req.json();
-    if (!pdf_base64) return new Response(JSON.stringify({ error: "Falta 'pdf_base64'." }), { status: 400, headers: ch });
 
     const to = (Array.isArray(destinatarios) && destinatarios.length) ? destinatarios : DESTINATARIOS_DEFECTO;
     const access = await tokenGraph();
 
+    // El PDF es opcional: si no viene, se envia solo el cuerpo HTML.
+    const message: Record<string, unknown> = {
+      subject: asunto || 'Reporte de Calidad — MIGRIN S.A.',
+      body: { contentType: 'HTML', content: cuerpo_html || 'Reporte de calidad adjunto.' },
+      toRecipients: to.map((email: string) => ({ emailAddress: { address: email } })),
+    };
+    if (pdf_base64) {
+      message.attachments = [{
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: filename || 'Reporte.pdf',
+        contentType: 'application/pdf',
+        contentBytes: pdf_base64,
+      }];
+    }
+
     const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
       method: 'POST',
       headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: {
-          subject: asunto || 'Reporte de Calidad — MIGRIN S.A.',
-          body: { contentType: 'HTML', content: cuerpo_html || 'Reporte de calidad adjunto.' },
-          toRecipients: to.map((email: string) => ({ emailAddress: { address: email } })),
-          attachments: [{
-            '@odata.type': '#microsoft.graph.fileAttachment',
-            name: filename || 'Reporte.pdf',
-            contentType: 'application/pdf',
-            contentBytes: pdf_base64,
-          }],
-        },
-        saveToSentItems: true,
-      }),
+      body: JSON.stringify({ message, saveToSentItems: true }),
     });
 
     if (!res.ok) {

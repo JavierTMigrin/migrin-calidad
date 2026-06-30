@@ -1452,6 +1452,137 @@ async function sendAlertaEmail(data,violations,user){
   }catch(e){console.error('Error enviando alerta por correo:',e);}
 }
 
+/* ── REPORTE DETALLADO POR REGISTRO ──
+   Genera la curva de distribucion como SVG (para el PDF; los clientes de
+   correo no renderizan SVG inline, por eso en el cuerpo del correo se omite). */
+function curvaSVG(gc,producto){
+  var rows=(gc&&gc.rows?gc.rows:[]).filter(function(r){return !r.isFondo;});
+  if(rows.length<2)return '';
+  var W=560,H=240,padL=42,padR=16,padT=18,padB=42,n=rows.length;
+  function X(i){return padL+(W-padL-padR)*(n>1?i/(n-1):0);}
+  function Y(p){return padT+(H-padT-padB)*(1-p/100);}
+  var grid='';
+  for(var g=0;g<=100;g+=20){var yy=Y(g);grid+='<line x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'" stroke="#eee" stroke-width="1"/><text x="'+(padL-6)+'" y="'+(yy+3)+'" font-size="9" fill="#999" text-anchor="end">'+g+'</text>';}
+  var xl='';rows.forEach(function(r,i){xl+='<text x="'+X(i)+'" y="'+(H-padB+14)+'" font-size="8" fill="#999" text-anchor="middle">'+r.us+'</text>';});
+  var sp=getSpecs(producto),bandMin='',bandMax='';
+  if(sp&&sp.granulometria){
+    var ptsMin=[],ptsMax=[];
+    rows.forEach(function(r,i){var s=sp.granulometria[r.us]||{};
+      if(s.pasMin!=null)ptsMin.push(X(i)+','+Y(s.pasMin));
+      if(s.pasMax!=null)ptsMax.push(X(i)+','+Y(s.pasMax));});
+    if(ptsMin.length>1)bandMin='<polyline points="'+ptsMin.join(' ')+'" fill="none" stroke="#c0392b" stroke-width="1" stroke-dasharray="4 3"/>';
+    if(ptsMax.length>1)bandMax='<polyline points="'+ptsMax.join(' ')+'" fill="none" stroke="#c0392b" stroke-width="1" stroke-dasharray="4 3"/>';
+  }
+  var pts=rows.map(function(r,i){return X(i)+','+Y(r.pctPas);}).join(' ');
+  var dots=rows.map(function(r,i){return '<circle cx="'+X(i)+'" cy="'+Y(r.pctPas)+'" r="2.5" fill="#1a5276"/>';}).join('');
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="background:#fff">'
+    +grid+bandMin+bandMax+'<polyline points="'+pts+'" fill="none" stroke="#1a5276" stroke-width="2"/>'+dots+xl
+    +'<text x="'+padL+'" y="'+(padT-4)+'" font-size="9" fill="#666">Pasante acumulado (%)'+((bandMin||bandMax)?' · línea roja = límites EETT':'')+'</text></svg>';
+}
+
+function reporteEnsayoHTML(data,gc,params,cumple,incluirCurva){
+  var prodLbl=data.productoLabel||data.producto;
+  var fechaFmt=/^\d{4}-\d{2}-\d{2}$/.test(String(data.fecha))?String(data.fecha).split('-').reverse().join('-'):(data.fecha||'-');
+  var estadoTxt=cumple==null?'SIN EVALUACIÓN EETT':cumple?'CUMPLE ESPECIFICACIÓN':'NO CUMPLE ESPECIFICACIÓN';
+  var estadoBg=cumple==null?'#64748b':cumple?'#15803d':'#b91c1c';
+  var hdrBg=cumple===false?'#b91c1c':'#1a5276';
+  var datos='<table width="100%" style="font-size:13px;border-collapse:collapse">'
+    +'<tr><td style="padding:3px 0;color:#888;width:30%">Producto</td><td style="padding:3px 0;font-weight:bold;color:#222">'+prodLbl+'</td>'
+    +'<td style="padding:3px 0;color:#888;width:18%">Turno</td><td style="padding:3px 0;color:#222">'+(data.turno||'-')+'</td></tr>'
+    +'<tr><td style="padding:3px 0;color:#888">Fecha muestreo</td><td style="padding:3px 0;color:#222">'+fechaFmt+'</td>'
+    +'<td style="padding:3px 0;color:#888">Tipo</td><td style="padding:3px 0;color:#222">'+(data.tipoMuestra||'-')+'</td></tr>'
+    +'<tr><td style="padding:3px 0;color:#888">Analista</td><td style="padding:3px 0;color:#222">'+(data.analista||'-')+'</td>'
+    +'<td style="padding:3px 0;color:#888">Emitido</td><td style="padding:3px 0;color:#222">'+today().split('-').reverse().join('-')+'</td></tr></table>';
+  var rows=(gc&&gc.rows)?gc.rows:[];
+  var granuTabla='';
+  if(rows.length){
+    granuTabla='<div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;padding:14px 0 6px">Granulometría</div>'
+      +'<table width="100%" style="border-collapse:collapse;font-size:12px">'
+      +'<thead><tr style="background:#1a5276;color:#fff;text-align:left"><th style="padding:6px 8px">Malla</th><th style="padding:6px 8px">mm</th><th style="padding:6px 8px;text-align:right">Ret. parcial %</th><th style="padding:6px 8px;text-align:right">Ret. acum %</th><th style="padding:6px 8px;text-align:right">Pasante %</th></tr></thead><tbody>'
+      +rows.map(function(r,i){return '<tr style="background:'+(i%2?'#f7f9fb':'#fff')+'"><td style="padding:5px 8px;font-weight:bold">'+(r.isFondo?'Fondo':r.us)+'</td><td style="padding:5px 8px;color:#777">'+(r.mm||'—')+'</td><td style="padding:5px 8px;text-align:right">'+fmt(r.pctP,2)+'</td><td style="padding:5px 8px;text-align:right">'+fmt(r.pctA,2)+'</td><td style="padding:5px 8px;text-align:right">'+fmt(r.pctPas,2)+'</td></tr>';}).join('')
+      +'</tbody></table>';
+  }
+  var cumpTabla='';
+  if(params&&params.length){
+    cumpTabla='<div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;padding:16px 0 6px">Cumplimiento EETT</div>'
+      +'<table width="100%" style="border-collapse:collapse;font-size:12px">'
+      +'<thead><tr style="background:#334155;color:#fff;text-align:left"><th style="padding:6px 8px">Parámetro</th><th style="padding:6px 8px;text-align:center">Resultado</th><th style="padding:6px 8px;text-align:center">Especificación</th><th style="padding:6px 8px;text-align:center">Estado</th></tr></thead><tbody>'
+      +params.map(function(p,i){
+        var conLim=(p.min!=null||p.max!=null);
+        var lim=(p.min!=null&&p.max!=null)?(fmt(p.min,p.dec)+' – '+fmt(p.max,p.dec)+' '+p.unit):(p.max!=null?('≤ '+fmt(p.max,p.dec)+' '+p.unit):(p.min!=null?('≥ '+fmt(p.min,p.dec)+' '+p.unit):'—'));
+        var col=!conLim?'#94a3b8':p.ok?'#15803d':'#b91c1c';
+        var est=!conLim?'—':p.ok?'OK':'FUERA';
+        return '<tr style="background:'+(i%2?'#f7f9fb':'#fff')+'"><td style="padding:5px 8px;font-weight:bold">'+p.param+(p.spec?(' <span style="color:#aaa;font-weight:normal">('+p.spec+')</span>'):'')+'</td><td style="padding:5px 8px;text-align:center">'+fmt(p.val,p.dec)+' '+p.unit+'</td><td style="padding:5px 8px;text-align:center;color:#777">'+lim+'</td><td style="padding:5px 8px;text-align:center;font-weight:bold;color:'+col+'">'+est+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  var q=data.quimica||{};
+  var oxs=[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']];
+  var oxCon=oxs.filter(function(o){var raw=q[o[0]];if(raw===''||raw==null)return false;var v=parseDecimal(raw);return !isNaN(v);});
+  var quimTabla='';
+  if(oxCon.length){
+    quimTabla='<div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;padding:16px 0 6px">Química registrada</div>'
+      +'<table width="100%" style="border-collapse:collapse;font-size:12px"><tbody><tr>'
+      +oxCon.map(function(o){return '<td style="padding:6px 8px;background:#f7f9fb;border:1px solid #eef2f6"><div style="color:#888;font-size:10px">'+o[1]+'</div><div style="font-weight:bold;color:#222">'+fmt(parseDecimal(q[o[0]]),3)+'%</div></td>';}).join('')
+      +'</tr></tbody></table>';
+  }
+  var curva=(incluirCurva&&rows.length)?('<div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;padding:16px 0 6px">Curva de distribución</div><div style="text-align:center">'+curvaSVG(gc,data.producto)+'</div>'):'';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">'
+    +'<table width="100%" style="background:'+hdrBg+';border-collapse:collapse"><tr><td style="padding:16px 22px">'
+      +'<div style="color:#fff;font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.8">MIGRIN S.A. — Control de Calidad</div>'
+      +'<div style="color:#fff;font-size:18px;font-weight:bold">Reporte de Ensayo</div></td>'
+      +'<td style="padding:16px 22px;text-align:right;vertical-align:middle"><span style="background:'+estadoBg+';color:#fff;font-size:12px;font-weight:bold;padding:6px 14px;border-radius:20px">'+estadoTxt+'</span></td></tr></table>'
+    +'<div style="padding:16px 22px">'+datos+'</div>'
+    +'<div style="padding:0 22px 18px">'+curva+granuTabla+cumpTabla+quimTabla+'</div>'
+    +'<div style="padding:14px 22px;border-top:1px solid #f0f0f0">'
+      +'<a href="https://javiertmigrin.github.io/migrin-calidad/calidad.html" style="display:inline-block;background:'+hdrBg+';color:#fff;text-decoration:none;font-size:13px;font-weight:bold;padding:9px 18px;border-radius:6px">Ver en la app</a>'
+      +'<div style="font-size:11px;color:#aaa;margin-top:12px">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</div></div></div>';
+}
+
+/* Envia el reporte detallado del ensayo recien registrado (siempre, cumpla
+   o no), con PDF adjunto (incluye la curva de distribucion). Best-effort:
+   nunca interrumpe el guardado del ensayo. */
+async function enviarReporteRegistro(data,gc,user){
+  try{
+    var params=[];
+    try{params=evalParams({producto:data.producto,quimica:data.quimica||{},pctHumedad:String(data.pctHumedad!=null?data.pctHumedad:'')},gc);}catch(e){}
+    var cumple=params.length?params.every(function(p){return p.ok;}):null;
+    var prodLbl=data.productoLabel||data.producto;
+    var fechaFmt=/^\d{4}-\d{2}-\d{2}$/.test(String(data.fecha))?String(data.fecha).split('-').reverse().join('-'):(data.fecha||'-');
+    var asunto=(cumple===false?'FUERA DE NORMA':'Reporte de ensayo')+' — '+prodLbl+' ('+fechaFmt+')';
+    var cuerpo=reporteEnsayoHTML(data,gc,params,cumple,false);
+    var pdfB64=null;
+    try{
+      var JsPDF=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
+      if(JsPDF&&window.html2canvas){
+        var cont=document.createElement('div');
+        cont.style.cssText='position:fixed;left:-9999px;top:0;width:680px;background:#fff;padding:10px';
+        cont.innerHTML=reporteEnsayoHTML(data,gc,params,cumple,true);
+        document.body.appendChild(cont);
+        var canvas=await window.html2canvas(cont,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:700});
+        if(cont.parentNode)cont.parentNode.removeChild(cont);
+        var pdf=new JsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
+        var pageW=210,pageH=297,margin=10,contentW=pageW-margin*2,contentH=pageH-margin*2;
+        var pxPerMm=canvas.width/contentW,pageHpx=Math.floor(contentH*pxPerMm),y=0,primero=true;
+        while(y<canvas.height){
+          var sliceH=Math.min(pageHpx,canvas.height-y);
+          var slc=document.createElement('canvas');slc.width=canvas.width;slc.height=sliceH;
+          var cx=slc.getContext('2d');cx.fillStyle='#ffffff';cx.fillRect(0,0,slc.width,slc.height);
+          cx.drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+          if(!primero)pdf.addPage();primero=false;
+          pdf.addImage(slc.toDataURL('image/jpeg',0.8),'JPEG',margin,margin,contentW,sliceH/pxPerMm);
+          y+=sliceH;
+        }
+        pdfB64=pdf.output('datauristring').split(',')[1];
+      }
+    }catch(e){console.error('PDF reporte registro:',e);}
+    var filename='Reporte_'+String(prodLbl).replace(/\s/g,'_')+'_'+(data.fecha||'')+'.pdf';
+    await supabase.functions.invoke('enviar-reporte',{body:{
+      asunto:asunto,cuerpo_html:cuerpo,pdf_base64:pdfB64,filename:filename,
+      destinatarios:['jtorres@migrin.cl','sarce@migrin.cl'],
+    }});
+  }catch(e){console.error('Error enviando reporte de registro:',e);}
+}
+
 async function loadEnsayos(){
   var res=await supabase.from('ensayos')
     .select('*')
@@ -2409,7 +2540,7 @@ function DespachoForm({account,producto,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    if(violations.length)sendAlertaEmail(data,violations,account);
+    enviarReporteRegistro(data,gc,account);
     try{
       await sendDespachoToSupabase(data,account);
       delPending(data.id);
@@ -2915,7 +3046,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=cfg.granu||cfg.quimica?collectViolations(data,gc):[];
-    if(violations.length)sendAlertaEmail(data,violations,account);
+    if(cfg.granu||cfg.quimica)enviarReporteRegistro(data,gc,account);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);
@@ -3496,7 +3627,7 @@ function TurcoLodoForm({account,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    if(violations.length)sendAlertaEmail(data,violations,account);
+    enviarReporteRegistro(data,gc,account);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
@@ -3712,7 +3843,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     lsAdd(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    if(violations.length)sendAlertaEmail(data,violations,account);
+    enviarReporteRegistro(data,gc,account);
     try{
       await sendToSupabase(data,account);
       lsDel(data.id);
