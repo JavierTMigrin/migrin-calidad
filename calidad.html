@@ -1420,13 +1420,16 @@ const SPECS_A36 = {
         max: null
       },
       Al2O3: {
-        min: null,
-        max: 0.2
+        min: 0.2,
+        max: 0.6
       },
       Fe2O3: {
-        min: null,
+        min: 0.08,
         max: 0.11
       }
+    },
+    humedad: {
+      max: 4.8
     }
   },
   CRISTALERIAS: {
@@ -1462,6 +1465,9 @@ const SPECS_A36 = {
         min: 0.06,
         max: 0.12
       }
+    },
+    humedad: {
+      max: 4.8
     }
   }
 };
@@ -2210,6 +2216,7 @@ function evalParams(data, gc) {
       });
       if (sp.d50Max != null) chk('D50', d50, null, sp.d50Max, 'mm', 3, sname);
       chkChem(sp.quimica, sname);
+      if (sp.humedad) chk('Humedad', hum, null, sp.humedad.max, '%', 2, sname);
     });
     return out;
   }

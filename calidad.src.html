@@ -635,7 +635,8 @@ const SPECS_A36={
       '#170':{retAcumMax:null,retAcumMin:95.0},
     },
     d50Max:0.290,
-    quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:null,max:0.2},Fe2O3:{min:null,max:0.11}},
+    quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:0.2,max:0.6},Fe2O3:{min:0.08,max:0.11}},
+    humedad:{max:4.8},
   },
   CRISTALERIAS:{
     nombre:'Cristalerias Chile',
@@ -646,6 +647,7 @@ const SPECS_A36={
       '#100':{retAcumMax:null,retAcumMin:98.5},
     },
     quimica:{SiO2:{min:94.3,max:null},Al2O3:{min:2.2,max:3.0},Fe2O3:{min:0.06,max:0.12}},
+    humedad:{max:4.8},
   },
 };
 
@@ -894,6 +896,7 @@ function evalParams(data,gc){
       });
       if(sp.d50Max!=null)chk('D50',d50,null,sp.d50Max,'mm',3,sname);
       chkChem(sp.quimica,sname);
+      if(sp.humedad)chk('Humedad',hum,null,sp.humedad.max,'%',2,sname);
     });
     return out;
   }
