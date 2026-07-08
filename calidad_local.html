@@ -1834,7 +1834,7 @@ function getSpecs(producto) {
   var sp = EETT_LIVE[producto];
   return sp && specHasLimits(sp) ? sp : null;
 }
-function getDashboardControles(prod) {
+function getDashboardControles(prod, a36Cliente) {
   var ps = getSpecs(prod);
   var cols = ['#1a5276', '#c53030', '#276749', '#b7791f', '#8e44ad', '#555'];
   var ci = 0;
@@ -1867,47 +1867,36 @@ function getDashboardControles(prod) {
     });
   }
   if (prod === 'A36') {
-    var glir = SPECS_A36.LIRQUEN.granulometria || {};
-    function ga(us, f) {
-      var o = glir[us] || {};
-      return o[f] == null ? null : o[f];
-    }
-    return [{
-      key: '#35',
-      field: 'pctA',
-      label: 'Ret.Acum #35',
-      color: '#e53935',
-      limMin: ga('#35', 'retAcumMin'),
-      limMax: ga('#35', 'retAcumMax')
-    }, {
-      key: '#120',
-      field: 'pctA',
-      label: 'Ret.Acum #120',
-      color: '#1a5276',
-      limMin: ga('#120', 'retAcumMin'),
-      limMax: ga('#120', 'retAcumMax')
-    }, {
-      key: '#170',
-      field: 'pctA',
-      label: 'Ret.Acum #170',
-      color: '#276749',
-      limMin: ga('#170', 'retAcumMin'),
-      limMax: ga('#170', 'retAcumMax')
-    }, {
+    var cliA36 = SPECS_A36[a36Cliente] || SPECS_A36.LIRQUEN;
+    var gcliA36 = cliA36.granulometria || {};
+    var ctrlsA36 = Object.keys(gcliA36).map(function (us) {
+      var s = gcliA36[us];
+      return {
+        key: us,
+        field: 'pctA',
+        label: 'Ret.Acum ' + us,
+        color: nc(),
+        limMin: s.retAcumMin,
+        limMax: s.retAcumMax
+      };
+    });
+    if (cliA36.d50Max != null) ctrlsA36.push({
       key: '_d50',
       field: null,
       label: 'D50 (mm)',
-      color: '#b7791f',
+      color: nc(),
       limMin: null,
-      limMax: SPECS_A36.LIRQUEN.d50Max == null ? null : SPECS_A36.LIRQUEN.d50Max
-    }, {
+      limMax: cliA36.d50Max
+    });
+    ctrlsA36.push({
       key: '_p80',
       field: null,
       label: 'P80 (mm)',
-      color: '#8e44ad',
+      color: nc(),
       limMin: null,
       limMax: null
-    }];
+    });
+    return ctrlsA36;
   }
   if (prod === 'A38') {
     var g38d = SPECS_A38.granulometria || {};
@@ -9814,6 +9803,7 @@ function DashboardScreen({
   var [showAvg, setShowAvg] = useState(true);
   var [showLims, setShowLims] = useState(true);
   var [selIdx, setSelIdx] = useState(null); // muestra seleccionada (null = ultima)
+  var [a36Cliente, setA36Cliente] = useState('LIRQUEN'); // EETT contra la que se comparan A36 en Granulometria/Quimica/Tabla
   var [enviandoPdf, setEnviandoPdf] = useState(false);
   var [msgPdf, setMsgPdf] = useState('');
   var [filterTipoMuestra, setFilterTipoMuestra] = useState(['Puntual', 'Acopio']);
@@ -10504,17 +10494,17 @@ function DashboardScreen({
     return filtered.map(computeStats);
   }, [filtered, prod]);
   var granuControls = useMemo(function () {
-    return getDashboardControles(prod);
-  }, [prod]);
+    return getDashboardControles(prod, a36Cliente);
+  }, [prod, a36Cliente]);
   var chemControls = useMemo(function () {
     var cols = ['#1a5276', '#c53030', '#b7791f', '#276749', '#8e44ad', '#e67e22', '#2e86c1', '#555', '#117864'];
     var pairs = [['SiO2', 'SiO₂'], ['Al2O3', 'Al₂O₃'], ['Fe2O3', 'Fe₂O₃'], ['CaO', 'CaO'], ['MgO', 'MgO'], ['K2O', 'K₂O'], ['Na2O', 'Na₂O'], ['TiO2', 'TiO₂'], ['K2O_Na2O', 'K₂O+Na₂O']];
     var qspec = null,
       specName = '';
     if (prod === 'A36') {
-      // A36 se controla quimicamente contra la EETT de Lirquen (la mas exigente)
-      qspec = (SPECS_A36.LIRQUEN || {}).quimica || null;
-      specName = 'EETT Lirquen';
+      var cliQ = SPECS_A36[a36Cliente] || SPECS_A36.LIRQUEN;
+      qspec = cliQ.quimica || null;
+      specName = 'EETT ' + cliQ.nombre;
     } else {
       var ps = getSpecs(prod);
       qspec = ps ? ps.quimica : null;
@@ -10530,7 +10520,7 @@ function DashboardScreen({
         specName: specName
       };
     });
-  }, [prod]);
+  }, [prod, a36Cliente]);
 
   /* Oxidos a graficar: los que tienen EETT o datos reales en el periodo */
   var chemActive = useMemo(function () {
@@ -12093,6 +12083,36 @@ function DashboardScreen({
       key: p.value,
       value: p.value
     }, p.label);
+  }))), prod === 'A36' && /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "EETT cliente"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      minHeight: 34
+    }
+  }, Object.entries(SPECS_A36).map(function (entry) {
+    var k = entry[0],
+      s = entry[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      type: "button",
+      onClick: function () {
+        setA36Cliente(k);
+      },
+      style: {
+        padding: '5px 12px',
+        borderRadius: 20,
+        fontFamily: 'Inter',
+        fontWeight: 600,
+        fontSize: '.74rem',
+        border: '1.5px solid ' + (a36Cliente === k ? '#1a5276' : '#e0e0e0'),
+        cursor: 'pointer',
+        background: a36Cliente === k ? '#1a5276' : '#fff',
+        color: a36Cliente === k ? '#fff' : '#555'
+      }
+    }, s.nombre);
   }))), /*#__PURE__*/React.createElement("div", {
     className: "dff"
   }, /*#__PURE__*/React.createElement("label", null, "Tipo período"), /*#__PURE__*/React.createElement("select", {
@@ -13635,9 +13655,10 @@ function DashboardScreen({
     }())));
   }(), !loading && tab === 'tabla' && function () {
     var sieves = SIEVE_CONFIG[prod] || [];
-    var gspec = prod === 'A36' ? SPECS_A36.LIRQUEN.granulometria || {} : (getSpecs(prod) || {}).granulometria || {};
-    var qspecT = prod === 'A36' ? SPECS_A36.LIRQUEN.quimica || {} : (getSpecs(prod) || {}).quimica || {};
-    var hspecT = prod === 'A36' ? null : (getSpecs(prod) || {}).humedad || null;
+    var cliTabla = prod === 'A36' ? SPECS_A36[a36Cliente] || SPECS_A36.LIRQUEN : null;
+    var gspec = prod === 'A36' ? cliTabla.granulometria || {} : (getSpecs(prod) || {}).granulometria || {};
+    var qspecT = prod === 'A36' ? cliTabla.quimica || {} : (getSpecs(prod) || {}).quimica || {};
+    var hspecT = prod === 'A36' ? cliTabla.humedad || null : (getSpecs(prod) || {}).humedad || null;
     var oxs = [['sio2', 'SiO₂', 'SiO2'], ['al2o3', 'Al₂O₃', 'Al2O3'], ['fe2o3', 'Fe₂O₃', 'Fe2O3'], ['cao', 'CaO', 'CaO'], ['mgo', 'MgO', 'MgO'], ['k2o', 'K₂O', 'K2O'], ['na2o', 'Na₂O', 'Na2O'], ['tio2', 'TiO₂', 'TiO2']];
     function sieveLim(us) {
       var g = gspec[us];
