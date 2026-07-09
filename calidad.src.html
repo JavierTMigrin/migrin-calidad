@@ -4804,6 +4804,7 @@ function DashboardScreen({account,onBack}){
   var[certModal,setCertModal]=useState(null);  // datos del certificado en edicion
   var[certGen,setCertGen]=useState(false);
   var[certMsg,setCertMsg]=useState('');
+  var[certEmitidos,setCertEmitidos]=useState(null); // historial de certificados emitidos
   var[enviandoPdf,setEnviandoPdf]=useState(false);
   var[msgPdf,setMsgPdf]=useState('');
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
@@ -4975,7 +4976,29 @@ function DashboardScreen({account,onBack}){
       }
       var nomCert=(certModal&&certModal.numCert?certModal.numCert:'A36').replace(/[\/\\\s]+/g,'-');
       pdf.save('Certificado_'+nomCert+(certModal&&certModal.lote?'_Lote'+certModal.lote:'')+'.pdf');
-      setCertMsg('✓ Certificado descargado.');
+      // Registrar el certificado emitido en Supabase (trazabilidad)
+      try{
+        var reg={num_cert:certModal.numCert||'',producto:'A36',lote:certModal.lote||'',acopio:certModal.acopio||'',
+          fecha:certModal.fecha||null,hora:certModal.hora||'',humedad:certModal.humedad||'',
+          patente:certModal.patente||'',muestreador:certModal.muestreador||'',
+          n_muestras:certSelDet.length,
+          muestras:certSelDet.map(function(d){return{id:d.id,fecha:d.fecha,folio:d.folio};}),
+          stats:certStats?{
+            a35:certStats.acum['#35']?certStats.acum['#35'].media:null,
+            a120:certStats.acum['#120']?certStats.acum['#120'].media:null,
+            a170:certStats.acum['#170']?certStats.acum['#170'].media:null,
+            sio2:certStats.quim.sio2?certStats.quim.sio2.media:null,
+            al2o3:certStats.quim.al2o3?certStats.quim.al2o3.media:null,
+            fe2o3:certStats.quim.fe2o3?certStats.quim.fe2o3.media:null,
+            d50:certStats.d50?certStats.d50.media:null,
+            hum:certStats.hum?certStats.hum.media:null,
+          }:null,
+          emitido_por:account?account.email:''};
+        var ins=await supabase.from('certificados').insert([reg]);
+        if(ins.error)console.error('certificados insert:',ins.error);
+        else cargarCertEmitidos();
+      }catch(e2){console.error('registro certificado:',e2);}
+      setCertMsg('✓ Certificado descargado y registrado.');
     }catch(e){setCertMsg('Error: '+((e&&e.message)?e.message:String(e)));}
     setCertGen(false);
   }
@@ -5295,9 +5318,8 @@ function DashboardScreen({account,onBack}){
   },[records,prod,certFiltro]);
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
-  var certDet=useMemo(function(){
-    var sieves=SIEVE_CONFIG[prod]||[];
-    return certRecs.map(function(r){
+  function detA36(r){
+      var sieves=SIEVE_CONFIG[prod]||[];
       var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
       var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
       var gc=calcGranu(prod,gv,pf);
@@ -5322,8 +5344,30 @@ function DashboardScreen({account,onBack}){
         tipo:r.TipoMuestra||r.tipoMuestra||'',acopio:r.NumAcopio||r.numAcopio||'',
         analista:r.Analista||r.analista||'',acum:acum,parc:parc,fondoP:fondo?fondo.pctP:null,
         d50:d50,quim:quim,hum:isNaN(hum)?null:hum};
-    });
-  },[certRecs,prod]);
+  }
+  var certDet=useMemo(function(){return certRecs.map(detA36);},[certRecs,prod]);
+
+  // Promedio historico de produccion (Puntual, ultimos 30) para contrastar la seleccion
+  var prodHist=useMemo(function(){
+    if(prod!=='A36')return null;
+    var rs=records.filter(function(r){return(r.ProductoKey||r.producto||'')===prod&&(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio';});
+    rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    rs=rs.slice(-30);
+    if(rs.length<3)return null;
+    var det=rs.map(detA36);
+    function m(get){var v=det.map(get).filter(function(x){return x!=null&&!isNaN(x);});return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:null;}
+    return{n:det.length,
+      a35:m(function(d){return d.acum['#35'];}),a120:m(function(d){return d.acum['#120'];}),a170:m(function(d){return d.acum['#170'];}),
+      sio2:m(function(d){return d.quim.sio2;}),al2o3:m(function(d){return d.quim.al2o3;}),fe2o3:m(function(d){return d.quim.fe2o3;}),
+      d50:m(function(d){return d.d50;})};
+  },[records,prod]);
+
+  // Registro de certificados emitidos (tabla certificados en Supabase)
+  function cargarCertEmitidos(){
+    supabase.from('certificados').select('*').order('created_at',{ascending:false}).limit(20)
+      .then(function(res){setCertEmitidos(res.error?[]:(res.data||[]));});
+  }
+  useEffect(function(){if(tab==='acopio'&&prod==='A36')cargarCertEmitidos();},[tab,prod]);
 
   var certSelDet=useMemo(function(){return certDet.filter(function(d){return certSel[d.id];});},[certDet,certSel]);
 
@@ -6963,6 +7007,40 @@ function DashboardScreen({account,onBack}){
                   <div style={{fontSize:'.72rem',color:'var(--text-muted)',marginTop:8}}>
                     El promedio se calcula sobre las {certSelDet.length} muestras marcadas en la tabla superior. D50 solo tiene límite en la EETT de Vidrios Lirquén.
                   </div>
+                  {prodHist&&(
+                    <div style={{marginTop:14}}>
+                      <div style={{fontSize:'.74rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>SELECCIÓN VS PRODUCCIÓN HISTÓRICA (últimos {prodHist.n} puntuales)</div>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.78rem'}}>
+                        <thead><tr>
+                          <th style={Object.assign({},thV,{textAlign:'left'})}>Parámetro</th>
+                          <th style={thV}>Prom. selección</th><th style={thV}>Prom. producción</th><th style={thV}>Δ</th>
+                        </tr></thead>
+                        <tbody>
+                          {[
+                            ['Ret.Acum #35',certStats.acum['#35']?certStats.acum['#35'].media:null,prodHist.a35,2,'%'],
+                            ['Ret.Acum #120',certStats.acum['#120']?certStats.acum['#120'].media:null,prodHist.a120,2,'%'],
+                            ['Ret.Acum #170',certStats.acum['#170']?certStats.acum['#170'].media:null,prodHist.a170,2,'%'],
+                            ['SiO₂',certStats.quim.sio2?certStats.quim.sio2.media:null,prodHist.sio2,2,'%'],
+                            ['Al₂O₃',certStats.quim.al2o3?certStats.quim.al2o3.media:null,prodHist.al2o3,2,'%'],
+                            ['Fe₂O₃',certStats.quim.fe2o3?certStats.quim.fe2o3.media:null,prodHist.fe2o3,3,'%'],
+                            ['D50',certStats.d50?certStats.d50.media:null,prodHist.d50,3,'mm'],
+                          ].map(function(row){
+                            var d=(row[1]!=null&&row[2]!=null)?+(row[1]-row[2]).toFixed(row[3]+1):null;
+                            var rel=(d!=null&&row[2])?Math.abs(d)/Math.abs(row[2]):0;
+                            return(
+                              <tr key={row[0]}>
+                                <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>{row[0]}</td>
+                                <td style={tdV}>{row[1]!=null?fmt(row[1],row[3])+' '+row[4]:'—'}</td>
+                                <td style={tdV}>{row[2]!=null?fmt(row[2],row[3])+' '+row[4]:'—'}</td>
+                                <td style={Object.assign({},tdV,{fontWeight:800,color:d==null?'#94a3b8':rel>0.1?'#c0392b':'#555'})}>{d==null?'—':(d>0?'+':'')+fmt(d,row[3])}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div style={{fontSize:'.7rem',color:'var(--text-muted)',marginTop:4}}>Δ en rojo cuando la selección difiere más de un 10% del promedio de producción — puede indicar un acopio de otra tanda.</div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -6971,17 +7049,50 @@ function DashboardScreen({account,onBack}){
               <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Certificado de despacho</div>
               <div style={{padding:'12px 16px',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
                 <button className="btn btn-primary" disabled={!certStats}
-                  onClick={function(){
+                  onClick={async function(){
                     var ms=[];certSelDet.forEach(function(d){if(d.analista&&ms.indexOf(d.analista)===-1)ms.push(d.analista);});
-                    setCertModal({numCert:'CCVL-',fecha:today(),hora:nowTime(),lote:'',
+                    // Folio correlativo automatico: cuenta los certificados del año y suma 1
+                    var anio=new Date().getFullYear(),sug='CCVL-';
+                    try{
+                      var resC=await supabase.from('certificados').select('id',{count:'exact',head:true}).gte('created_at',anio+'-01-01');
+                      if(resC.count!=null)sug='CCVL-'+(resC.count+1)+'/'+anio;
+                    }catch(eC){}
+                    setCertModal({numCert:sug,fecha:today(),hora:nowTime(),lote:'',
                       acopio:(certFiltro!=='__all'&&certFiltro!=='Puntual')?certFiltro:'',
                       humedad:certStats&&certStats.hum?fmt(certStats.hum.media,2):'',patente:'',
                       muestreador:ms.join(', ')});
                     setCertMsg('');
                   }}>➕ Generar certificado (promedio de {certSelDet.length} muestras)</button>
-                <span style={{fontSize:'.78rem',color:'var(--text-muted)'}}>Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF.</span>
+                <span style={{fontSize:'.78rem',color:'var(--text-muted)'}}>Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF. El folio CCVL se sugiere automáticamente y cada certificado queda registrado.</span>
               </div>
             </div>
+
+            {certEmitidos&&certEmitidos.length>0&&(
+              <div className="sec-card" style={{marginBottom:16}}>
+                <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Certificados emitidos — últimos {certEmitidos.length}</div>
+                <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.78rem'}}>
+                    <thead><tr>
+                      <th style={thV}>N° certificado</th><th style={thV}>Fecha</th><th style={thV}>Lote</th><th style={thV}>Acopio</th>
+                      <th style={thV}>Patente</th><th style={thV}>Muestras</th><th style={thV}>Emitido por</th>
+                    </tr></thead>
+                    <tbody>
+                      {certEmitidos.map(function(c){return(
+                        <tr key={c.id}>
+                          <td style={Object.assign({},tdV,{fontWeight:700})}>{c.num_cert||'—'}</td>
+                          <td style={tdV}>{c.fecha||String(c.created_at||'').slice(0,10)}</td>
+                          <td style={tdV}>{c.lote||'—'}</td>
+                          <td style={tdV}>{c.acopio||'—'}</td>
+                          <td style={tdV}>{c.patente||'—'}</td>
+                          <td style={tdV}>{c.n_muestras||'—'}</td>
+                          <td style={Object.assign({},tdV,{fontSize:'.72rem',color:'#777'})}>{c.emitido_por||'—'}</td>
+                        </tr>
+                      );})}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {certModal&&certStats&&(function(){
               var cm=certModal;
@@ -8526,7 +8637,8 @@ function HistoryScreen({account,onBack}){
       if(!q)return true;
       var folio=r.Folio?String(r.Folio):'';
       var hay=[folio,'#'+folio,r.Producto||r.productoLabel||'',
-        r.Analista||r.analista||'',r.Turno||r.turno||'',getPlanta(r)].join(' ').toLowerCase();
+        r.Analista||r.analista||'',r.Turno||r.turno||'',getPlanta(r),
+        r.Lote||r.lote||'',r.Guia||r.guia||'',r.NumAcopio||r.numAcopio||''].join(' ').toLowerCase();
       return hay.indexOf(q)!==-1;
     });
   },[records,busca,fDesde,fHasta]);
@@ -8562,7 +8674,7 @@ function HistoryScreen({account,onBack}){
         background:'var(--card)',padding:'10px 14px',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
         <div className="field" style={{flex:2,minWidth:180}}>
           <label style={{fontSize:'.72rem'}}>Buscar</label>
-          <input type="text" value={busca} placeholder="Folio, producto, analista, planta..."
+          <input type="text" value={busca} placeholder="Folio, lote, guía, acopio, producto, analista..."
             onChange={function(e){setBusca(e.target.value);setPage(0);}}/>
         </div>
         <div className="field" style={{flex:1,minWidth:130}}>
@@ -9538,6 +9650,26 @@ function App(){
   var[authLoading,setAuthLoading]=useState(true);
   var[screen,setScreen]=useState('home');
   var[toast,setToast]=useState(null);
+  var[hayNuevaVersion,setHayNuevaVersion]=useState(false);
+
+  // Aviso de nueva version: compara la version del sw.js publicado con la
+  // que habia al cargar la app; si cambia, muestra el banner de actualizar.
+  useEffect(function(){
+    var verInicial=null;
+    function leerVersion(){
+      return fetch('sw.js',{cache:'no-store'}).then(function(r){return r.text();})
+        .then(function(t){var m=t.match(/migrin-calidad-v(\d+)/);return m?m[1]:null;})
+        .catch(function(){return null;});
+    }
+    leerVersion().then(function(v){verInicial=v;});
+    function chequear(){
+      if(document.visibilityState!=='visible')return;
+      leerVersion().then(function(v){if(v&&verInicial&&v!==verInicial)setHayNuevaVersion(true);});
+    }
+    var timer=setInterval(chequear,5*60*1000);
+    document.addEventListener('visibilitychange',chequear);
+    return function(){clearInterval(timer);document.removeEventListener('visibilitychange',chequear);};
+  },[]);
 
   var isViewer=account&&account.user_metadata&&account.user_metadata.is_viewer===true&&account.user_metadata.is_admin!==true;
   var isAdmin=account&&account.user_metadata&&account.user_metadata.is_admin===true;
@@ -9617,10 +9749,21 @@ function App(){
     </header>
   );
 
+  var bannerVersion=hayNuevaVersion?(
+    <div style={{background:'#1a5276',color:'#fff',padding:'8px 16px',display:'flex',justifyContent:'center',alignItems:'center',gap:12,fontSize:'.85rem',fontFamily:'Inter',flexWrap:'wrap'}}>
+      <span>⬆ Hay una nueva versión de la aplicación disponible.</span>
+      <button onClick={function(){window.location.reload();}}
+        style={{background:'#fff',color:'#1a5276',border:'none',borderRadius:6,padding:'5px 14px',fontWeight:700,cursor:'pointer',fontFamily:'Inter'}}>
+        Actualizar ahora
+      </button>
+    </div>
+  ):null;
+
   if(!account){
     return(
       <>
         {header}
+        {bannerVersion}
         <div className="main"><AuthScreen onLogin={login}/></div>
       </>
     );
@@ -9629,6 +9772,7 @@ function App(){
   return(
     <>
       {header}
+      {bannerVersion}
       <div className="main">
         {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
         {screen==='home'&&<HomeScreen isViewer={isViewer} account={account}

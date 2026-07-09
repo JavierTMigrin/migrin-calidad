@@ -9812,6 +9812,7 @@ function DashboardScreen({
   var [certModal, setCertModal] = useState(null); // datos del certificado en edicion
   var [certGen, setCertGen] = useState(false);
   var [certMsg, setCertMsg] = useState('');
+  var [certEmitidos, setCertEmitidos] = useState(null); // historial de certificados emitidos
   var [enviandoPdf, setEnviandoPdf] = useState(false);
   var [msgPdf, setMsgPdf] = useState('');
   var [filterTipoMuestra, setFilterTipoMuestra] = useState(['Puntual', 'Acopio']);
@@ -10083,7 +10084,44 @@ function DashboardScreen({
       }
       var nomCert = (certModal && certModal.numCert ? certModal.numCert : 'A36').replace(/[\/\\\s]+/g, '-');
       pdf.save('Certificado_' + nomCert + (certModal && certModal.lote ? '_Lote' + certModal.lote : '') + '.pdf');
-      setCertMsg('✓ Certificado descargado.');
+      // Registrar el certificado emitido en Supabase (trazabilidad)
+      try {
+        var reg = {
+          num_cert: certModal.numCert || '',
+          producto: 'A36',
+          lote: certModal.lote || '',
+          acopio: certModal.acopio || '',
+          fecha: certModal.fecha || null,
+          hora: certModal.hora || '',
+          humedad: certModal.humedad || '',
+          patente: certModal.patente || '',
+          muestreador: certModal.muestreador || '',
+          n_muestras: certSelDet.length,
+          muestras: certSelDet.map(function (d) {
+            return {
+              id: d.id,
+              fecha: d.fecha,
+              folio: d.folio
+            };
+          }),
+          stats: certStats ? {
+            a35: certStats.acum['#35'] ? certStats.acum['#35'].media : null,
+            a120: certStats.acum['#120'] ? certStats.acum['#120'].media : null,
+            a170: certStats.acum['#170'] ? certStats.acum['#170'].media : null,
+            sio2: certStats.quim.sio2 ? certStats.quim.sio2.media : null,
+            al2o3: certStats.quim.al2o3 ? certStats.quim.al2o3.media : null,
+            fe2o3: certStats.quim.fe2o3 ? certStats.quim.fe2o3.media : null,
+            d50: certStats.d50 ? certStats.d50.media : null,
+            hum: certStats.hum ? certStats.hum.media : null
+          } : null,
+          emitido_por: account ? account.email : ''
+        };
+        var ins = await supabase.from('certificados').insert([reg]);
+        if (ins.error) console.error('certificados insert:', ins.error);else cargarCertEmitidos();
+      } catch (e2) {
+        console.error('registro certificado:', e2);
+      }
+      setCertMsg('✓ Certificado descargado y registrado.');
     } catch (e) {
       setCertMsg('Error: ' + (e && e.message ? e.message : String(e)));
     }
@@ -10580,61 +10618,120 @@ function DashboardScreen({
   }, [records, prod, certFiltro]);
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
-  var certDet = useMemo(function () {
+  function detA36(r) {
     var sieves = SIEVE_CONFIG[prod] || [];
-    return certRecs.map(function (r) {
-      var gv = r.granu && Array.isArray(r.granu) ? r.granu : sieves.map(function (s) {
-        return String(r[s.us + '_' + s.mm + 'g'] || 0);
-      });
-      var pf = String(r.PesoFinal !== undefined ? r.PesoFinal : r.pesoFinal !== undefined ? r.pesoFinal : 0);
-      var gc = calcGranu(prod, gv, pf);
-      var rows = (gc.rows || []).filter(function (x) {
-        return !x.isFondo;
-      });
-      var acum = {},
-        parc = {};
-      rows.forEach(function (row, i) {
-        var us = sieves[i] ? sieves[i].us : row.us;
-        acum[us] = row.pctA;
-        parc[us] = row.pctP;
-      });
-      var fondo = (gc.rows || []).find(function (x) {
-        return x.isFondo;
-      });
-      var d50 = null;
-      for (var i = 0; i < rows.length - 1; i++) {
-        if (rows[i].pctPas >= 50 && rows[i + 1].pctPas < 50) {
-          var m1 = parseFloat(String(sieves[i] ? sieves[i].mm : 0).replace(',', '.')) || 0;
-          var m2 = parseFloat(String(sieves[i + 1] ? sieves[i + 1].mm : 0).replace(',', '.')) || 0;
-          d50 = rows[i].pctPas === rows[i + 1].pctPas ? m1 : m1 + (m2 - m1) * (rows[i].pctPas - 50) / (rows[i].pctPas - rows[i + 1].pctPas);
-          break;
-        }
-      }
-      var q = r.quimica || {};
-      var quim = {};
-      ['sio2', 'al2o3', 'fe2o3', 'cao', 'mgo', 'k2o', 'na2o', 'tio2'].forEach(function (k) {
-        var v = parseDecimal(q[k]);
-        quim[k] = isNaN(v) ? null : v;
-      });
-      quim.k2o_na2o = quim.k2o != null || quim.na2o != null ? (quim.k2o || 0) + (quim.na2o || 0) : null;
-      var hum = parseDecimal(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad);
-      return {
-        id: String(r.ID || r.id || ''),
-        fecha: r.FechaMuestreo || r.fecha || '',
-        folio: r.Folio || '',
-        turno: r.Turno || r.turno || '',
-        tipo: r.TipoMuestra || r.tipoMuestra || '',
-        acopio: r.NumAcopio || r.numAcopio || '',
-        analista: r.Analista || r.analista || '',
-        acum: acum,
-        parc: parc,
-        fondoP: fondo ? fondo.pctP : null,
-        d50: d50,
-        quim: quim,
-        hum: isNaN(hum) ? null : hum
-      };
+    var gv = r.granu && Array.isArray(r.granu) ? r.granu : sieves.map(function (s) {
+      return String(r[s.us + '_' + s.mm + 'g'] || 0);
     });
+    var pf = String(r.PesoFinal !== undefined ? r.PesoFinal : r.pesoFinal !== undefined ? r.pesoFinal : 0);
+    var gc = calcGranu(prod, gv, pf);
+    var rows = (gc.rows || []).filter(function (x) {
+      return !x.isFondo;
+    });
+    var acum = {},
+      parc = {};
+    rows.forEach(function (row, i) {
+      var us = sieves[i] ? sieves[i].us : row.us;
+      acum[us] = row.pctA;
+      parc[us] = row.pctP;
+    });
+    var fondo = (gc.rows || []).find(function (x) {
+      return x.isFondo;
+    });
+    var d50 = null;
+    for (var i = 0; i < rows.length - 1; i++) {
+      if (rows[i].pctPas >= 50 && rows[i + 1].pctPas < 50) {
+        var m1 = parseFloat(String(sieves[i] ? sieves[i].mm : 0).replace(',', '.')) || 0;
+        var m2 = parseFloat(String(sieves[i + 1] ? sieves[i + 1].mm : 0).replace(',', '.')) || 0;
+        d50 = rows[i].pctPas === rows[i + 1].pctPas ? m1 : m1 + (m2 - m1) * (rows[i].pctPas - 50) / (rows[i].pctPas - rows[i + 1].pctPas);
+        break;
+      }
+    }
+    var q = r.quimica || {};
+    var quim = {};
+    ['sio2', 'al2o3', 'fe2o3', 'cao', 'mgo', 'k2o', 'na2o', 'tio2'].forEach(function (k) {
+      var v = parseDecimal(q[k]);
+      quim[k] = isNaN(v) ? null : v;
+    });
+    quim.k2o_na2o = quim.k2o != null || quim.na2o != null ? (quim.k2o || 0) + (quim.na2o || 0) : null;
+    var hum = parseDecimal(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad);
+    return {
+      id: String(r.ID || r.id || ''),
+      fecha: r.FechaMuestreo || r.fecha || '',
+      folio: r.Folio || '',
+      turno: r.Turno || r.turno || '',
+      tipo: r.TipoMuestra || r.tipoMuestra || '',
+      acopio: r.NumAcopio || r.numAcopio || '',
+      analista: r.Analista || r.analista || '',
+      acum: acum,
+      parc: parc,
+      fondoP: fondo ? fondo.pctP : null,
+      d50: d50,
+      quim: quim,
+      hum: isNaN(hum) ? null : hum
+    };
+  }
+  var certDet = useMemo(function () {
+    return certRecs.map(detA36);
   }, [certRecs, prod]);
+
+  // Promedio historico de produccion (Puntual, ultimos 30) para contrastar la seleccion
+  var prodHist = useMemo(function () {
+    if (prod !== 'A36') return null;
+    var rs = records.filter(function (r) {
+      return (r.ProductoKey || r.producto || '') === prod && (r.TipoMuestra || r.tipoMuestra || '') !== 'Acopio';
+    });
+    rs.sort(function (a, b) {
+      return (a.FechaMuestreo || a.fecha || '').localeCompare(b.FechaMuestreo || b.fecha || '');
+    });
+    rs = rs.slice(-30);
+    if (rs.length < 3) return null;
+    var det = rs.map(detA36);
+    function m(get) {
+      var v = det.map(get).filter(function (x) {
+        return x != null && !isNaN(x);
+      });
+      return v.length ? v.reduce(function (a, b) {
+        return a + b;
+      }, 0) / v.length : null;
+    }
+    return {
+      n: det.length,
+      a35: m(function (d) {
+        return d.acum['#35'];
+      }),
+      a120: m(function (d) {
+        return d.acum['#120'];
+      }),
+      a170: m(function (d) {
+        return d.acum['#170'];
+      }),
+      sio2: m(function (d) {
+        return d.quim.sio2;
+      }),
+      al2o3: m(function (d) {
+        return d.quim.al2o3;
+      }),
+      fe2o3: m(function (d) {
+        return d.quim.fe2o3;
+      }),
+      d50: m(function (d) {
+        return d.d50;
+      })
+    };
+  }, [records, prod]);
+
+  // Registro de certificados emitidos (tabla certificados en Supabase)
+  function cargarCertEmitidos() {
+    supabase.from('certificados').select('*').order('created_at', {
+      ascending: false
+    }).limit(20).then(function (res) {
+      setCertEmitidos(res.error ? [] : res.data || []);
+    });
+  }
+  useEffect(function () {
+    if (tab === 'acopio' && prod === 'A36') cargarCertEmitidos();
+  }, [tab, prod]);
   var certSelDet = useMemo(function () {
     return certDet.filter(function (d) {
       return certSel[d.id];
@@ -14365,7 +14462,60 @@ function DashboardScreen({
         color: 'var(--text-muted)',
         marginTop: 8
       }
-    }, "El promedio se calcula sobre las ", certSelDet.length, " muestras marcadas en la tabla superior. D50 solo tiene límite en la EETT de Vidrios Lirquén."))), /*#__PURE__*/React.createElement("div", {
+    }, "El promedio se calcula sobre las ", certSelDet.length, " muestras marcadas en la tabla superior. D50 solo tiene límite en la EETT de Vidrios Lirquén."), prodHist && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 14
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.74rem',
+        fontWeight: 700,
+        color: 'var(--text-secondary)',
+        marginBottom: 4
+      }
+    }, "SELECCIÓN VS PRODUCCIÓN HISTÓRICA (últimos ", prodHist.n, " puntuales)"), /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '.78rem'
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+      style: Object.assign({}, thV, {
+        textAlign: 'left'
+      })
+    }, "Parámetro"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Prom. selección"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Prom. producción"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Δ"))), /*#__PURE__*/React.createElement("tbody", null, [['Ret.Acum #35', certStats.acum['#35'] ? certStats.acum['#35'].media : null, prodHist.a35, 2, '%'], ['Ret.Acum #120', certStats.acum['#120'] ? certStats.acum['#120'].media : null, prodHist.a120, 2, '%'], ['Ret.Acum #170', certStats.acum['#170'] ? certStats.acum['#170'].media : null, prodHist.a170, 2, '%'], ['SiO₂', certStats.quim.sio2 ? certStats.quim.sio2.media : null, prodHist.sio2, 2, '%'], ['Al₂O₃', certStats.quim.al2o3 ? certStats.quim.al2o3.media : null, prodHist.al2o3, 2, '%'], ['Fe₂O₃', certStats.quim.fe2o3 ? certStats.quim.fe2o3.media : null, prodHist.fe2o3, 3, '%'], ['D50', certStats.d50 ? certStats.d50.media : null, prodHist.d50, 3, 'mm']].map(function (row) {
+      var d = row[1] != null && row[2] != null ? +(row[1] - row[2]).toFixed(row[3] + 1) : null;
+      var rel = d != null && row[2] ? Math.abs(d) / Math.abs(row[2]) : 0;
+      return /*#__PURE__*/React.createElement("tr", {
+        key: row[0]
+      }, /*#__PURE__*/React.createElement("td", {
+        style: Object.assign({}, tdV, {
+          textAlign: 'left',
+          fontWeight: 700
+        })
+      }, row[0]), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, row[1] != null ? fmt(row[1], row[3]) + ' ' + row[4] : '—'), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, row[2] != null ? fmt(row[2], row[3]) + ' ' + row[4] : '—'), /*#__PURE__*/React.createElement("td", {
+        style: Object.assign({}, tdV, {
+          fontWeight: 800,
+          color: d == null ? '#94a3b8' : rel > 0.1 ? '#c0392b' : '#555'
+        })
+      }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, row[3])));
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.7rem',
+        color: 'var(--text-muted)',
+        marginTop: 4
+      }
+    }, "Δ en rojo cuando la selección difiere más de un 10% del promedio de producción — puede indicar un acopio de otra tanda.")))), /*#__PURE__*/React.createElement("div", {
       className: "sec-card",
       style: {
         marginBottom: 16
@@ -14386,13 +14536,23 @@ function DashboardScreen({
     }, /*#__PURE__*/React.createElement("button", {
       className: "btn btn-primary",
       disabled: !certStats,
-      onClick: function () {
+      onClick: async function () {
         var ms = [];
         certSelDet.forEach(function (d) {
           if (d.analista && ms.indexOf(d.analista) === -1) ms.push(d.analista);
         });
+        // Folio correlativo automatico: cuenta los certificados del año y suma 1
+        var anio = new Date().getFullYear(),
+          sug = 'CCVL-';
+        try {
+          var resC = await supabase.from('certificados').select('id', {
+            count: 'exact',
+            head: true
+          }).gte('created_at', anio + '-01-01');
+          if (resC.count != null) sug = 'CCVL-' + (resC.count + 1) + '/' + anio;
+        } catch (eC) {}
         setCertModal({
-          numCert: 'CCVL-',
+          numCert: sug,
           fecha: today(),
           hora: nowTime(),
           lote: '',
@@ -14408,7 +14568,65 @@ function DashboardScreen({
         fontSize: '.78rem',
         color: 'var(--text-muted)'
       }
-    }, "Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF."))), certModal && certStats && function () {
+    }, "Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF. El folio CCVL se sugiere automáticamente y cada certificado queda registrado."))), certEmitidos && certEmitidos.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "sec-card",
+      style: {
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "sec-card-hdr",
+      style: {
+        fontSize: '.8rem'
+      }
+    }, "Certificados emitidos — últimos ", certEmitidos.length), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 14px',
+        overflowX: 'auto'
+      }
+    }, /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '.78rem'
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "N° certificado"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Fecha"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Lote"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Acopio"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Patente"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Muestras"), /*#__PURE__*/React.createElement("th", {
+      style: thV
+    }, "Emitido por"))), /*#__PURE__*/React.createElement("tbody", null, certEmitidos.map(function (c) {
+      return /*#__PURE__*/React.createElement("tr", {
+        key: c.id
+      }, /*#__PURE__*/React.createElement("td", {
+        style: Object.assign({}, tdV, {
+          fontWeight: 700
+        })
+      }, c.num_cert || '—'), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, c.fecha || String(c.created_at || '').slice(0, 10)), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, c.lote || '—'), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, c.acopio || '—'), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, c.patente || '—'), /*#__PURE__*/React.createElement("td", {
+        style: tdV
+      }, c.n_muestras || '—'), /*#__PURE__*/React.createElement("td", {
+        style: Object.assign({}, tdV, {
+          fontSize: '.72rem',
+          color: '#777'
+        })
+      }, c.emitido_por || '—'));
+    }))))), certModal && certStats && function () {
       var cm = certModal;
       function upd(k) {
         return function (e) {
@@ -18404,7 +18622,7 @@ function HistoryScreen({
       if (fHasta && fecha > fHasta) return false;
       if (!q) return true;
       var folio = r.Folio ? String(r.Folio) : '';
-      var hay = [folio, '#' + folio, r.Producto || r.productoLabel || '', r.Analista || r.analista || '', r.Turno || r.turno || '', getPlanta(r)].join(' ').toLowerCase();
+      var hay = [folio, '#' + folio, r.Producto || r.productoLabel || '', r.Analista || r.analista || '', r.Turno || r.turno || '', getPlanta(r), r.Lote || r.lote || '', r.Guia || r.guia || '', r.NumAcopio || r.numAcopio || ''].join(' ').toLowerCase();
       return hay.indexOf(q) !== -1;
     });
   }, [records, busca, fDesde, fHasta]);
@@ -18510,7 +18728,7 @@ function HistoryScreen({
   }, "Buscar"), /*#__PURE__*/React.createElement("input", {
     type: "text",
     value: busca,
-    placeholder: "Folio, producto, analista, planta...",
+    placeholder: "Folio, lote, guía, acopio, producto, analista...",
     onChange: function (e) {
       setBusca(e.target.value);
       setPage(0);
@@ -20332,6 +20550,40 @@ function App() {
   var [authLoading, setAuthLoading] = useState(true);
   var [screen, setScreen] = useState('home');
   var [toast, setToast] = useState(null);
+  var [hayNuevaVersion, setHayNuevaVersion] = useState(false);
+
+  // Aviso de nueva version: compara la version del sw.js publicado con la
+  // que habia al cargar la app; si cambia, muestra el banner de actualizar.
+  useEffect(function () {
+    var verInicial = null;
+    function leerVersion() {
+      return fetch('sw.js', {
+        cache: 'no-store'
+      }).then(function (r) {
+        return r.text();
+      }).then(function (t) {
+        var m = t.match(/migrin-calidad-v(\d+)/);
+        return m ? m[1] : null;
+      }).catch(function () {
+        return null;
+      });
+    }
+    leerVersion().then(function (v) {
+      verInicial = v;
+    });
+    function chequear() {
+      if (document.visibilityState !== 'visible') return;
+      leerVersion().then(function (v) {
+        if (v && verInicial && v !== verInicial) setHayNuevaVersion(true);
+      });
+    }
+    var timer = setInterval(chequear, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', chequear);
+    return function () {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', chequear);
+    };
+  }, []);
   var isViewer = account && account.user_metadata && account.user_metadata.is_viewer === true && account.user_metadata.is_admin !== true;
   var isAdmin = account && account.user_metadata && account.user_metadata.is_admin === true;
   useEffect(function () {
@@ -20444,14 +20696,42 @@ function App() {
   }, /*#__PURE__*/React.createElement("span", {
     className: "lbl"
   }, "Salir "), "🚪")));
+  var bannerVersion = hayNuevaVersion ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#1a5276',
+      color: '#fff',
+      padding: '8px 16px',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 12,
+      fontSize: '.85rem',
+      fontFamily: 'Inter',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "⬆ Hay una nueva versión de la aplicación disponible."), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      window.location.reload();
+    },
+    style: {
+      background: '#fff',
+      color: '#1a5276',
+      border: 'none',
+      borderRadius: 6,
+      padding: '5px 14px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: 'Inter'
+    }
+  }, "Actualizar ahora")) : null;
   if (!account) {
-    return /*#__PURE__*/React.createElement(React.Fragment, null, header, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement(React.Fragment, null, header, bannerVersion, /*#__PURE__*/React.createElement("div", {
       className: "main"
     }, /*#__PURE__*/React.createElement(AuthScreen, {
       onLogin: login
     })));
   }
-  return /*#__PURE__*/React.createElement(React.Fragment, null, header, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement(React.Fragment, null, header, bannerVersion, /*#__PURE__*/React.createElement("div", {
     className: "main"
   }, toast && /*#__PURE__*/React.createElement(Toast, {
     msg: toast.msg,
