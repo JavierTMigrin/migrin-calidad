@@ -4796,6 +4796,13 @@ function DashboardScreen({account,onBack}){
   var[showLims,setShowLims]=useState(true);
   var[selIdx,setSelIdx]=useState(null); // muestra seleccionada (null = ultima)
   var[a36Cliente,setA36Cliente]=useState('LIRQUEN'); // EETT contra la que se comparan A36 en Granulometria/Quimica/Tabla
+  // Validacion de acopio / certificado de despacho (pestana Acopio, solo A36)
+  var[certSel,setCertSel]=useState({});        // plumilla: ids de muestras marcadas para promediar
+  var[certLastN,setCertLastN]=useState(5);     // "promediar ultimos X"
+  var[certFiltro,setCertFiltro]=useState('__all'); // Todas | Puntual | Acopio N
+  var[certModal,setCertModal]=useState(null);  // datos del certificado en edicion
+  var[certGen,setCertGen]=useState(false);
+  var[certMsg,setCertMsg]=useState('');
   var[enviandoPdf,setEnviandoPdf]=useState(false);
   var[msgPdf,setMsgPdf]=useState('');
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
@@ -4942,6 +4949,34 @@ function DashboardScreen({account,onBack}){
       setMsgPdf('Error: '+((e&&e.message)?e.message:String(e)));
     }
     setEnviandoPdf(false);
+  }
+
+  // Certificado de despacho: captura la hoja del modal y descarga el PDF
+  async function descargarCertificado(){
+    if(certGen)return;
+    setCertMsg('');setCertGen(true);
+    try{
+      var node=document.getElementById('cert-hoja');
+      var JsPDF=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
+      if(!node||!JsPDF||!window.html2canvas)throw new Error('No se pudo preparar el generador de PDF.');
+      var canvas=await window.html2canvas(node,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:840});
+      var pdf=new JsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
+      var pageW=210,pageH=297,margin=10,contentW=pageW-margin*2,contentH=pageH-margin*2;
+      var pxPerMm=canvas.width/contentW,pageHpx=Math.floor(contentH*pxPerMm),y=0,primero=true;
+      while(y<canvas.height){
+        var sliceH=Math.min(pageHpx,canvas.height-y);
+        var slc=document.createElement('canvas');slc.width=canvas.width;slc.height=sliceH;
+        var cx=slc.getContext('2d');cx.fillStyle='#ffffff';cx.fillRect(0,0,slc.width,slc.height);
+        cx.drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+        if(!primero)pdf.addPage();primero=false;
+        pdf.addImage(slc.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,contentW,sliceH/pxPerMm);
+        y+=sliceH;
+      }
+      var nomCert=(certModal&&certModal.numCert?certModal.numCert:'A36').replace(/[\/\\\s]+/g,'-');
+      pdf.save('Certificado_'+nomCert+(certModal&&certModal.lote?'_Lote'+certModal.lote:'')+'.pdf');
+      setCertMsg('✓ Certificado descargado.');
+    }catch(e){setCertMsg('Error: '+((e&&e.message)?e.message:String(e)));}
+    setCertGen(false);
   }
 
   async function exportarReporte(){
@@ -5243,6 +5278,99 @@ function DashboardScreen({account,onBack}){
   var filteredStats=useMemo(function(){
     return filtered.map(computeStats);
   },[filtered,prod]);
+
+  /* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (pestana Acopio, A36) ── */
+  useEffect(function(){if(tab==='acopio'&&prod!=='A36')setTab('granu');},[prod]);
+
+  // Ultimos 10 registros del producto (todas las fechas, sin filtro de periodo),
+  // opcionalmente filtrados por tipo de muestra / N° de acopio.
+  var certRecs=useMemo(function(){
+    if(prod!=='A36')return[];
+    var rs=records.filter(function(r){return(r.ProductoKey||r.producto||'')===prod;});
+    if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio';});
+    else if(certFiltro!=='__all')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra)==='Acopio'&&String(r.NumAcopio||r.numAcopio||'')===certFiltro;});
+    rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    return rs.slice(-10);
+  },[records,prod,certFiltro]);
+
+  // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
+  var certDet=useMemo(function(){
+    var sieves=SIEVE_CONFIG[prod]||[];
+    return certRecs.map(function(r){
+      var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+      var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+      var gc=calcGranu(prod,gv,pf);
+      var rows=(gc.rows||[]).filter(function(x){return !x.isFondo;});
+      var acum={},parc={};
+      rows.forEach(function(row,i){var us=sieves[i]?sieves[i].us:row.us;acum[us]=row.pctA;parc[us]=row.pctP;});
+      var fondo=(gc.rows||[]).find(function(x){return x.isFondo;});
+      var d50=null;
+      for(var i=0;i<rows.length-1;i++){
+        if(rows[i].pctPas>=50&&rows[i+1].pctPas<50){
+          var m1=parseFloat(String(sieves[i]?sieves[i].mm:0).replace(',','.'))||0;
+          var m2=parseFloat(String(sieves[i+1]?sieves[i+1].mm:0).replace(',','.'))||0;
+          d50=rows[i].pctPas===rows[i+1].pctPas?m1:m1+(m2-m1)*(rows[i].pctPas-50)/(rows[i].pctPas-rows[i+1].pctPas);
+          break;
+        }
+      }
+      var q=r.quimica||{};
+      var quim={};['sio2','al2o3','fe2o3','cao','mgo','k2o','na2o','tio2'].forEach(function(k){var v=parseDecimal(q[k]);quim[k]=isNaN(v)?null:v;});
+      quim.k2o_na2o=(quim.k2o!=null||quim.na2o!=null)?((quim.k2o||0)+(quim.na2o||0)):null;
+      var hum=parseDecimal(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad);
+      return{id:String(r.ID||r.id||''),fecha:r.FechaMuestreo||r.fecha||'',folio:r.Folio||'',turno:r.Turno||r.turno||'',
+        tipo:r.TipoMuestra||r.tipoMuestra||'',acopio:r.NumAcopio||r.numAcopio||'',
+        analista:r.Analista||r.analista||'',acum:acum,parc:parc,fondoP:fondo?fondo.pctP:null,
+        d50:d50,quim:quim,hum:isNaN(hum)?null:hum};
+    });
+  },[certRecs,prod]);
+
+  var certSelDet=useMemo(function(){return certDet.filter(function(d){return certSel[d.id];});},[certDet,certSel]);
+
+  function aggCert(vals){
+    var v=vals.filter(function(x){return x!=null&&!isNaN(x);});
+    if(!v.length)return null;
+    var mean=v.reduce(function(a,b){return a+b;},0)/v.length;
+    var sd=v.length>1?Math.sqrt(v.reduce(function(s,x){return s+(x-mean)*(x-mean);},0)/(v.length-1)):0;
+    return{media:mean,max:Math.max.apply(null,v),min:Math.min.apply(null,v),sd:sd,n:v.length};
+  }
+  var certStats=useMemo(function(){
+    if(!certSelDet.length)return null;
+    var sieves=SIEVE_CONFIG[prod]||[];
+    var acum={},parcM={};
+    sieves.forEach(function(s){
+      acum[s.us]=aggCert(certSelDet.map(function(d){return d.acum[s.us];}));
+      var p=aggCert(certSelDet.map(function(d){return d.parc[s.us];}));
+      parcM[s.us]=p?p.media:null;
+    });
+    var fondoM=aggCert(certSelDet.map(function(d){return d.fondoP;}));
+    var quim={};['sio2','al2o3','fe2o3','cao','mgo','k2o','na2o','tio2','k2o_na2o'].forEach(function(k){
+      quim[k]=aggCert(certSelDet.map(function(d){return d.quim[k];}));
+    });
+    return{acum:acum,parcM:parcM,fondoM:fondoM?fondoM.media:null,quim:quim,
+      d50:aggCert(certSelDet.map(function(d){return d.d50;})),
+      hum:aggCert(certSelDet.map(function(d){return d.hum;}))};
+  },[certSelDet,prod]);
+
+  // Salto de dias entre muestras seleccionadas: posible mezcla de tandas de produccion
+  var certGap=useMemo(function(){
+    var fs=certSelDet.map(function(d){return d.fecha;}).filter(Boolean).sort();
+    var worst=null;
+    for(var i=1;i<fs.length;i++){
+      var d1=new Date(fs[i-1]+'T12:00:00'),d2=new Date(fs[i]+'T12:00:00');
+      var dias=Math.round((d2-d1)/86400000);
+      if(dias>3&&(!worst||dias>worst.dias))worst={dias:dias,de:fs[i-1],a:fs[i]};
+    }
+    return worst;
+  },[certSelDet]);
+
+  // Al entrar a la pestana sin seleccion, marcar los ultimos N por defecto
+  useEffect(function(){
+    if(tab!=='acopio'||prod!=='A36'||!certDet.length)return;
+    setCertSel(function(prev){
+      if(Object.keys(prev).length)return prev;
+      var sel={};certDet.slice(-certLastN).forEach(function(d){sel[d.id]=true;});return sel;
+    });
+  },[tab,prod,certDet]);
 
   var granuControls=useMemo(function(){
     return getDashboardControles(prod,a36Cliente);
@@ -6044,6 +6172,7 @@ function DashboardScreen({account,onBack}){
           <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
           {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           <button className={'dash-tab'+(tab==='tabla'?' act':'')} onClick={function(){setTab('tabla');}}>Tabla de Datos</button>
+          {prod==='A36'&&<button className={'dash-tab'+(tab==='acopio'?' act':'')} onClick={function(){setTab('acopio');}}>Acopio / Despacho</button>}
           <button className={'dash-tab'+(tab==='comparar'?' act':'')} onClick={function(){setTab('comparar');}}>Comparador</button>
           <button className={'dash-tab'+(tab==='resumen'?' act':'')} onClick={function(){setTab('resumen');}}>Resumen Ejecutivo</button>
           <button className={'dash-tab'+(tab==='general'?' act':'')} onClick={function(){setTab('general');}}>General</button>
@@ -6627,6 +6756,330 @@ function DashboardScreen({account,onBack}){
                 })()}
               </div>
             </div>
+          </>
+        );
+      })()}
+
+      {/* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (A36) ── */}
+      {!loading&&tab==='acopio'&&prod==='A36'&&(function(){
+        var sieves=SIEVE_CONFIG[prod]||[];
+        var glir=(SPECS_A36.LIRQUEN||{}).granulometria||{};
+        var gcch=(SPECS_A36.CRISTALERIAS||{}).granulometria||{};
+        var mallasEval=sieves.filter(function(s){return glir[s.us]||gcch[s.us];});
+        var humL=(SPECS_A36.LIRQUEN.humedad||{}).max,humC=(SPECS_A36.CRISTALERIAS.humedad||{}).max;
+        function limG(s){if(!s)return'—';if(s.retAcumMin!=null&&s.retAcumMax!=null)return fmt(s.retAcumMin,2)+' – '+fmt(s.retAcumMax,2);if(s.retAcumMax!=null)return'≤ '+fmt(s.retAcumMax,2);if(s.retAcumMin!=null)return'≥ '+fmt(s.retAcumMin,2);return'—';}
+        function limQ(s){if(!s)return'—';if(s.min!=null&&s.max!=null)return fmt(s.min,2)+' – '+fmt(s.max,2);if(s.max!=null)return'≤ '+fmt(s.max,2);if(s.min!=null)return'≥ '+fmt(s.min,2);return'—';}
+        function estC(val,mn,mx){if(val==null||(mn==null&&mx==null))return{t:'—',c:'#94a3b8'};return calcSemaforo(val,mn==null?null:mn,mx==null?null:mx)==='error'?{t:'✗ FUERA',c:'#c0392b'}:{t:'✓ OK',c:'#1e7e44'};}
+        function verd(cli){
+          if(!certStats)return null;
+          var sp=SPECS_A36[cli];var ok=true,n=0;
+          Object.keys(sp.granulometria||{}).forEach(function(us){
+            var st=certStats.acum[us],s=sp.granulometria[us];
+            if(!st||(s.retAcumMin==null&&s.retAcumMax==null))return;
+            n++;if(calcSemaforo(st.media,s.retAcumMin,s.retAcumMax)==='error')ok=false;
+          });
+          Object.keys(sp.quimica||{}).forEach(function(el){
+            var s=sp.quimica[el];if(!s||(s.min==null&&s.max==null))return;
+            var key=el==='K2O_Na2O'?'k2o_na2o':el.toLowerCase();
+            var st=certStats.quim[key];if(!st)return;
+            n++;if(calcSemaforo(st.media,s.min,s.max)==='error')ok=false;
+          });
+          if(sp.d50Max!=null&&certStats.d50){n++;if(certStats.d50.media>sp.d50Max)ok=false;}
+          if(sp.humedad&&sp.humedad.max!=null&&certStats.hum){n++;if(certStats.hum.media>sp.humedad.max)ok=false;}
+          return n?ok:null;
+        }
+        var vLir=verd('LIRQUEN'),vCch=verd('CRISTALERIAS');
+        var thV={padding:'5px 8px',background:'var(--primary)',color:'#fff',fontSize:'.72rem',whiteSpace:'nowrap',textAlign:'center'};
+        var tdV={padding:'4px 8px',borderBottom:'1px solid #f0f0f0',textAlign:'center',fontSize:'.8rem'};
+        var maxParc=1;
+        if(certStats){
+          sieves.forEach(function(s){var v=certStats.parcM[s.us];if(v!=null&&v>maxParc)maxParc=v;});
+          if(certStats.fondoM!=null&&certStats.fondoM>maxParc)maxParc=certStats.fondoM;
+        }
+        return(
+          <>
+            <div className="sec-card" style={{marginBottom:16}}>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Muestras — últimos {certDet.length} registros de {GRANU_TITLE[prod]||prod} (todas las fechas)</div>
+              <div style={{padding:'10px 14px'}}>
+                <div style={{display:'flex',gap:14,flexWrap:'wrap',alignItems:'flex-end',marginBottom:10}}>
+                  <div className="dff">
+                    <label>Muestras</label>
+                    <select value={certFiltro} onChange={function(e){setCertFiltro(e.target.value);setCertSel({});}}>
+                      <option value="__all">Todas</option>
+                      <option value="Puntual">Producción (Puntual)</option>
+                      {ACOPIO_OPTS.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+                    </select>
+                  </div>
+                  <div className="dff">
+                    <label>Promediar últimos</label>
+                    <select value={certLastN} onChange={function(e){var n=parseInt(e.target.value);setCertLastN(n);var sel={};certDet.slice(-n).forEach(function(d){sel[d.id]=true;});setCertSel(sel);}}>
+                      {[2,3,4,5,6,7,8,9,10].map(function(n){return <option key={n} value={n}>{n} muestras</option>;})}
+                    </select>
+                  </div>
+                  <div style={{fontSize:'.76rem',color:'var(--text-muted)',paddingBottom:8}}>
+                    o marca manualmente en la tabla las muestras a promediar ({certSelDet.length} seleccionadas)
+                  </div>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.78rem'}}>
+                    <thead><tr>
+                      <th style={thV}>✔</th><th style={thV}>Fecha</th><th style={thV}>Folio</th><th style={thV}>Tipo</th>
+                      <th style={thV}>Turno</th><th style={thV}>Analista</th>
+                      <th style={thV}>#35</th><th style={thV}>#120</th><th style={thV}>#170</th>
+                      <th style={thV}>SiO₂</th><th style={thV}>Fe₂O₃</th><th style={thV}>Hum.</th>
+                    </tr></thead>
+                    <tbody>
+                      {certDet.slice().reverse().map(function(d){
+                        var on=!!certSel[d.id];
+                        return(
+                          <tr key={d.id} onClick={function(){setCertSel(function(p){var n=Object.assign({},p);if(n[d.id])delete n[d.id];else n[d.id]=true;return n;});}}
+                            style={{cursor:'pointer',background:on?'#eef6ff':''}}>
+                            <td style={tdV}><input type="checkbox" readOnly checked={on}/></td>
+                            <td style={tdV}>{d.fecha}</td>
+                            <td style={tdV}>{d.folio?'#'+d.folio:'—'}</td>
+                            <td style={tdV}>{d.tipo==='Acopio'?(d.acopio||'Acopio'):(d.tipo||'—')}</td>
+                            <td style={tdV}>{d.turno||'—'}</td>
+                            <td style={Object.assign({},tdV,{textAlign:'left',maxWidth:130,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'})}>{d.analista||'—'}</td>
+                            <td style={tdV}>{d.acum['#35']!=null?fmt(d.acum['#35'],2):'—'}</td>
+                            <td style={tdV}>{d.acum['#120']!=null?fmt(d.acum['#120'],2):'—'}</td>
+                            <td style={tdV}>{d.acum['#170']!=null?fmt(d.acum['#170'],2):'—'}</td>
+                            <td style={tdV}>{d.quim.sio2!=null?fmt(d.quim.sio2,2):'—'}</td>
+                            <td style={tdV}>{d.quim.fe2o3!=null?fmt(d.quim.fe2o3,3):'—'}</td>
+                            <td style={tdV}>{d.hum!=null?fmt(d.hum,2):'—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {certGap&&(
+                  <div style={{marginTop:10,padding:'9px 12px',background:'#fffbea',border:'1px solid #f6e05e',borderRadius:8,fontSize:'.8rem',color:'#7a5c00'}}>
+                    ⚠ Hay un salto de {certGap.dias} días entre {certGap.de} y {certGap.a} en las muestras seleccionadas — verifica que correspondan a la misma tanda de producción.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {certStats&&(
+              <div className="sec-card" style={{marginBottom:16}}>
+                <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+                  <span>Validación del promedio (n={certSelDet.length}) — Lirquén y Cristalerías</span>
+                  <span style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {[['Vidrios Lirquen',vLir],['Cristalerías Chile',vCch]].map(function(p,i){return(
+                      <span key={i} style={{padding:'3px 12px',borderRadius:14,fontSize:'.74rem',fontWeight:800,
+                        background:p[1]==null?'#edf2f7':p[1]?'#f0fff4':'#fff5f5',
+                        color:p[1]==null?'#718096':p[1]?'#1e7e44':'#c0392b',
+                        border:'1px solid '+(p[1]==null?'#cbd5e0':p[1]?'#9ae6b4':'#feb2b2')}}>
+                        {p[0]}: {p[1]==null?'—':p[1]?'CUMPLE':'NO CUMPLE'}
+                      </span>
+                    );})}
+                  </span>
+                </div>
+                <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
+                    <thead><tr>
+                      <th style={Object.assign({},thV,{textAlign:'left'})}>Parámetro</th>
+                      <th style={thV}>Promedio</th>
+                      <th style={thV}>EETT Lirquén</th><th style={thV}>Estado</th>
+                      <th style={thV}>EETT Cristalerías</th><th style={thV}>Estado</th>
+                    </tr></thead>
+                    <tbody>
+                      {mallasEval.map(function(s){
+                        var st=certStats.acum[s.us];var sl=glir[s.us],sc=gcch[s.us];
+                        var eL=estC(st?st.media:null,sl?sl.retAcumMin:null,sl?sl.retAcumMax:null);
+                        var eC=estC(st?st.media:null,sc?sc.retAcumMin:null,sc?sc.retAcumMax:null);
+                        return(
+                          <tr key={s.us}>
+                            <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>Ret.Acum {s.us}</td>
+                            <td style={Object.assign({},tdV,{fontWeight:700})}>{st?fmt(st.media,2)+' %':'—'}</td>
+                            <td style={tdV}>{limG(sl)}</td><td style={Object.assign({},tdV,{color:eL.c,fontWeight:800})}>{eL.t}</td>
+                            <td style={tdV}>{limG(sc)}</td><td style={Object.assign({},tdV,{color:eC.c,fontWeight:800})}>{eC.t}</td>
+                          </tr>
+                        );
+                      })}
+                      {[['sio2','SiO₂','SiO2',2],['al2o3','Al₂O₃','Al2O3',2],['fe2o3','Fe₂O₃','Fe2O3',3]].map(function(o){
+                        var st=certStats.quim[o[0]];
+                        var sl=(SPECS_A36.LIRQUEN.quimica||{})[o[2]],sc=(SPECS_A36.CRISTALERIAS.quimica||{})[o[2]];
+                        var eL=estC(st?st.media:null,sl?sl.min:null,sl?sl.max:null);
+                        var eC=estC(st?st.media:null,sc?sc.min:null,sc?sc.max:null);
+                        return(
+                          <tr key={o[0]}>
+                            <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>{o[1]}</td>
+                            <td style={Object.assign({},tdV,{fontWeight:700})}>{st?fmt(st.media,o[3])+' %':'—'}</td>
+                            <td style={tdV}>{limQ(sl)}</td><td style={Object.assign({},tdV,{color:eL.c,fontWeight:800})}>{eL.t}</td>
+                            <td style={tdV}>{limQ(sc)}</td><td style={Object.assign({},tdV,{color:eC.c,fontWeight:800})}>{eC.t}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr>
+                        <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>D50</td>
+                        <td style={Object.assign({},tdV,{fontWeight:700})}>{certStats.d50?fmt(certStats.d50.media,3)+' mm':'—'}</td>
+                        <td style={tdV}>≤ {fmt(SPECS_A36.LIRQUEN.d50Max,3)}</td>
+                        <td style={Object.assign({},tdV,{fontWeight:800,color:certStats.d50?(certStats.d50.media>SPECS_A36.LIRQUEN.d50Max?'#c0392b':'#1e7e44'):'#94a3b8'})}>{certStats.d50?(certStats.d50.media>SPECS_A36.LIRQUEN.d50Max?'✗ FUERA':'✓ OK'):'—'}</td>
+                        <td style={tdV}>—</td><td style={tdV}>—</td>
+                      </tr>
+                      <tr>
+                        <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>Humedad</td>
+                        <td style={Object.assign({},tdV,{fontWeight:700})}>{certStats.hum?fmt(certStats.hum.media,2)+' %':'—'}</td>
+                        <td style={tdV}>{humL!=null?'≤ '+fmt(humL,2):'—'}</td>
+                        {(function(){var e=estC(certStats.hum?certStats.hum.media:null,null,humL);return <td style={Object.assign({},tdV,{color:e.c,fontWeight:800})}>{e.t}</td>;})()}
+                        <td style={tdV}>{humC!=null?'≤ '+fmt(humC,2):'—'}</td>
+                        {(function(){var e=estC(certStats.hum?certStats.hum.media:null,null,humC);return <td style={Object.assign({},tdV,{color:e.c,fontWeight:800})}>{e.t}</td>;})()}
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div style={{fontSize:'.72rem',color:'var(--text-muted)',marginTop:8}}>
+                    El promedio se calcula sobre las {certSelDet.length} muestras marcadas en la tabla superior. D50 solo tiene límite en la EETT de Vidrios Lirquén.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="sec-card" style={{marginBottom:16}}>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Certificado de despacho</div>
+              <div style={{padding:'12px 16px',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+                <button className="btn btn-primary" disabled={!certStats}
+                  onClick={function(){
+                    var ms=[];certSelDet.forEach(function(d){if(d.analista&&ms.indexOf(d.analista)===-1)ms.push(d.analista);});
+                    setCertModal({numCert:'CCVL-',fecha:today(),hora:nowTime(),lote:'',
+                      acopio:(certFiltro!=='__all'&&certFiltro!=='Puntual')?certFiltro:'',
+                      humedad:certStats&&certStats.hum?fmt(certStats.hum.media,2):'',patente:'',
+                      muestreador:ms.join(', ')});
+                    setCertMsg('');
+                  }}>➕ Generar certificado (promedio de {certSelDet.length} muestras)</button>
+                <span style={{fontSize:'.78rem',color:'var(--text-muted)'}}>Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF.</span>
+              </div>
+            </div>
+
+            {certModal&&certStats&&(function(){
+              var cm=certModal;
+              function upd(k){return function(e){var v=e.target.value;setCertModal(function(p){var n=Object.assign({},p);n[k]=v;return n;});};}
+              var inS={width:'100%',padding:'7px 10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:'.85rem',fontFamily:'Inter'};
+              var lbS={fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:3};
+              var cH={border:'1px solid #9db2c8',background:'#e8eef4',padding:'3px 4px',fontWeight:700,fontSize:10,textAlign:'center'};
+              var cD={border:'1px solid #c3d0dd',padding:'3px 4px',textAlign:'center',fontSize:10};
+              return(
+                <div style={{position:'fixed',inset:0,background:'rgba(15,25,40,.55)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'3vh 10px',overflowY:'auto'}}
+                  onClick={function(e){if(e.target===e.currentTarget)setCertModal(null);}}>
+                  <div style={{background:'#f1f5f9',borderRadius:12,maxWidth:940,width:'100%',padding:16,maxHeight:'94vh',overflowY:'auto'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+                      <b style={{fontSize:'.95rem'}}>Certificado de despacho — completa los datos y descarga</b>
+                      <span style={{display:'flex',gap:8}}>
+                        <button className="btn btn-secondary" onClick={function(){setCertModal(null);}}>Cerrar</button>
+                        <button className="btn btn-primary" disabled={certGen} onClick={descargarCertificado}>{certGen?'Generando…':'⬇ Descargar PDF'}</button>
+                      </span>
+                    </div>
+                    {certMsg&&<div style={{fontSize:'.8rem',marginBottom:8,color:certMsg.indexOf('Error')===0?'var(--error)':'var(--success)'}}>{certMsg}</div>}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:14}}>
+                      <div><label style={lbS}>N° certificado</label><input style={inS} value={cm.numCert} onChange={upd('numCert')} placeholder="CCVL-34/2026"/></div>
+                      <div><label style={lbS}>Fecha</label><input style={inS} type="date" value={cm.fecha} onChange={upd('fecha')}/></div>
+                      <div><label style={lbS}>Hora</label><input style={inS} type="time" value={cm.hora} onChange={upd('hora')}/></div>
+                      <div><label style={lbS}>Lote N°</label><input style={inS} value={cm.lote} onChange={upd('lote')} placeholder="644"/></div>
+                      <div><label style={lbS}>N° Acopio</label><input style={inS} value={cm.acopio} onChange={upd('acopio')} placeholder="Acopio 3"/></div>
+                      <div><label style={lbS}>Humedad (%)</label><input style={inS} value={cm.humedad} onChange={upd('humedad')} placeholder="0,00"/></div>
+                      <div><label style={lbS}>Patente camión</label><input style={inS} value={cm.patente} onChange={upd('patente')} placeholder="AB-CD-12"/></div>
+                      <div><label style={lbS}>Muestreador</label><input style={inS} value={cm.muestreador} onChange={upd('muestreador')}/></div>
+                    </div>
+
+                    <div style={{display:'flex',justifyContent:'center'}}>
+                    <div id="cert-hoja" style={{width:800,maxWidth:'100%',background:'#fff',fontFamily:'Arial,Helvetica,sans-serif',color:'#1a202c',padding:'26px 34px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        {logoSrc?<img src={logoSrc} alt="" style={{height:52,width:52,objectFit:'contain'}}/>:<span/>}
+                        <div style={{textAlign:'right',fontSize:10,color:'#333'}}>Camino A Lo Abarca S/N, Cartagena<br/>Casilla 13, Correo Cartagena</div>
+                      </div>
+                      <div style={{borderBottom:'3px solid #1e3a5f',margin:'8px 0 14px'}}/>
+                      <div style={{textAlign:'center',lineHeight:1.5,marginBottom:12}}>
+                        <div style={{fontWeight:800,fontSize:15}}>Certificado de Calidad</div>
+                        <div style={{fontWeight:700,fontSize:12,color:'#1e3a5f'}}>{cm.numCert||'—'}</div>
+                        <div style={{fontWeight:700,fontSize:13}}>Arena A36LGC</div>
+                        <div style={{fontWeight:800,fontSize:13,color:'#1e3a5f'}}>Lote N° {cm.lote||'—'}</div>
+                        {cm.acopio?<div style={{fontSize:11,color:'#555'}}>({cm.acopio})</div>:null}
+                      </div>
+                      <table style={{fontSize:11,marginBottom:14,borderCollapse:'collapse'}}><tbody>
+                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Fecha informe:</td><td>{cm.fecha?cm.fecha.split('-').reverse().join('/'):'—'}{cm.hora?' · '+cm.hora+' h':''}</td></tr>
+                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Lugar de muestreo:</td><td>Planta Las Piedras</td></tr>
+                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Muestreador:</td><td>{cm.muestreador||'—'}</td></tr>
+                        {cm.patente?<tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Patente camión:</td><td>{cm.patente}</td></tr>:null}
+                        {cm.humedad?<tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Humedad:</td><td>{cm.humedad} %</td></tr>:null}
+                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Muestras promediadas:</td><td>{certSelDet.length}{certSelDet.length?' ('+certSelDet[0].fecha+' a '+certSelDet[certSelDet.length-1].fecha+')':''}</td></tr>
+                      </tbody></table>
+
+                      <div style={{fontWeight:700,fontSize:11,textAlign:'center',background:'#e8eef4',border:'1px solid #9db2c8',borderBottom:'none',padding:'3px 0'}}>Análisis Químico (%)</div>
+                      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
+                        <thead><tr>
+                          <th style={cH}></th>
+                          {[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['k2o','K₂O'],['tio2','TiO₂'],['na2o','Na₂O'],['mgo','MgO'],['k2o_na2o','Na₂O+K₂O']].map(function(o){return <th key={o[0]} style={cH}>{o[1]}</th>;})}
+                          <th style={cH}>D50 (µm)</th>
+                        </tr></thead>
+                        <tbody>
+                          {[['Media','media'],['Máximo','max'],['Mínimo','min'],['Desv. Est.','sd']].map(function(rw){
+                            return(
+                              <tr key={rw[1]}>
+                                <td style={Object.assign({},cD,{fontWeight:700,textAlign:'left'})}>{rw[0]}</td>
+                                {[['sio2',2],['al2o3',2],['fe2o3',3],['cao',2],['k2o',2],['tio2',2],['na2o',2],['mgo',2],['k2o_na2o',2]].map(function(o){
+                                  var st=certStats.quim[o[0]];
+                                  return <td key={o[0]} style={cD}>{st?fmt(st[rw[1]],o[1]):'—'}</td>;
+                                })}
+                                <td style={cD}>{certStats.d50?String(Math.round(certStats.d50[rw[1]]*1000)):'—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      <div style={{fontWeight:700,fontSize:11,textAlign:'center',background:'#e8eef4',border:'1px solid #9db2c8',borderBottom:'none',padding:'3px 0'}}>Granulometría — Retenido Acumulado (%)</div>
+                      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:14}}>
+                        <thead>
+                          <tr><th style={cH}>malla en mm</th>{sieves.map(function(s){return <th key={s.us} style={cH}>{fmt(parseFloat(String(s.mm).replace(',','.'))||0,3)}</th>;})}</tr>
+                          <tr><th style={cH}>N° malla</th>{sieves.map(function(s){return <th key={s.us} style={cH}>{String(s.us).replace('#','')}</th>;})}</tr>
+                        </thead>
+                        <tbody>
+                          {[['Media','media'],['Máximo','max'],['Mínimo','min'],['Desv. Est.','sd']].map(function(rw){
+                            return(
+                              <tr key={rw[1]}>
+                                <td style={Object.assign({},cD,{fontWeight:700,textAlign:'left'})}>{rw[0]}</td>
+                                {sieves.map(function(s){var st=certStats.acum[s.us];return <td key={s.us} style={cD}>{st?fmt(st[rw[1]],2):'—'}</td>;})}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      <div style={{border:'1px solid #c3d0dd',padding:'14px 10px 6px',marginBottom:14}}>
+                        <div style={{textAlign:'center',fontWeight:700,fontSize:11,marginBottom:10}}>Análisis Granulométrico<br/>Lote N° {cm.lote||'—'}<br/>Arena A36LGC</div>
+                        <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-around',height:170,borderBottom:'1px solid #999',padding:'0 6px'}}>
+                          {sieves.map(function(s){
+                            var v=certStats.parcM[s.us];var h=v!=null?Math.max(2,v/maxParc*140):2;
+                            return(
+                              <div key={s.us} style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',flex:1}}>
+                                <div style={{fontSize:8.5,marginBottom:2}}>{v!=null?fmt(v,2):''}</div>
+                                <div style={{width:'62%',height:h,background:'#8bc34a'}}/>
+                              </div>
+                            );
+                          })}
+                          {certStats.fondoM!=null&&(
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',flex:1}}>
+                              <div style={{fontSize:8.5,marginBottom:2}}>{fmt(certStats.fondoM,2)}</div>
+                              <div style={{width:'62%',height:Math.max(2,certStats.fondoM/maxParc*140),background:'#8bc34a'}}/>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{display:'flex',justifyContent:'space-around',padding:'3px 6px 0'}}>
+                          {sieves.map(function(s){return <div key={s.us} style={{flex:1,textAlign:'center',fontSize:8.5,color:'#555'}}>{Math.round((parseFloat(String(s.mm).replace(',','.'))||0)*1000)}</div>;})}
+                          {certStats.fondoM!=null&&<div style={{flex:1,textAlign:'center',fontSize:8.5,color:'#555'}}>Fondo</div>}
+                        </div>
+                        <div style={{textAlign:'center',fontSize:9,color:'#777',marginTop:2}}>Abertura (µm) — % retenido parcial promedio</div>
+                      </div>
+
+                      <div style={{textAlign:'center',fontSize:11,fontWeight:700,marginTop:22}}>Jefatura de Calidad<br/>MIGRIN</div>
+                      <div style={{borderTop:'3px solid #1e3a5f',marginTop:12}}/>
+                      <div style={{textAlign:'right',fontSize:9,color:'#777',marginTop:3}}>pág. 1 de 1</div>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         );
       })()}
