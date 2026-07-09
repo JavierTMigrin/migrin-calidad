@@ -4339,10 +4339,6 @@ function ValidacionAcopioForm({account,onBack,onSuccess}){
 function ArenasForm({account,onBack,onSuccess}){
   var[desp,setDesp]=useState(null);
   var[extra,setExtra]=useState(null);
-  if(desp==='VALACOPIO'){
-    return <ValidacionAcopioForm account={account}
-      onBack={function(){setDesp(null);}} onSuccess={onSuccess}/>;
-  }
   if(desp){
     return <DespachoForm account={account} producto={desp}
       onBack={function(){setDesp(null);}} onSuccess={onSuccess}/>;
@@ -4360,10 +4356,7 @@ function ArenasForm({account,onBack,onSuccess}){
     plantaLabel="Planta Arenas"
     products={ARENA_PRODUCTS.filter(function(p){return otrosInlineKeys.indexOf(p.value)<0;})}
     lsGet={getPending} lsAdd={addPending} lsDel={delPending}
-    extraGroups={[
-      {label:'Despachos / Validación de Acopio',icon:'🚚',color:'#276749',
-        products:[{value:'VALACOPIO',label:'Validación Acopio / Despacho'}],onPick:setDesp},
-    ]}
+    extraGroups={[]}
     otrosGroup={{
       label:'Otros Controles',icon:'🧪',color:'#8e44ad',
       inline:ARENA_PRODUCTS.filter(function(p){return otrosInlineKeys.indexOf(p.value)>=0;}),
@@ -4970,6 +4963,8 @@ function DashboardScreen({account,onBack}){
   var[certGen,setCertGen]=useState(false);
   var[certMsg,setCertMsg]=useState('');
   var[certEmitidos,setCertEmitidos]=useState(null); // historial de certificados emitidos
+  var[showValForm,setShowValForm]=useState(false);  // formulario de validacion de acopio (dentro de la pestana)
+  var[valMsg,setValMsg]=useState('');
   var[enviandoPdf,setEnviandoPdf]=useState(false);
   var[msgPdf,setMsgPdf]=useState('');
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
@@ -6243,6 +6238,12 @@ function DashboardScreen({account,onBack}){
   if(prod==='A36'&&filterTipoMuestra.length<2)badges.push(filterTipoMuestra.join('+')||'—');
   badges.push(filtered.length+' registros');
 
+  if(showValForm){
+    return <ValidacionAcopioForm account={account}
+      onBack={function(){setShowValForm(false);}}
+      onSuccess={function(msg){setShowValForm(false);setValMsg(msg||'');loadData();}}/>;
+  }
+
   return(
     <div>
       <div className="page-hdr">
@@ -7042,8 +7043,18 @@ function DashboardScreen({account,onBack}){
         }
         return(
           <>
+            {valMsg&&(
+              <div style={{marginBottom:10,padding:'8px 12px',background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:8,fontSize:'.82rem',color:'#1e7e44',display:'flex',justifyContent:'space-between',gap:8}}>
+                <span>✓ {valMsg}</span>
+                <button onClick={function(){setValMsg('');}} style={{background:'none',border:'none',cursor:'pointer',color:'#1e7e44',fontWeight:700}}>✕</button>
+              </div>
+            )}
             <div className="sec-card" style={{marginBottom:16}}>
-              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Muestras — últimos {certDet.length} registros de {GRANU_TITLE[prod]||prod} (todas las fechas)</div>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+                <span>Muestras — últimos {certDet.length} registros de {GRANU_TITLE[prod]||prod} (todas las fechas)</span>
+                <button className="btn btn-primary" onClick={function(){setShowValForm(true);}}
+                  style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>➕ Registrar validación de acopio</button>
+              </div>
               <div style={{padding:'10px 14px'}}>
                 <div style={{display:'flex',gap:14,flexWrap:'wrap',alignItems:'flex-end',marginBottom:10}}>
                   <div className="dff">
