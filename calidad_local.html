@@ -8413,6 +8413,385 @@ function PlantaForm({
     onClick: handleReview
   }, "Revisar →"))));
 }
+
+/* ── VALIDACION DE ACOPIO / DESPACHO ──
+   Ensayo extra de validacion sobre un acopio de A36: mismas mallas y
+   quimica que el ensayo de planta, pero asociado a un N° de acopio.
+   Se guarda como producto A36 (tipo Acopio), por lo que alimenta
+   directamente Reportes -> Acopio/Despacho: promedios, validacion
+   contra Lirquen/Cristalerias y certificado de despacho.
+   Reemplaza a los antiguos formularios "Despachos Arena Premium". */
+function ValidacionAcopioForm({
+  account,
+  onBack,
+  onSuccess
+}) {
+  var producto = 'A36',
+    prodLabel = 'A36 — TLH';
+  var sieves = SIEVE_CONFIG[producto] || [];
+  var [fecha, setFecha] = useState(today());
+  var [turno, setTurno] = useState('');
+  var [analista, setAnalista] = useState('');
+  var [numAcopio, setNumAcopio] = useState('');
+  var [gv, setGv] = useState(Array(sieves.length).fill(''));
+  var [pesoInicial, setPesoInicial] = useState('');
+  var [pesoFinal, setPesoFinal] = useState('');
+  var [pctHumedad, setPctHumedad] = useState('');
+  var [quimica, setQuimica] = useState({
+    sio2: '',
+    al2o3: '',
+    fe2o3: '',
+    cao: '',
+    mgo: '',
+    k2o: '',
+    na2o: '',
+    tio2: ''
+  });
+  var [obs, setObs] = useState('');
+  var [errors, setErrors] = useState({});
+  var [sending, setSending] = useState(false);
+  var [reportModal, setReportModal] = useState(null);
+  var [sendError, setSendError] = useState(null);
+  var [retrying, setRetrying] = useState(false);
+  var qspec = SPECS_A36.LIRQUEN.quimica || {};
+  var hspec = SPECS_A36.LIRQUEN.humedad || null;
+  function updGv(i, v) {
+    setGv(function (p) {
+      var n = p.slice();
+      n[i] = v;
+      return n;
+    });
+  }
+  var gc = useMemo(function () {
+    return calcGranu(producto, gv, pesoFinal);
+  }, [gv, pesoFinal]);
+  function validate() {
+    var e = {};
+    if (!fecha) e.fecha = 'Fecha requerida';
+    if (!numAcopio) e.numAcopio = 'N° de acopio requerido';
+    if (!analista) e.analista = 'Analista requerido';
+    var pi = parseDecimal(pesoInicial),
+      pf = parseDecimal(pesoFinal);
+    if (!pesoInicial) e.pesoInicial = 'Peso inicial requerido';
+    if (!pesoFinal) e.pesoFinal = 'Peso del fondo requerido';else if (pi > 0 && Math.abs(pf - pi) / pi > 0.25) e.pesoFinal = 'La masa final difiere mas del 25% del peso inicial. Verifique.';
+    if (!gc.closeOk) e.granu = 'El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+    if (!pctHumedad) e.pctHumedad = 'Humedad requerida';
+    [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['mgo', 'MgO'], ['k2o', 'K₂O'], ['na2o', 'Na₂O'], ['tio2', 'TiO₂']].forEach(function (o) {
+      if (!quimica[o[0]]) e[o[0]] = o[1] + ' requerido';
+    });
+    return e;
+  }
+  async function handleSend() {
+    var e = validate();
+    if (Object.keys(e).length) {
+      setErrors(e);
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      return;
+    }
+    setErrors({});
+    setSending(true);
+    var now = new Date();
+    var data = {
+      id: uid(),
+      fecha: fecha,
+      fechaEnvio: now.toISOString(),
+      horaEnvio: now.toLocaleTimeString('es-CL'),
+      turno: turno,
+      analista: analista,
+      producto: producto,
+      productoLabel: prodLabel,
+      tipoMuestra: 'Acopio',
+      numAcopio: numAcopio,
+      pesoInicial: pesoInicial,
+      pesoFinal: pesoFinal,
+      granu: gv,
+      pesoFondo: gc.fondPeso,
+      pctHumedad: pctHumedad,
+      quimica: quimica,
+      observaciones: obs
+    };
+    addPending(data);
+    setSendError(null);
+    var violations = collectViolations(data, gc);
+    enviarReporteRegistro(data, gc, account);
+    try {
+      await sendToSupabase(data, account);
+      delPending(data.id);
+      setSending(false);
+      setReportModal({
+        data: data,
+        gc: gc,
+        violations: violations,
+        msg: 'Validación de acopio registrada exitosamente.'
+      });
+    } catch (err) {
+      console.error(err);
+      setSending(false);
+      setSendError(buildDbError(err));
+      setReportModal({
+        data: data,
+        gc: gc,
+        violations: violations,
+        msg: ''
+      });
+    }
+  }
+  async function handleRetry() {
+    if (!reportModal) return;
+    setRetrying(true);
+    setSendError(null);
+    try {
+      await sendToSupabase(reportModal.data, account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function (prev) {
+        return Object.assign({}, prev, {
+          msg: 'Validación de acopio registrada exitosamente.'
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      setRetrying(false);
+      setSendError(buildDbError(err));
+    }
+  }
+  if (reportModal) {
+    return /*#__PURE__*/React.createElement(ReportModal, {
+      data: reportModal.data,
+      gc: reportModal.gc,
+      violations: reportModal.violations,
+      sendError: sendError,
+      retrying: retrying,
+      onRetry: handleRetry,
+      onClose: function () {
+        setReportModal(null);
+        setSendError(null);
+        onSuccess(sendError ? 'Registro guardado localmente como pendiente.' : reportModal.msg);
+      }
+    });
+  }
+  var errList = Object.values(errors);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Validación Acopio / Despacho"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)',
+      marginTop: 2
+    }
+  }, "A36 — mismas mallas y química de planta · alimenta los promedios y el certificado de despacho"))), errList.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "err-box"
+  }, /*#__PURE__*/React.createElement("strong", null, "Corrija los siguientes errores:"), /*#__PURE__*/React.createElement("ul", null, errList.map(function (er, i) {
+    return /*#__PURE__*/React.createElement("li", {
+      key: i
+    }, er);
+  }))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Datos de la Muestra",
+    icon: "📦"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "fechaVA",
+    label: "Fecha de muestreo",
+    type: "date",
+    required: true,
+    value: fecha,
+    onChange: function (e) {
+      setFecha(e.target.value);
+    },
+    error: errors.fecha
+  }), /*#__PURE__*/React.createElement(Sel, {
+    name: "acopioVA",
+    label: "N° de Acopio",
+    required: true,
+    options: ACOPIO_OPTS.map(function (a) {
+      return {
+        value: a,
+        label: a
+      };
+    }),
+    value: numAcopio,
+    onChange: function (e) {
+      setNumAcopio(e.target.value);
+    },
+    error: errors.numAcopio
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2"
+  }, /*#__PURE__*/React.createElement(Sel, {
+    name: "turnoVA",
+    label: "Turno",
+    options: TURNOS,
+    value: turno,
+    onChange: function (e) {
+      setTurno(e.target.value);
+    }
+  }), /*#__PURE__*/React.createElement(Sel, {
+    name: "analistaVA",
+    label: "Analista",
+    required: true,
+    options: ANALISTAS_DEFAULT,
+    value: analista,
+    onChange: function (e) {
+      setAnalista(e.target.value);
+    },
+    error: errors.analista
+  }))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Pesos",
+    icon: "⚖️"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "piVA",
+    label: "Peso Inicial (g)",
+    type: "decimal",
+    required: true,
+    value: pesoInicial,
+    onChange: function (e) {
+      setPesoInicial(e.target.value);
+    },
+    error: errors.pesoInicial,
+    placeholder: "0,00"
+  }), /*#__PURE__*/React.createElement(PesoFinalField, {
+    name: "pfVA",
+    value: pesoFinal,
+    onChange: function (e) {
+      setPesoFinal(e.target.value);
+    },
+    error: errors.pesoFinal,
+    gv: gv
+  }))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Granulometria — A36",
+    icon: "🔬"
+  }, /*#__PURE__*/React.createElement(GranuTable, {
+    producto: producto,
+    pesoFinal: pesoFinal,
+    pesoInicial: pesoInicial,
+    values: gv,
+    onChange: updGv
+  }), errors.granu && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: 'var(--error)',
+      fontSize: '.84rem',
+      marginTop: 9,
+      fontWeight: 600
+    }
+  }, "Aviso: ", errors.granu)), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Humedad",
+    icon: "💧"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 240
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "humVA",
+    label: "% Humedad",
+    type: "decimal",
+    required: true,
+    value: pctHumedad,
+    onChange: function (e) {
+      setPctHumedad(e.target.value);
+    },
+    error: errors.pctHumedad,
+    placeholder: "0,00",
+    specHint: hspec && hspec.max != null ? 'max ' + fmt(hspec.max, 1) + '%' : null,
+    specSemVal: hspec && hspec.max != null ? calcSemaforo(parseDecimal(pctHumedad), null, hspec.max) : 'info'
+  }))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Analisis Quimico (%)",
+    icon: "⚗️"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fg-quim"
+  }, [{
+    k: 'sio2',
+    l: 'SiO₂ (%)',
+    sk: 'SiO2'
+  }, {
+    k: 'al2o3',
+    l: 'Al₂O₃ (%)',
+    sk: 'Al2O3'
+  }, {
+    k: 'fe2o3',
+    l: 'Fe₂O₃ (%)',
+    sk: 'Fe2O3'
+  }, {
+    k: 'cao',
+    l: 'CaO (%)',
+    sk: 'CaO'
+  }, {
+    k: 'mgo',
+    l: 'MgO (%)',
+    sk: 'MgO'
+  }, {
+    k: 'k2o',
+    l: 'K₂O (%)',
+    sk: 'K2O'
+  }, {
+    k: 'na2o',
+    l: 'Na₂O (%)',
+    sk: 'Na2O'
+  }, {
+    k: 'tio2',
+    l: 'TiO₂ (%)',
+    sk: 'TiO2'
+  }].map(function (f) {
+    return /*#__PURE__*/React.createElement(Field, {
+      key: f.k,
+      name: f.k + 'VA',
+      label: f.l,
+      type: "decimal",
+      required: true,
+      value: quimica[f.k],
+      onChange: function (e) {
+        var v = e.target.value;
+        setQuimica(function (p) {
+          var n = Object.assign({}, p);
+          n[f.k] = v;
+          return n;
+        });
+      },
+      error: errors[f.k],
+      placeholder: "0,00",
+      specHint: specChemHint(qspec[f.sk]),
+      specSemVal: specSem(quimica[f.k], qspec[f.sk])
+    });
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.72rem',
+      color: 'var(--text-muted)',
+      marginTop: 8
+    }
+  }, "Referencias EETT mostradas: Vidrios Lirquén. En Reportes → Acopio/Despacho el promedio se valida contra ambos clientes.")), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsVA",
+    type: "textarea",
+    label: "Observaciones (opcional)",
+    value: obs,
+    onChange: function (e) {
+      setObs(e.target.value);
+    },
+    maxLength: 300,
+    placeholder: "Comentarios de la validación..."
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "form-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: onBack
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    disabled: sending,
+    onClick: handleSend
+  }, sending ? 'Enviando...' : 'Registrar Validación')));
+}
 function ArenasForm({
   account,
   onBack,
@@ -8420,6 +8799,15 @@ function ArenasForm({
 }) {
   var [desp, setDesp] = useState(null);
   var [extra, setExtra] = useState(null);
+  if (desp === 'VALACOPIO') {
+    return /*#__PURE__*/React.createElement(ValidacionAcopioForm, {
+      account: account,
+      onBack: function () {
+        setDesp(null);
+      },
+      onSuccess: onSuccess
+    });
+  }
   if (desp) {
     return /*#__PURE__*/React.createElement(DespachoForm, {
       account: account,
@@ -8461,10 +8849,13 @@ function ArenasForm({
     lsAdd: addPending,
     lsDel: delPending,
     extraGroups: [{
-      label: 'Despachos Arena Premium',
+      label: 'Despachos / Validación de Acopio',
       icon: '🚚',
       color: '#276749',
-      products: DESPACHO_PRODUCTS,
+      products: [{
+        value: 'VALACOPIO',
+        label: 'Validación Acopio / Despacho'
+      }],
       onPick: setDesp
     }],
     otrosGroup: {
