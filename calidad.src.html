@@ -6174,8 +6174,6 @@ function DashboardScreen({account,onBack}){
           <button className={'dash-tab'+(tab==='tabla'?' act':'')} onClick={function(){setTab('tabla');}}>Tabla de Datos</button>
           {prod==='A36'&&<button className={'dash-tab'+(tab==='acopio'?' act':'')} onClick={function(){setTab('acopio');}}>Acopio / Despacho</button>}
           <button className={'dash-tab'+(tab==='comparar'?' act':'')} onClick={function(){setTab('comparar');}}>Comparador</button>
-          <button className={'dash-tab'+(tab==='resumen'?' act':'')} onClick={function(){setTab('resumen');}}>Resumen Ejecutivo</button>
-          <button className={'dash-tab'+(tab==='general'?' act':'')} onClick={function(){setTab('general');}}>General</button>
         </div>
       )}
       {!loading&&filtered.length===0&&(tab==='granu'||tab==='quim')&&(
@@ -9572,11 +9570,6 @@ function App(){
               <span className="lbl">Estadísticas </span>&#128201;
             </button>
           )}
-          {isAdmin&&(
-            <button className="btn-hdr" onClick={function(){setScreen('qc');}}>
-              <span className="lbl">Análisis QC </span>&#129518;
-            </button>
-          )}
           {!isViewer&&(
             <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
               <span className="lbl">Ajustes </span>&#9881;&#65039;
@@ -9619,7 +9612,6 @@ function App(){
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
         {/* Pantalla 'Preguntar' (consulta-ia) oculta: requiere ANTHROPIC_API_KEY. Reactivar el boton y esta ruta si se repone la key. */}
         {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
-        {isAdmin&&screen==='qc'&&<QCAvanzadoScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
     </>
