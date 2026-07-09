@@ -3179,6 +3179,14 @@ function fmt(n, d) {
   if (n === null || n === undefined || isNaN(n)) return '';
   return n.toFixed(d).replace('.', ',');
 }
+/* Normaliza el N° de acopio: los historicos migrados de Excel guardan "3"
+   mientras el formulario guarda "Acopio 3". Devuelve '' si no hay acopio. */
+function normAcopio(v) {
+  var s = v == null ? '' : String(v).trim();
+  if (!s) return '';
+  if (/^\d+$/.test(s)) return 'Acopio ' + s;
+  return s;
+}
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -3325,7 +3333,7 @@ function dbToRow(r) {
     ProductoKey: r.producto_key,
     Producto: r.producto_label,
     TipoMuestra: r.tipo_muestra,
-    NumAcopio: r.num_acopio,
+    NumAcopio: normAcopio(r.num_acopio),
     PesoInicial: r.peso_inicial,
     PesoFinal: r.peso_final,
     PesoFondo: r.peso_fondo,
@@ -10193,11 +10201,14 @@ function DashboardScreen({
       if (filterTurno && (r.Turno || r.turno) !== filterTurno) return false;
       if (filterAnalista && (r.Analista || r.analista) !== filterAnalista) return false;
       if (prod === 'A36') {
-        var tm = r.TipoMuestra || r.tipoMuestra || '';
-        if (tm && !filterTipoMuestra.includes(tm)) return false;
-        if (tm === 'Acopio' && filterTipoMuestra.includes('Acopio')) {
-          var na = r.NumAcopio || r.numAcopio || '';
-          if (na && !filterNumAcopio.includes(na)) return false;
+        // Un registro se considera "Acopio" si tiene N° de acopio asignado,
+        // aunque el tipo diga Puntual (asi registran las analistas y asi
+        // vienen los historicos migrados de Excel).
+        var na = normAcopio(r.NumAcopio || r.numAcopio || '');
+        var esAcopio = (r.TipoMuestra || r.tipoMuestra) === 'Acopio' || !!na;
+        if (!filterTipoMuestra.includes(esAcopio ? 'Acopio' : 'Puntual')) return false;
+        if (esAcopio && filterNumAcopio.length < ACOPIO_OPTS.length) {
+          if (!na || !filterNumAcopio.includes(na)) return false;
         }
       }
       return true;
@@ -10607,9 +10618,9 @@ function DashboardScreen({
       return (r.ProductoKey || r.producto || '') === prod;
     });
     if (certFiltro === 'Puntual') rs = rs.filter(function (r) {
-      return (r.TipoMuestra || r.tipoMuestra || '') !== 'Acopio';
+      return (r.TipoMuestra || r.tipoMuestra || '') !== 'Acopio' && !normAcopio(r.NumAcopio || r.numAcopio);
     });else if (certFiltro !== '__all') rs = rs.filter(function (r) {
-      return (r.TipoMuestra || r.tipoMuestra) === 'Acopio' && String(r.NumAcopio || r.numAcopio || '') === certFiltro;
+      return normAcopio(r.NumAcopio || r.numAcopio) === certFiltro;
     });
     rs.sort(function (a, b) {
       return (a.FechaMuestreo || a.fecha || '').localeCompare(b.FechaMuestreo || b.fecha || '');
@@ -10661,7 +10672,7 @@ function DashboardScreen({
       folio: r.Folio || '',
       turno: r.Turno || r.turno || '',
       tipo: r.TipoMuestra || r.tipoMuestra || '',
-      acopio: r.NumAcopio || r.numAcopio || '',
+      acopio: normAcopio(r.NumAcopio || r.numAcopio || ''),
       analista: r.Analista || r.analista || '',
       acum: acum,
       parc: parc,
@@ -14251,7 +14262,7 @@ function DashboardScreen({
         style: tdV
       }, d.folio ? '#' + d.folio : '—'), /*#__PURE__*/React.createElement("td", {
         style: tdV
-      }, d.tipo === 'Acopio' ? d.acopio || 'Acopio' : d.tipo || '—'), /*#__PURE__*/React.createElement("td", {
+      }, d.acopio || d.tipo || '—'), /*#__PURE__*/React.createElement("td", {
         style: tdV
       }, d.turno || '—'), /*#__PURE__*/React.createElement("td", {
         style: Object.assign({}, tdV, {

@@ -2,7 +2,7 @@
    Estrategia network-first: siempre intenta traer la version mas
    reciente; si no hay conexion sirve la copia en cache (la app ya
    maneja la cola de envios pendientes en localStorage). */
-const CACHE = 'migrin-calidad-v24';
+const CACHE = 'migrin-calidad-v25';
 const PRECACHE = ['./calidad.html', './logo.png', './manifest.json'];
 
 self.addEventListener('install', function (e) {

@@ -1294,6 +1294,14 @@ function fmt(n,d){
   if(n===null||n===undefined||isNaN(n))return'';
   return n.toFixed(d).replace('.',',');
 }
+/* Normaliza el N° de acopio: los historicos migrados de Excel guardan "3"
+   mientras el formulario guarda "Acopio 3". Devuelve '' si no hay acopio. */
+function normAcopio(v){
+  var s=v==null?'':String(v).trim();
+  if(!s)return'';
+  if(/^\d+$/.test(s))return'Acopio '+s;
+  return s;
+}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function today(){return new Date().toISOString().slice(0,10);}
 function nowTime(){return new Date().toTimeString().slice(0,5);}
@@ -1395,7 +1403,7 @@ function dbToRow(r){
     ProductoKey:r.producto_key,
     Producto:r.producto_label,
     TipoMuestra:r.tipo_muestra,
-    NumAcopio:r.num_acopio,
+    NumAcopio:normAcopio(r.num_acopio),
     PesoInicial:r.peso_inicial,
     PesoFinal:r.peso_final,
     PesoFondo:r.peso_fondo,
@@ -5041,11 +5049,14 @@ function DashboardScreen({account,onBack}){
       if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return false;
       if(filterAnalista&&(r.Analista||r.analista)!==filterAnalista)return false;
       if(prod==='A36'){
-        var tm=r.TipoMuestra||r.tipoMuestra||'';
-        if(tm&&!filterTipoMuestra.includes(tm))return false;
-        if(tm==='Acopio'&&filterTipoMuestra.includes('Acopio')){
-          var na=r.NumAcopio||r.numAcopio||'';
-          if(na&&!filterNumAcopio.includes(na))return false;
+        // Un registro se considera "Acopio" si tiene N° de acopio asignado,
+        // aunque el tipo diga Puntual (asi registran las analistas y asi
+        // vienen los historicos migrados de Excel).
+        var na=normAcopio(r.NumAcopio||r.numAcopio||'');
+        var esAcopio=(r.TipoMuestra||r.tipoMuestra)==='Acopio'||!!na;
+        if(!filterTipoMuestra.includes(esAcopio?'Acopio':'Puntual'))return false;
+        if(esAcopio&&filterNumAcopio.length<ACOPIO_OPTS.length){
+          if(!na||!filterNumAcopio.includes(na))return false;
         }
       }
       return true;
@@ -5311,8 +5322,8 @@ function DashboardScreen({account,onBack}){
   var certRecs=useMemo(function(){
     if(prod!=='A36')return[];
     var rs=records.filter(function(r){return(r.ProductoKey||r.producto||'')===prod;});
-    if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio';});
-    else if(certFiltro!=='__all')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra)==='Acopio'&&String(r.NumAcopio||r.numAcopio||'')===certFiltro;});
+    if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio'&&!normAcopio(r.NumAcopio||r.numAcopio);});
+    else if(certFiltro!=='__all')rs=rs.filter(function(r){return normAcopio(r.NumAcopio||r.numAcopio)===certFiltro;});
     rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
     return rs.slice(-10);
   },[records,prod,certFiltro]);
@@ -5341,7 +5352,7 @@ function DashboardScreen({account,onBack}){
       quim.k2o_na2o=(quim.k2o!=null||quim.na2o!=null)?((quim.k2o||0)+(quim.na2o||0)):null;
       var hum=parseDecimal(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad);
       return{id:String(r.ID||r.id||''),fecha:r.FechaMuestreo||r.fecha||'',folio:r.Folio||'',turno:r.Turno||r.turno||'',
-        tipo:r.TipoMuestra||r.tipoMuestra||'',acopio:r.NumAcopio||r.numAcopio||'',
+        tipo:r.TipoMuestra||r.tipoMuestra||'',acopio:normAcopio(r.NumAcopio||r.numAcopio||''),
         analista:r.Analista||r.analista||'',acum:acum,parc:parc,fondoP:fondo?fondo.pctP:null,
         d50:d50,quim:quim,hum:isNaN(hum)?null:hum};
   }
@@ -6913,7 +6924,7 @@ function DashboardScreen({account,onBack}){
                             <td style={tdV}><input type="checkbox" readOnly checked={on}/></td>
                             <td style={tdV}>{d.fecha}</td>
                             <td style={tdV}>{d.folio?'#'+d.folio:'—'}</td>
-                            <td style={tdV}>{d.tipo==='Acopio'?(d.acopio||'Acopio'):(d.tipo||'—')}</td>
+                            <td style={tdV}>{d.acopio||d.tipo||'—'}</td>
                             <td style={tdV}>{d.turno||'—'}</td>
                             <td style={Object.assign({},tdV,{textAlign:'left',maxWidth:130,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'})}>{d.analista||'—'}</td>
                             <td style={tdV}>{d.acum['#35']!=null?fmt(d.acum['#35'],2):'—'}</td>
