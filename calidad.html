@@ -3786,13 +3786,9 @@ function Field({
   }, error));
 }
 
-/* Peso Final con dos modos de ingreso:
-   - 'final' (por defecto): se ingresa la masa final tal como hoy; el fondo
-     queda calculado por diferencia (comportamiento historico).
-   - 'fondo': se ingresa el peso del fondo (lo que queda en la bandeja) y
-     la app calcula la masa final = suma de mallas + fondo. Pensado para
-     analistas a quienes les cuesta cuadrar el fondo contra la masa final
-     medida en la balanza. */
+/* Peso del fondo ingresado manualmente por la analista; la masa final se
+   calcula sola: masa final = suma de los pesos por malla + fondo. Asi el
+   fondo ya no se cuadra por diferencia contra la balanza. */
 function PesoFinalField({
   name,
   label,
@@ -3801,7 +3797,6 @@ function PesoFinalField({
   error,
   gv
 }) {
-  var [modo, setModo] = useState('final');
   var [fondo, setFondo] = useState('');
   var sumSieves = useMemo(function () {
     return (gv || []).reduce(function (s, v) {
@@ -3810,65 +3805,22 @@ function PesoFinalField({
     }, 0);
   }, [gv]);
   useEffect(function () {
-    if (modo !== 'fondo') return;
     var f = parseDecimal(fondo);
     onChange({
       target: {
-        value: isNaN(f) ? '' : fmt(sumSieves + f, 2)
+        value: fondo === '' || isNaN(f) ? '' : fmt(sumSieves + f, 2)
       }
     });
     // eslint-disable-next-line
-  }, [modo, fondo, sumSieves]);
-  function toggle() {
-    setFondo('');
-    onChange({
-      target: {
-        value: ''
-      }
-    });
-    setModo(function (m) {
-      return m === 'final' ? 'fondo' : 'final';
-    });
-  }
+  }, [fondo, sumSieves]);
   return /*#__PURE__*/React.createElement("div", {
     className: "field"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
-      gap: 8,
-      flexWrap: 'wrap'
-    }
   }, /*#__PURE__*/React.createElement("label", {
     htmlFor: name
-  }, modo === 'fondo' ? 'Peso del Fondo (g)' : label || 'Peso Final (g)', /*#__PURE__*/React.createElement("span", {
+  }, "Peso del Fondo (g)", /*#__PURE__*/React.createElement("span", {
     className: "req"
-  }, "*")), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: toggle,
-    style: {
-      fontSize: '.68rem',
-      color: 'var(--primary)',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      padding: 0,
-      textDecoration: 'underline'
-    }
-  }, modo === 'final' ? 'Ingresar por peso del fondo' : 'Ingresar masa final directa')), modo === 'final' ? /*#__PURE__*/React.createElement("input", {
+  }, "*")), /*#__PURE__*/React.createElement("input", {
     id: name,
-    type: "text",
-    inputMode: "decimal",
-    value: value,
-    onChange: function (e) {
-      e.target.value = e.target.value.replace('.', ',');
-      onChange(e);
-    },
-    placeholder: "0,00",
-    className: error ? 'err' : ''
-  }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
-    id: name + '_fondo',
     type: "text",
     inputMode: "decimal",
     value: fondo,
@@ -3879,7 +3831,7 @@ function PesoFinalField({
     className: error ? 'err' : ''
   }), /*#__PURE__*/React.createElement("span", {
     className: "fhint"
-  }, "Masa final calculada: ", value ? value + ' g' : '—', " (suma de mallas + fondo)")), error && /*#__PURE__*/React.createElement("span", {
+  }, "Masa final calculada: ", value ? value + ' g' : '—', " (suma de mallas + fondo)"), error && /*#__PURE__*/React.createElement("span", {
     className: "ferr"
   }, error));
 }

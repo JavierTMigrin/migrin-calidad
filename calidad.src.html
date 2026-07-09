@@ -1710,50 +1710,26 @@ function Field({name,label,hint,specHint,specSemVal,type,required,value,onChange
   );
 }
 
-/* Peso Final con dos modos de ingreso:
-   - 'final' (por defecto): se ingresa la masa final tal como hoy; el fondo
-     queda calculado por diferencia (comportamiento historico).
-   - 'fondo': se ingresa el peso del fondo (lo que queda en la bandeja) y
-     la app calcula la masa final = suma de mallas + fondo. Pensado para
-     analistas a quienes les cuesta cuadrar el fondo contra la masa final
-     medida en la balanza. */
+/* Peso del fondo ingresado manualmente por la analista; la masa final se
+   calcula sola: masa final = suma de los pesos por malla + fondo. Asi el
+   fondo ya no se cuadra por diferencia contra la balanza. */
 function PesoFinalField({name,label,value,onChange,error,gv}){
-  var[modo,setModo]=useState('final');
   var[fondo,setFondo]=useState('');
   var sumSieves=useMemo(function(){
     return(gv||[]).reduce(function(s,v){var n=parseDecimal(v);return s+(isNaN(n)?0:n);},0);
   },[gv]);
   useEffect(function(){
-    if(modo!=='fondo')return;
     var f=parseDecimal(fondo);
-    onChange({target:{value:isNaN(f)?'':fmt(sumSieves+f,2)}});
+    onChange({target:{value:(fondo===''||isNaN(f))?'':fmt(sumSieves+f,2)}});
     // eslint-disable-next-line
-  },[modo,fondo,sumSieves]);
-  function toggle(){
-    setFondo('');
-    onChange({target:{value:''}});
-    setModo(function(m){return m==='final'?'fondo':'final';});
-  }
+  },[fondo,sumSieves]);
   return(
     <div className="field">
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
-        <label htmlFor={name}>{modo==='fondo'?'Peso del Fondo (g)':(label||'Peso Final (g)')}<span className="req">*</span></label>
-        <button type="button" onClick={toggle}
-          style={{fontSize:'.68rem',color:'var(--primary)',background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>
-          {modo==='final'?'Ingresar por peso del fondo':'Ingresar masa final directa'}
-        </button>
-      </div>
-      {modo==='final'
-        ?<input id={name} type="text" inputMode="decimal" value={value}
-            onChange={function(e){e.target.value=e.target.value.replace('.',',');onChange(e);}}
-            placeholder="0,00" className={error?'err':''}/>
-        :<>
-          <input id={name+'_fondo'} type="text" inputMode="decimal" value={fondo}
-            onChange={function(e){setFondo(e.target.value.replace('.',','));}}
-            placeholder="0,00" className={error?'err':''}/>
-          <span className="fhint">Masa final calculada: {value?value+' g':'—'} (suma de mallas + fondo)</span>
-        </>
-      }
+      <label htmlFor={name}>Peso del Fondo (g)<span className="req">*</span></label>
+      <input id={name} type="text" inputMode="decimal" value={fondo}
+        onChange={function(e){setFondo(e.target.value.replace('.',','));}}
+        placeholder="0,00" className={error?'err':''}/>
+      <span className="fhint">Masa final calculada: {value?value+' g':'—'} (suma de mallas + fondo)</span>
       {error&&<span className="ferr">{error}</span>}
     </div>
   );
