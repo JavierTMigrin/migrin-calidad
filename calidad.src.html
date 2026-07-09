@@ -4796,6 +4796,7 @@ function DashboardScreen({account,onBack}){
   var[showLims,setShowLims]=useState(true);
   var[selIdx,setSelIdx]=useState(null); // muestra seleccionada (null = ultima)
   var[a36Cliente,setA36Cliente]=useState('LIRQUEN'); // EETT contra la que se comparan A36 en Granulometria/Quimica/Tabla
+  var[filtrosOpen,setFiltrosOpen]=useState(false); // panel plegable de filtros avanzados
   // Validacion de acopio / certificado de despacho (pestana Acopio, solo A36)
   var[certSel,setCertSel]=useState({});        // plumilla: ids de muestras marcadas para promediar
   var[certLastN,setCertLastN]=useState(5);     // "promediar ultimos X"
@@ -6037,116 +6038,149 @@ function DashboardScreen({account,onBack}){
         <h2>Reportes — Calidad</h2>
       </div>
 
-      {/* ── BARRA DE FILTROS ── */}
-      <div className="db-filter-row">
-        <div className="dff">
-          <label>Planta</label>
-          <select value={plantaFiltro} onChange={function(e){
-            var pl=e.target.value;setPlantaFiltro(pl);
-            var lista=PLANTAS_PROD[pl]||[];
-            if(lista.length)setProd(lista[0].value);
-          }}>
-            {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
-          </select>
-        </div>
-        <div className="dff">
-          <label>Producto</label>
-          <select value={prod} onChange={function(e){setProd(e.target.value);}}>
-            {(PLANTAS_PROD[plantaFiltro]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-          </select>
-        </div>
-        {prod==='A36'&&(
-          <div className="dff">
-            <label>EETT cliente</label>
-            <div style={{display:'flex',gap:6,alignItems:'center',minHeight:34}}>
-              {Object.entries(SPECS_A36).map(function(entry){
-                var k=entry[0],s=entry[1];
-                return(
-                  <button key={k} type="button" onClick={function(){setA36Cliente(k);}} style={{
-                    padding:'5px 12px',borderRadius:20,fontFamily:'Inter',fontWeight:600,fontSize:'.74rem',
-                    border:'1.5px solid '+(a36Cliente===k?'#1a5276':'#e0e0e0'),cursor:'pointer',
-                    background:a36Cliente===k?'#1a5276':'#fff',color:a36Cliente===k?'#fff':'#555',
-                  }}>{s.nombre}</button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        <div className="dff">
-          <label>Tipo período</label>
-          <select value={periodType} onChange={function(e){setPeriodType(e.target.value);}}>
-            <option value="week">Semana del año</option>
-            <option value="month">Mes del año</option>
-            <option value="year">Año completo</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </div>
-        {periodType==='year'
-          ?<div className="dff"><label>Año</label>
-            <select value={selYear} onChange={function(e){setSelYear(parseInt(e.target.value));}}>
-              {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
-            </select>
-          </div>
-          :periodSel
-        }
-        <div className="dff">
-          <label>Turno</label>
-          <select value={filterTurno} onChange={function(e){setFilterTurno(e.target.value);}}>
-            <option value="">Todos</option><option value="A">Turno A</option><option value="B">Turno B</option><option value="C">Turno C</option>
-          </select>
-        </div>
-        <div className="dff">
-          <label>Analista</label>
-          <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}}>
-            <option value="">Todos</option>
-            {analistaOpts.map(function(a){return <option key={a} value={a}>{a}</option>;})}
-          </select>
-        </div>
-        {prod==='A36'&&(
+      {/* ── BARRA DE FILTROS ──
+         Fila principal: lo que se cambia siempre (planta, producto, periodo)
+         + boton "Filtros (n)" que pliega/despliega los filtros avanzados. */}
+      {(function(){
+        var nAvanzados=(filterTurno?1:0)+(filterAnalista?1:0)
+          +(prod==='A36'&&filterTipoMuestra.length<2?1:0)
+          +(prod==='A36'&&filterTipoMuestra.includes('Acopio')&&filterNumAcopio.length<ACOPIO_OPTS.length?1:0);
+        return(
           <>
-            <div className="dff">
-              <label>Tipo muestra</label>
-              <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34,flexWrap:'wrap'}}>
-                {['Puntual','Acopio'].map(function(t){
-                  var chk=filterTipoMuestra.includes(t);
-                  return(
-                    <label key={t} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:'.8rem',userSelect:'none',whiteSpace:'nowrap'}}>
-                      <input type="checkbox" checked={chk}
-                        onChange={function(){setFilterTipoMuestra(function(p){return chk?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
-                      {t}
-                    </label>
-                  );
-                })}
+            <div className="db-filter-row">
+              <div className="dff">
+                <label>Planta</label>
+                <select value={plantaFiltro} onChange={function(e){
+                  var pl=e.target.value;setPlantaFiltro(pl);
+                  var lista=PLANTAS_PROD[pl]||[];
+                  if(lista.length)setProd(lista[0].value);
+                }}>
+                  {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+                </select>
+              </div>
+              <div className="dff">
+                <label>Producto</label>
+                <select value={prod} onChange={function(e){setProd(e.target.value);}}>
+                  {(PLANTAS_PROD[plantaFiltro]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+                </select>
+              </div>
+              <div className="dff">
+                <label>Período</label>
+                <select value={periodType} onChange={function(e){setPeriodType(e.target.value);}}>
+                  <option value="week">Semana del año</option>
+                  <option value="month">Mes del año</option>
+                  <option value="year">Año completo</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </div>
+              {periodType==='year'
+                ?<div className="dff"><label>Año</label>
+                  <select value={selYear} onChange={function(e){setSelYear(parseInt(e.target.value));}}>
+                    {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+                  </select>
+                </div>
+                :periodSel
+              }
+              <div style={{alignSelf:'flex-end'}}>
+                <button type="button" onClick={function(){setFiltrosOpen(function(v){return !v;});}}
+                  style={{padding:'6px 14px',minHeight:34,fontSize:'.82rem',fontFamily:'Inter',fontWeight:600,cursor:'pointer',
+                    borderRadius:8,border:'1.5px solid '+(filtrosOpen||nAvanzados>0?'var(--primary)':'var(--border)'),
+                    background:filtrosOpen?'var(--primary)':(nAvanzados>0?'var(--primary-xlight)':'#fff'),
+                    color:filtrosOpen?'#fff':(nAvanzados>0?'var(--primary)':'#555')}}>
+                  ⚙ Filtros{nAvanzados>0?' ('+nAvanzados+')':''} {filtrosOpen?'▲':'▼'}
+                </button>
+              </div>
+              <div style={{display:'flex',gap:6,alignSelf:'flex-end',flexWrap:'wrap',marginLeft:'auto'}}>
+                <button className="btn btn-secondary" title="Recargar datos" onClick={loadData} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#8635;</button>
+                <button className="btn btn-secondary" title="Descargar reporte como imagen" onClick={exportarReporte} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#11015; Exportar</button>
+                <button className="btn btn-primary" title="Enviar reporte PDF por correo" disabled={enviandoPdf||filtered.length===0} onClick={enviarReportePDF} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>{enviandoPdf?'Enviando…':'✉ PDF'}</button>
               </div>
             </div>
-            {filterTipoMuestra.includes('Acopio')&&(
-              <div className="dff">
-                <label>N° Acopio</label>
-                <select value={filterNumAcopio.length===ACOPIO_OPTS.length?'__all':(filterNumAcopio[0]||'__all')}
-                  onChange={function(e){var v=e.target.value;setFilterNumAcopio(v==='__all'?ACOPIO_OPTS.slice():[v]);}}>
-                  <option value="__all">Todos los acopios</option>
-                  {ACOPIO_OPTS.map(function(a){return <option key={a} value={a}>{a}</option>;})}
-                </select>
+
+            {filtrosOpen&&(
+              <div className="db-filter-row" style={{marginTop:8,background:'var(--primary-xlight)',border:'1px solid var(--border)'}}>
+                {prod==='A36'&&(
+                  <div className="dff">
+                    <label>EETT cliente</label>
+                    <div style={{display:'flex',gap:6,alignItems:'center',minHeight:34}}>
+                      {Object.entries(SPECS_A36).map(function(entry){
+                        var k=entry[0],s=entry[1];
+                        return(
+                          <button key={k} type="button" onClick={function(){setA36Cliente(k);}} style={{
+                            padding:'5px 12px',borderRadius:20,fontFamily:'Inter',fontWeight:600,fontSize:'.74rem',
+                            border:'1.5px solid '+(a36Cliente===k?'#1a5276':'#e0e0e0'),cursor:'pointer',
+                            background:a36Cliente===k?'#1a5276':'#fff',color:a36Cliente===k?'#fff':'#555',
+                          }}>{s.nombre}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="dff">
+                  <label>Turno</label>
+                  <select value={filterTurno} onChange={function(e){setFilterTurno(e.target.value);}}>
+                    <option value="">Todos</option><option value="A">Turno A</option><option value="B">Turno B</option><option value="C">Turno C</option>
+                  </select>
+                </div>
+                <div className="dff">
+                  <label>Analista</label>
+                  <select value={filterAnalista} onChange={function(e){setFilterAnalista(e.target.value);}}>
+                    <option value="">Todos</option>
+                    {analistaOpts.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+                  </select>
+                </div>
+                {prod==='A36'&&(
+                  <>
+                    <div className="dff">
+                      <label>Tipo muestra</label>
+                      <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34,flexWrap:'wrap'}}>
+                        {['Puntual','Acopio'].map(function(t){
+                          var chk=filterTipoMuestra.includes(t);
+                          return(
+                            <label key={t} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:'.8rem',userSelect:'none',whiteSpace:'nowrap'}}>
+                              <input type="checkbox" checked={chk}
+                                onChange={function(){setFilterTipoMuestra(function(p){return chk?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
+                              {t}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {filterTipoMuestra.includes('Acopio')&&(
+                      <div className="dff">
+                        <label>N° Acopio</label>
+                        <select value={filterNumAcopio.length===ACOPIO_OPTS.length?'__all':(filterNumAcopio[0]||'__all')}
+                          onChange={function(e){var v=e.target.value;setFilterNumAcopio(v==='__all'?ACOPIO_OPTS.slice():[v]);}}>
+                          <option value="__all">Todos los acopios</option>
+                          {ACOPIO_OPTS.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="dff">
+                  <label>Prom. móvil</label>
+                  <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34}}>
+                    {[5,7].map(function(w){return(
+                      <label key={w} style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
+                        <input type="radio" name="maWin" checked={maWin===w} onChange={function(){setMaWin(w);}}/>{w}
+                      </label>
+                    );})}
+                  </div>
+                </div>
+                {nAvanzados>0&&(
+                  <div style={{alignSelf:'flex-end'}}>
+                    <button type="button" onClick={function(){setFilterTurno('');setFilterAnalista('');setFilterTipoMuestra(['Puntual','Acopio']);setFilterNumAcopio(ACOPIO_OPTS.slice());}}
+                      style={{padding:'6px 12px',minHeight:34,fontSize:'.78rem',fontFamily:'Inter',cursor:'pointer',borderRadius:8,border:'1.5px solid var(--border)',background:'#fff',color:'#c0392b'}}>
+                      ✕ Limpiar filtros
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>
-        )}
-        <div className="dff" style={{marginLeft:'auto'}}>
-          <label>Prom. móvil</label>
-          <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34}}>
-            {[5,7].map(function(w){return(
-              <label key={w} style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',fontSize:'.82rem',userSelect:'none'}}>
-                <input type="radio" name="maWin" checked={maWin===w} onChange={function(){setMaWin(w);}}/>{w}
-              </label>
-            );})}
-          </div>
-        </div>
-        <div style={{display:'flex',gap:6,alignSelf:'flex-end',flexWrap:'wrap'}}>
-          <button className="btn btn-secondary" onClick={loadData} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#8635; Actualizar</button>
-          <button className="btn btn-secondary" onClick={exportarReporte} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>&#11015; Exportar</button>
-          <button className="btn btn-primary" disabled={enviandoPdf||filtered.length===0} onClick={enviarReportePDF} style={{padding:'6px 12px',minHeight:34,fontSize:'.82rem'}}>{enviandoPdf?'Enviando…':'✉ Enviar PDF'}</button>
-        </div>
-      </div>
+        );
+      })()}
       {msgPdf&&<div style={{textAlign:'right',fontSize:'.8rem',marginTop:4,color:msgPdf.indexOf('Error')===0?'var(--error)':'var(--success)'}}>{msgPdf}</div>}
 
       {/* ── BADGES ── */}

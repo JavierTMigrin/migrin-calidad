@@ -9804,6 +9804,7 @@ function DashboardScreen({
   var [showLims, setShowLims] = useState(true);
   var [selIdx, setSelIdx] = useState(null); // muestra seleccionada (null = ultima)
   var [a36Cliente, setA36Cliente] = useState('LIRQUEN'); // EETT contra la que se comparan A36 en Granulometria/Quimica/Tabla
+  var [filtrosOpen, setFiltrosOpen] = useState(false); // panel plegable de filtros avanzados
   // Validacion de acopio / certificado de despacho (pestana Acopio, solo A36)
   var [certSel, setCertSel] = useState({}); // plumilla: ids de muestras marcadas para promediar
   var [certLastN, setCertLastN] = useState(5); // "promediar ultimos X"
@@ -12287,234 +12288,291 @@ function DashboardScreen({
   }, /*#__PURE__*/React.createElement("button", {
     className: "back-btn",
     onClick: onBack
-  }, "←"), /*#__PURE__*/React.createElement("h2", null, "Reportes — Calidad")), /*#__PURE__*/React.createElement("div", {
-    className: "db-filter-row"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Planta"), /*#__PURE__*/React.createElement("select", {
-    value: plantaFiltro,
-    onChange: function (e) {
-      var pl = e.target.value;
-      setPlantaFiltro(pl);
-      var lista = PLANTAS_PROD[pl] || [];
-      if (lista.length) setProd(lista[0].value);
-    }
-  }, Object.keys(PLANTAS_PROD).map(function (pl) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: pl,
-      value: pl
-    }, pl);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Producto"), /*#__PURE__*/React.createElement("select", {
-    value: prod,
-    onChange: function (e) {
-      setProd(e.target.value);
-    }
-  }, (PLANTAS_PROD[plantaFiltro] || []).map(function (p) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: p.value,
-      value: p.value
-    }, p.label);
-  }))), prod === 'A36' && /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "EETT cliente"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 6,
-      alignItems: 'center',
-      minHeight: 34
-    }
-  }, Object.entries(SPECS_A36).map(function (entry) {
-    var k = entry[0],
-      s = entry[1];
-    return /*#__PURE__*/React.createElement("button", {
-      key: k,
+  }, "←"), /*#__PURE__*/React.createElement("h2", null, "Reportes — Calidad")), function () {
+    var nAvanzados = (filterTurno ? 1 : 0) + (filterAnalista ? 1 : 0) + (prod === 'A36' && filterTipoMuestra.length < 2 ? 1 : 0) + (prod === 'A36' && filterTipoMuestra.includes('Acopio') && filterNumAcopio.length < ACOPIO_OPTS.length ? 1 : 0);
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "db-filter-row"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Planta"), /*#__PURE__*/React.createElement("select", {
+      value: plantaFiltro,
+      onChange: function (e) {
+        var pl = e.target.value;
+        setPlantaFiltro(pl);
+        var lista = PLANTAS_PROD[pl] || [];
+        if (lista.length) setProd(lista[0].value);
+      }
+    }, Object.keys(PLANTAS_PROD).map(function (pl) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: pl,
+        value: pl
+      }, pl);
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Producto"), /*#__PURE__*/React.createElement("select", {
+      value: prod,
+      onChange: function (e) {
+        setProd(e.target.value);
+      }
+    }, (PLANTAS_PROD[plantaFiltro] || []).map(function (p) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: p.value,
+        value: p.value
+      }, p.label);
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Período"), /*#__PURE__*/React.createElement("select", {
+      value: periodType,
+      onChange: function (e) {
+        setPeriodType(e.target.value);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "week"
+    }, "Semana del año"), /*#__PURE__*/React.createElement("option", {
+      value: "month"
+    }, "Mes del año"), /*#__PURE__*/React.createElement("option", {
+      value: "year"
+    }, "Año completo"), /*#__PURE__*/React.createElement("option", {
+      value: "custom"
+    }, "Personalizado"))), periodType === 'year' ? /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Año"), /*#__PURE__*/React.createElement("select", {
+      value: selYear,
+      onChange: function (e) {
+        setSelYear(parseInt(e.target.value));
+      }
+    }, [2024, 2025, 2026, 2027].map(function (y) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: y,
+        value: y
+      }, y);
+    }))) : periodSel, /*#__PURE__*/React.createElement("div", {
+      style: {
+        alignSelf: 'flex-end'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: function () {
-        setA36Cliente(k);
+        setFiltrosOpen(function (v) {
+          return !v;
+        });
       },
       style: {
-        padding: '5px 12px',
-        borderRadius: 20,
+        padding: '6px 14px',
+        minHeight: 34,
+        fontSize: '.82rem',
         fontFamily: 'Inter',
         fontWeight: 600,
-        fontSize: '.74rem',
-        border: '1.5px solid ' + (a36Cliente === k ? '#1a5276' : '#e0e0e0'),
         cursor: 'pointer',
-        background: a36Cliente === k ? '#1a5276' : '#fff',
-        color: a36Cliente === k ? '#fff' : '#555'
+        borderRadius: 8,
+        border: '1.5px solid ' + (filtrosOpen || nAvanzados > 0 ? 'var(--primary)' : 'var(--border)'),
+        background: filtrosOpen ? 'var(--primary)' : nAvanzados > 0 ? 'var(--primary-xlight)' : '#fff',
+        color: filtrosOpen ? '#fff' : nAvanzados > 0 ? 'var(--primary)' : '#555'
       }
-    }, s.nombre);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Tipo período"), /*#__PURE__*/React.createElement("select", {
-    value: periodType,
-    onChange: function (e) {
-      setPeriodType(e.target.value);
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "week"
-  }, "Semana del año"), /*#__PURE__*/React.createElement("option", {
-    value: "month"
-  }, "Mes del año"), /*#__PURE__*/React.createElement("option", {
-    value: "year"
-  }, "Año completo"), /*#__PURE__*/React.createElement("option", {
-    value: "custom"
-  }, "Personalizado"))), periodType === 'year' ? /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Año"), /*#__PURE__*/React.createElement("select", {
-    value: selYear,
-    onChange: function (e) {
-      setSelYear(parseInt(e.target.value));
-    }
-  }, [2024, 2025, 2026, 2027].map(function (y) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: y,
-      value: y
-    }, y);
-  }))) : periodSel, /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Turno"), /*#__PURE__*/React.createElement("select", {
-    value: filterTurno,
-    onChange: function (e) {
-      setFilterTurno(e.target.value);
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Todos"), /*#__PURE__*/React.createElement("option", {
-    value: "A"
-  }, "Turno A"), /*#__PURE__*/React.createElement("option", {
-    value: "B"
-  }, "Turno B"), /*#__PURE__*/React.createElement("option", {
-    value: "C"
-  }, "Turno C"))), /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Analista"), /*#__PURE__*/React.createElement("select", {
-    value: filterAnalista,
-    onChange: function (e) {
-      setFilterAnalista(e.target.value);
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Todos"), analistaOpts.map(function (a) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: a,
-      value: a
-    }, a);
-  }))), prod === 'A36' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Tipo muestra"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 8,
-      alignItems: 'center',
-      minHeight: 34,
-      flexWrap: 'wrap'
-    }
-  }, ['Puntual', 'Acopio'].map(function (t) {
-    var chk = filterTipoMuestra.includes(t);
-    return /*#__PURE__*/React.createElement("label", {
-      key: t,
+    }, "⚙ Filtros", nAvanzados > 0 ? ' (' + nAvanzados + ')' : '', " ", filtrosOpen ? '▲' : '▼')), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        cursor: 'pointer',
-        fontSize: '.8rem',
-        userSelect: 'none',
-        whiteSpace: 'nowrap'
+        gap: 6,
+        alignSelf: 'flex-end',
+        flexWrap: 'wrap',
+        marginLeft: 'auto'
       }
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "checkbox",
-      checked: chk,
-      onChange: function () {
-        setFilterTipoMuestra(function (p) {
-          return chk ? p.filter(function (x) {
-            return x !== t;
-          }) : p.concat(t);
-        });
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      title: "Recargar datos",
+      onClick: loadData,
+      style: {
+        padding: '6px 12px',
+        minHeight: 34,
+        fontSize: '.82rem'
       }
-    }), t);
-  }))), filterTipoMuestra.includes('Acopio') && /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "N° Acopio"), /*#__PURE__*/React.createElement("select", {
-    value: filterNumAcopio.length === ACOPIO_OPTS.length ? '__all' : filterNumAcopio[0] || '__all',
-    onChange: function (e) {
-      var v = e.target.value;
-      setFilterNumAcopio(v === '__all' ? ACOPIO_OPTS.slice() : [v]);
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "__all"
-  }, "Todos los acopios"), ACOPIO_OPTS.map(function (a) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: a,
-      value: a
-    }, a);
-  })))), /*#__PURE__*/React.createElement("div", {
-    className: "dff",
-    style: {
-      marginLeft: 'auto'
-    }
-  }, /*#__PURE__*/React.createElement("label", null, "Prom. móvil"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 8,
-      alignItems: 'center',
-      minHeight: 34
-    }
-  }, [5, 7].map(function (w) {
-    return /*#__PURE__*/React.createElement("label", {
-      key: w,
+    }, "↻"), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      title: "Descargar reporte como imagen",
+      onClick: exportarReporte,
+      style: {
+        padding: '6px 12px',
+        minHeight: 34,
+        fontSize: '.82rem'
+      }
+    }, "⬇ Exportar"), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-primary",
+      title: "Enviar reporte PDF por correo",
+      disabled: enviandoPdf || filtered.length === 0,
+      onClick: enviarReportePDF,
+      style: {
+        padding: '6px 12px',
+        minHeight: 34,
+        fontSize: '.82rem'
+      }
+    }, enviandoPdf ? 'Enviando…' : '✉ PDF'))), filtrosOpen && /*#__PURE__*/React.createElement("div", {
+      className: "db-filter-row",
+      style: {
+        marginTop: 8,
+        background: 'var(--primary-xlight)',
+        border: '1px solid var(--border)'
+      }
+    }, prod === 'A36' && /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "EETT cliente"), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
+        gap: 6,
         alignItems: 'center',
-        gap: 3,
+        minHeight: 34
+      }
+    }, Object.entries(SPECS_A36).map(function (entry) {
+      var k = entry[0],
+        s = entry[1];
+      return /*#__PURE__*/React.createElement("button", {
+        key: k,
+        type: "button",
+        onClick: function () {
+          setA36Cliente(k);
+        },
+        style: {
+          padding: '5px 12px',
+          borderRadius: 20,
+          fontFamily: 'Inter',
+          fontWeight: 600,
+          fontSize: '.74rem',
+          border: '1.5px solid ' + (a36Cliente === k ? '#1a5276' : '#e0e0e0'),
+          cursor: 'pointer',
+          background: a36Cliente === k ? '#1a5276' : '#fff',
+          color: a36Cliente === k ? '#fff' : '#555'
+        }
+      }, s.nombre);
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Turno"), /*#__PURE__*/React.createElement("select", {
+      value: filterTurno,
+      onChange: function (e) {
+        setFilterTurno(e.target.value);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Todos"), /*#__PURE__*/React.createElement("option", {
+      value: "A"
+    }, "Turno A"), /*#__PURE__*/React.createElement("option", {
+      value: "B"
+    }, "Turno B"), /*#__PURE__*/React.createElement("option", {
+      value: "C"
+    }, "Turno C"))), /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Analista"), /*#__PURE__*/React.createElement("select", {
+      value: filterAnalista,
+      onChange: function (e) {
+        setFilterAnalista(e.target.value);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Todos"), analistaOpts.map(function (a) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: a,
+        value: a
+      }, a);
+    }))), prod === 'A36' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Tipo muestra"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        minHeight: 34,
+        flexWrap: 'wrap'
+      }
+    }, ['Puntual', 'Acopio'].map(function (t) {
+      var chk = filterTipoMuestra.includes(t);
+      return /*#__PURE__*/React.createElement("label", {
+        key: t,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          cursor: 'pointer',
+          fontSize: '.8rem',
+          userSelect: 'none',
+          whiteSpace: 'nowrap'
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: chk,
+        onChange: function () {
+          setFilterTipoMuestra(function (p) {
+            return chk ? p.filter(function (x) {
+              return x !== t;
+            }) : p.concat(t);
+          });
+        }
+      }), t);
+    }))), filterTipoMuestra.includes('Acopio') && /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "N° Acopio"), /*#__PURE__*/React.createElement("select", {
+      value: filterNumAcopio.length === ACOPIO_OPTS.length ? '__all' : filterNumAcopio[0] || '__all',
+      onChange: function (e) {
+        var v = e.target.value;
+        setFilterNumAcopio(v === '__all' ? ACOPIO_OPTS.slice() : [v]);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "__all"
+    }, "Todos los acopios"), ACOPIO_OPTS.map(function (a) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: a,
+        value: a
+      }, a);
+    })))), /*#__PURE__*/React.createElement("div", {
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, "Prom. móvil"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        minHeight: 34
+      }
+    }, [5, 7].map(function (w) {
+      return /*#__PURE__*/React.createElement("label", {
+        key: w,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 3,
+          cursor: 'pointer',
+          fontSize: '.82rem',
+          userSelect: 'none'
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "radio",
+        name: "maWin",
+        checked: maWin === w,
+        onChange: function () {
+          setMaWin(w);
+        }
+      }), w);
+    }))), nAvanzados > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        alignSelf: 'flex-end'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: function () {
+        setFilterTurno('');
+        setFilterAnalista('');
+        setFilterTipoMuestra(['Puntual', 'Acopio']);
+        setFilterNumAcopio(ACOPIO_OPTS.slice());
+      },
+      style: {
+        padding: '6px 12px',
+        minHeight: 34,
+        fontSize: '.78rem',
+        fontFamily: 'Inter',
         cursor: 'pointer',
-        fontSize: '.82rem',
-        userSelect: 'none'
+        borderRadius: 8,
+        border: '1.5px solid var(--border)',
+        background: '#fff',
+        color: '#c0392b'
       }
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "radio",
-      name: "maWin",
-      checked: maWin === w,
-      onChange: function () {
-        setMaWin(w);
-      }
-    }), w);
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 6,
-      alignSelf: 'flex-end',
-      flexWrap: 'wrap'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-secondary",
-    onClick: loadData,
-    style: {
-      padding: '6px 12px',
-      minHeight: 34,
-      fontSize: '.82rem'
-    }
-  }, "↻ Actualizar"), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-secondary",
-    onClick: exportarReporte,
-    style: {
-      padding: '6px 12px',
-      minHeight: 34,
-      fontSize: '.82rem'
-    }
-  }, "⬇ Exportar"), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary",
-    disabled: enviandoPdf || filtered.length === 0,
-    onClick: enviarReportePDF,
-    style: {
-      padding: '6px 12px',
-      minHeight: 34,
-      fontSize: '.82rem'
-    }
-  }, enviandoPdf ? 'Enviando…' : '✉ Enviar PDF'))), msgPdf && /*#__PURE__*/React.createElement("div", {
+    }, "✕ Limpiar filtros"))));
+  }(), msgPdf && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: 'right',
       fontSize: '.8rem',
