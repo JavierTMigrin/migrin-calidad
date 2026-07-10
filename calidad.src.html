@@ -1628,11 +1628,14 @@ async function enviarReporteRegistro(data,gc,user){
       }
     }catch(e){console.error('PDF reporte registro:',e);}
     var filename='Reporte_'+String(prodLbl).replace(/\s/g,'_')+'_'+(data.fecha||'')+'.pdf';
-    await supabase.functions.invoke('enviar-reporte',{body:{
+    var res=await supabase.functions.invoke('enviar-reporte',{body:{
       asunto:asunto,cuerpo_html:cuerpo,pdf_base64:pdfB64,filename:filename,
       destinatarios:['jtorres@migrin.cl','sarce@migrin.cl'],
     }});
-  }catch(e){console.error('Error enviando reporte de registro:',e);}
+    if(res.error)throw res.error;
+    if(res.data&&res.data.error)throw new Error(res.data.error_graph?JSON.stringify(res.data.error_graph):res.data.error);
+    return true;
+  }catch(e){console.error('Error enviando reporte de registro:',e);return false;}
 }
 
 async function loadEnsayos(){
@@ -8844,6 +8847,7 @@ function HistoryScreen({account,onBack}){
   var[toast,setToast]=useState(null);
   var[expandedId,setExpandedId]=useState(null);
   var[resendSt,setResendSt]=useState({});
+  var[mailSt,setMailSt]=useState({}); // estado del reenvio del reporte por correo, por registro
   var[reportView,setReportView]=useState(null);
   var[editRec,setEditRec]=useState(null);
   var[certRec,setCertRec]=useState(null);
@@ -8920,6 +8924,16 @@ function HistoryScreen({account,onBack}){
       guia:r.Guia||r.guia||'',lote:r.Lote||r.lote||'',horaSalida:r.HoraSalida||r.horaSalida||'',
     };
     return{data:data,gc:gc};
+  }
+
+  /* Reenvia por correo el reporte detallado (con PDF y curva) del registro
+     elegido, reconstruyendolo desde el historial. */
+  async function reenviarCorreo(r){
+    var rid=r.ID||r.id;
+    setMailSt(function(p){return Object.assign({},p,{[rid]:{loading:true}});});
+    var rec=reconstruirRegistro(r);
+    var ok=await enviarReporteRegistro(rec.data,rec.gc,account);
+    setMailSt(function(p){return Object.assign({},p,{[rid]:{loading:false,ok:ok,error:!ok}});});
   }
 
   async function resend(r){
@@ -9046,6 +9060,7 @@ function HistoryScreen({account,onBack}){
                   var rid=r.ID||r.id||i;
                   var isOpen=expandedId===rid;
                   var rst=resendSt[rid]||{};
+                  var mst=mailSt[rid]||{};
                   var rec=isOpen?reconstruirRegistro(r):null;
                   var planta=getPlanta(r);
                   return(
@@ -9187,6 +9202,21 @@ function HistoryScreen({account,onBack}){
                                     onClick={function(e){e.stopPropagation();setCertRec(reconstruirRegistro(r));}}>
                                     📄 Certificado
                                   </button>
+                                )}
+                                <button className="btn btn-secondary" style={{padding:'7px 14px',fontSize:'.84rem'}}
+                                  disabled={mst.loading}
+                                  onClick={function(e){e.stopPropagation();reenviarCorreo(r);}}>
+                                  {mst.loading?'Enviando…':'✉ Reenviar por correo'}
+                                </button>
+                                {mst.ok&&(
+                                  <span style={{color:'var(--success)',fontWeight:700,fontSize:'.84rem'}}>
+                                    &#10003; Reporte enviado por correo
+                                  </span>
+                                )}
+                                {mst.error&&(
+                                  <span style={{color:'var(--error)',fontWeight:600,fontSize:'.83rem'}}>
+                                    No se pudo enviar el correo — revisa la conexión e intenta de nuevo
+                                  </span>
                                 )}
                                 {r.status==='pending'&&(
                                   <button className="btn btn-primary" style={{padding:'7px 14px',fontSize:'.84rem'}}
