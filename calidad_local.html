@@ -21039,10 +21039,48 @@ function AsistenteIA() {
   var [cargando, setCargando] = useState(false);
   var [msgs, setMsgs] = useState([]); // {rol:'user'|'ia', texto, sql, datos, n_filas, error}
   var listRef = useRef(null);
-  var EJEMPLOS = ['¿Cuál fue el SiO₂ promedio del A36 este año?', '¿Cómo va el cumplimiento EETT este mes?', '¿Cuántos ensayos se han registrado este mes?', 'Humedad promedio del A38 este año'];
+
+  /* Contexto guiado: acota el text-to-SQL a una planta/producto para
+     evitar ambiguedad (p.ej. "el A36" cuando hay varios A-algo).
+     fase: 'planta' -> 'producto' -> 'chat'. contexto=null equivale a
+     "todas las plantas / todos los productos" (comportamiento libre). */
+  var [fase, setFase] = useState('planta');
+  var [selPlanta, setSelPlanta] = useState(null);
+  var [contexto, setContexto] = useState(null); // {plantaLabel, productos:[{value,label}]}
+
+  function elegirPlanta(pl) {
+    if (pl === null) {
+      setContexto(null);
+      setFase('chat');
+      return;
+    }
+    setSelPlanta(pl);
+    setFase('producto');
+  }
+  function elegirProducto(prod) {
+    if (prod === null) {
+      setContexto({
+        plantaLabel: selPlanta,
+        productos: PLANTAS_PROD[selPlanta] || []
+      });
+    } else {
+      setContexto({
+        plantaLabel: selPlanta,
+        productos: [prod]
+      });
+    }
+    setFase('chat');
+  }
+  function cambiarContexto() {
+    setContexto(null);
+    setSelPlanta(null);
+    setFase('planta');
+    setMsgs([]);
+  }
+  var EJEMPLOS = contexto && contexto.productos.length === 1 ? ['¿Cuál fue el SiO₂ promedio este año?', '¿Cómo va la humedad este mes?', '¿Cuántos ensayos se han registrado este mes?', '¿Cuál fue el Fe₂O₃ máximo registrado?'] : ['¿Cuál fue el SiO₂ promedio del A36 este año?', '¿Cómo va el cumplimiento EETT del A36 este mes?', '¿Cuántos ensayos se han registrado este mes?', 'Humedad promedio del A38 este año'];
   useEffect(function () {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [msgs, cargando, open]);
+  }, [msgs, cargando, open, fase]);
   async function enviar(q) {
     var texto = (q !== undefined && typeof q === 'string' ? q : pregunta).trim();
     if (!texto || cargando) return;
@@ -21055,10 +21093,17 @@ function AsistenteIA() {
     setPregunta('');
     setCargando(true);
     try {
+      var body = {
+        pregunta: texto
+      };
+      if (contexto) body.contexto = {
+        planta: contexto.plantaLabel,
+        productos: contexto.productos.map(function (p) {
+          return p.value;
+        })
+      };
       var res = await supabase.functions.invoke('consulta-ia', {
-        body: {
-          pregunta: texto
-        }
+        body: body
       });
       if (res.error) throw res.error;
       var d = res.data || {};
@@ -21086,6 +21131,7 @@ function AsistenteIA() {
     }
     setCargando(false);
   }
+  var contextoLabel = contexto ? contexto.productos.length === 1 ? contexto.productos[0].label : 'Todos — ' + contexto.plantaLabel : null;
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: function () {
       setOpen(function (v) {
@@ -21150,14 +21196,39 @@ function AsistenteIA() {
     }
   }, "💬"), /*#__PURE__*/React.createElement("div", {
     style: {
-      flex: 1
+      flex: 1,
+      minWidth: 0
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 700,
       fontSize: '.9rem'
     }
-  }, "Asistente de Calidad"), /*#__PURE__*/React.createElement("div", {
+  }, "Asistente de Calidad"), fase === 'chat' && contextoLabel ? /*#__PURE__*/React.createElement("button", {
+    onClick: cambiarContexto,
+    style: {
+      background: 'rgba(255,255,255,.18)',
+      border: 'none',
+      color: '#fff',
+      fontSize: '.68rem',
+      padding: '1px 8px',
+      borderRadius: 10,
+      cursor: 'pointer',
+      marginTop: 2
+    }
+  }, "🎯 ", contextoLabel, " · cambiar") : fase === 'chat' ? /*#__PURE__*/React.createElement("button", {
+    onClick: cambiarContexto,
+    style: {
+      background: 'rgba(255,255,255,.18)',
+      border: 'none',
+      color: '#fff',
+      fontSize: '.68rem',
+      padding: '1px 8px',
+      borderRadius: 10,
+      cursor: 'pointer',
+      marginTop: 2
+    }
+  }, "🎯 Todas las plantas · acotar") : /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '.72rem',
       opacity: .85
@@ -21182,7 +21253,156 @@ function AsistenteIA() {
       padding: '14px 12px',
       background: '#f7f9fb'
     }
-  }, msgs.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, fase === 'planta' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: '20px 8px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      background: 'var(--primary-xlight)',
+      margin: '0 auto 10px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '1.4rem'
+    }
+  }, "🏭"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: '.9rem',
+      marginBottom: 2
+    }
+  }, "¿Qué planta quieres ver?"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.76rem',
+      color: 'var(--text-secondary)',
+      marginBottom: 14
+    }
+  }, "Así puedo enfocar la respuesta en lo que necesitas"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, Object.keys(PLANTAS_PROD).map(function (pl) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: pl,
+      onClick: function () {
+        elegirPlanta(pl);
+      },
+      style: {
+        textAlign: 'left',
+        padding: '9px 12px',
+        borderRadius: 10,
+        border: '1px solid var(--border)',
+        background: '#fff',
+        color: 'var(--primary)',
+        fontSize: '.84rem',
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, pl);
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      elegirPlanta(null);
+    },
+    style: {
+      textAlign: 'left',
+      padding: '9px 12px',
+      borderRadius: 10,
+      border: '1px dashed var(--border)',
+      background: '#fff',
+      color: 'var(--text-secondary)',
+      fontSize: '.8rem',
+      cursor: 'pointer'
+    }
+  }, "Todas las plantas / prefiero no acotar"))), fase === 'producto' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: '20px 8px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      background: 'var(--primary-xlight)',
+      margin: '0 auto 10px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '1.4rem'
+    }
+  }, "📦"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: '.9rem',
+      marginBottom: 2
+    }
+  }, "¿Qué producto de ", selPlanta, "?"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.76rem',
+      color: 'var(--text-secondary)',
+      marginBottom: 14
+    }
+  }, "Elige uno para enfocar las respuestas"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+      maxHeight: 280,
+      overflowY: 'auto'
+    }
+  }, (PLANTAS_PROD[selPlanta] || []).map(function (p) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: p.value,
+      onClick: function () {
+        elegirProducto(p);
+      },
+      style: {
+        textAlign: 'left',
+        padding: '9px 12px',
+        borderRadius: 10,
+        border: '1px solid var(--border)',
+        background: '#fff',
+        color: 'var(--primary)',
+        fontSize: '.84rem',
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, p.label);
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      elegirProducto(null);
+    },
+    style: {
+      textAlign: 'left',
+      padding: '9px 12px',
+      borderRadius: 10,
+      border: '1px dashed var(--border)',
+      background: '#fff',
+      color: 'var(--text-secondary)',
+      fontSize: '.8rem',
+      cursor: 'pointer'
+    }
+  }, "Todos los productos de ", selPlanta)), /*#__PURE__*/React.createElement("button", {
+    onClick: function () {
+      setFase('planta');
+    },
+    style: {
+      marginTop: 12,
+      background: 'none',
+      border: 'none',
+      color: 'var(--text-secondary)',
+      fontSize: '.74rem',
+      cursor: 'pointer',
+      textDecoration: 'underline'
+    }
+  }, "← Elegir otra planta")), fase === 'chat' && msgs.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: 'center',
       padding: '20px 8px'
@@ -21211,7 +21431,7 @@ function AsistenteIA() {
       color: 'var(--text-secondary)',
       marginBottom: 14
     }
-  }, "Pregunta sobre ensayos, granulometría, química o cumplimiento EETT"), /*#__PURE__*/React.createElement("div", {
+  }, contextoLabel ? 'Enfocado en ' + contextoLabel : 'Pregunta sobre ensayos, granulometría, química o cumplimiento EETT'), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       flexDirection: 'column',
@@ -21234,7 +21454,7 @@ function AsistenteIA() {
         cursor: 'pointer'
       }
     }, q);
-  }))), msgs.map(function (m, i) {
+  }))), fase === 'chat' && msgs.map(function (m, i) {
     if (m.rol === 'user') {
       return /*#__PURE__*/React.createElement("div", {
         key: i,
@@ -21329,7 +21549,7 @@ function AsistenteIA() {
         padding: '3px 7px'
       }
     }, "… y ", m.n_filas - 8, " fila(s) más")))));
-  }), cargando && /*#__PURE__*/React.createElement("div", {
+  }), fase === 'chat' && cargando && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'flex-start',
@@ -21349,7 +21569,7 @@ function AsistenteIA() {
       height: 16,
       margin: 0
     }
-  })))), /*#__PURE__*/React.createElement("div", {
+  })))), fase === 'chat' && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 10,
       borderTop: '1px solid var(--border)',

@@ -89,11 +89,22 @@ async function obtenerEsquema(): Promise<string> {
   return _esquemaCache;
 }
 
+// ── Contexto guiado (planta/producto elegidos en el widget) ──
+// Acota el foco de la consulta sin impedir que el usuario pregunte por
+// otro producto explicitamente (la regla se lo permite).
+interface Contexto { planta?: string; productos?: string[]; }
+function lineaContexto(contexto?: Contexto): string {
+  if (!contexto || !Array.isArray(contexto.productos) || !contexto.productos.length) return "";
+  const lista = contexto.productos.map((p) => `'${String(p).replace(/'/g, "''")}'`).join(", ");
+  const plantaTxt = contexto.planta ? ` (planta ${contexto.planta})` : "";
+  return `\nCONTEXTO DE LA CONVERSACION: el usuario esta enfocado en el/los producto(s) producto_key IN (${lista})${plantaTxt}. Salvo que la pregunta mencione EXPLICITAMENTE otro producto distinto, filtra por esa condicion.\n`;
+}
+
 // ── Generacion de SQL ──
 function limpiarSQL(t: string): string {
   return t.trim().replace(/^```(?:sql)?\s*/i, "").replace(/\s*```$/i, "").replace(/;\s*$/, "").trim();
 }
-async function generarSQL(pregunta: string, esquema: string, errorPrevio?: string): Promise<string> {
+async function generarSQL(pregunta: string, esquema: string, contexto?: Contexto, errorPrevio?: string): Promise<string> {
   const system = [
     "Eres un experto en PostgreSQL que traduce preguntas en español a una consulta SQL.",
     "",
@@ -106,7 +117,7 @@ async function generarSQL(pregunta: string, esquema: string, errorPrevio?: strin
     "- Devuelve SOLO la consulta SQL, sin explicación, sin markdown, sin punto y coma final.",
     "- Si la pregunta NO se puede responder con este esquema, devuelve exactamente:",
     "  SELECT 'NO_RESPONDIBLE' AS error",
-    "",
+    lineaContexto(contexto),
     "ESQUEMA DISPONIBLE:",
     esquema,
   ].join("\n");
@@ -203,19 +214,19 @@ Deno.serve(async (req) => {
     const adm = await verificarAdmin(req);
     if (!adm.ok) return new Response(JSON.stringify({ error: adm.motivo }), { status: adm.status, headers: ch });
 
-    const { pregunta } = await req.json();
+    const { pregunta, contexto } = await req.json();
     if (!pregunta || typeof pregunta !== "string") {
       return new Response(JSON.stringify({ error: "Falta 'pregunta' (texto)." }), { status: 400, headers: ch });
     }
     const esquema = await obtenerEsquema();
-    let sql = await generarSQL(pregunta, esquema);
+    let sql = await generarSQL(pregunta, esquema, contexto);
     if (/no_respondible/i.test(sql)) sql = "SELECT 'NO_RESPONDIBLE' AS error";
     let filas: Record<string, unknown>[];
     try {
       filas = await ejecutar(sql);
     } catch (err1) {
       const motivo = String((err1 as Error)?.message ?? err1);
-      sql = await generarSQL(pregunta, esquema, motivo);
+      sql = await generarSQL(pregunta, esquema, contexto, motivo);
       const v = validarSelect(sql);
       if (!v.ok) return new Response(JSON.stringify({ error: "No se pudo generar una consulta segura: " + v.motivo }), { status: 422, headers: ch });
       filas = await ejecutar(sql);
