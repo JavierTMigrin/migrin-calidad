@@ -15,7 +15,10 @@
 // ============================================================
 
 const REMITENTE     = { name: 'Alertas Calidad MIGRIN', email: 'jtorres@migrin.cl' };
-const DESTINATARIOS = ['jtorres@migrin.cl', 'sarce@migrin.cl'];
+const DESTINATARIOS = [
+  'jtorres@migrin.cl', 'sarce@migrin.cl', 'scontreras@migrin.cl', 'jhernandez@migrin.cl',
+  'rbernadot@migrin.cl', 'calidadlaspiedras@migrin.cl', 'jefeturnomlp@migrin.cl', 'efernandez@migrin.cl',
+];
 const ALLOWED_ORIGIN = 'https://javiertmigrin.github.io';
 
 function corsHeaders(origin: string | null) {

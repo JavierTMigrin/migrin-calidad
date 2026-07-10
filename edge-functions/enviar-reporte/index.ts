@@ -17,7 +17,10 @@
 //   }
 // ============================================================
 
-const DESTINATARIOS_DEFECTO = ['jtorres@migrin.cl'];
+const DESTINATARIOS_DEFECTO = [
+  'jtorres@migrin.cl', 'sarce@migrin.cl', 'scontreras@migrin.cl', 'jhernandez@migrin.cl',
+  'rbernadot@migrin.cl', 'calidadlaspiedras@migrin.cl', 'jefeturnomlp@migrin.cl', 'efernandez@migrin.cl',
+];
 const ALLOWED_ORIGIN = 'https://javiertmigrin.github.io';
 
 function cors(origin: string | null) {

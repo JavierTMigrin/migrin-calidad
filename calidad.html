@@ -3629,13 +3629,14 @@ async function enviarReporteRegistro(data, gc, user) {
       console.error('PDF reporte registro:', e);
     }
     var filename = 'Reporte_' + String(prodLbl).replace(/\s/g, '_') + '_' + (data.fecha || '') + '.pdf';
+    // Sin 'destinatarios': usa la lista por defecto de la Edge Function
+    // enviar-reporte (unico lugar donde se mantiene la lista de correos).
     var res = await supabase.functions.invoke('enviar-reporte', {
       body: {
         asunto: asunto,
         cuerpo_html: cuerpo,
         pdf_base64: pdfB64,
-        filename: filename,
-        destinatarios: ['jtorres@migrin.cl', 'sarce@migrin.cl']
+        filename: filename
       }
     });
     if (res.error) throw res.error;
