@@ -10949,12 +10949,15 @@ function DashboardScreen({
     if (tab === 'acopio' && prod !== 'A36') setTab('granu');
   }, [prod]);
 
-  // Ultimos 10 registros del producto (todas las fechas, sin filtro de periodo),
+  // Ultimos 10 registros del producto dentro del periodo seleccionado arriba,
   // opcionalmente filtrados por tipo de muestra / N° de acopio.
   var certRecs = useMemo(function () {
     if (prod !== 'A36') return [];
+    var dr = getDateRange();
     var rs = records.filter(function (r) {
-      return (r.ProductoKey || r.producto || '') === prod;
+      if ((r.ProductoKey || r.producto || '') !== prod) return false;
+      var f = r.FechaMuestreo || r.fecha || '';
+      return f >= dr.from && f <= dr.to;
     });
     if (certFiltro === 'Puntual') rs = rs.filter(function (r) {
       return (r.TipoMuestra || r.tipoMuestra || '') !== 'Acopio' && !normAcopio(r.NumAcopio || r.numAcopio);
@@ -10965,7 +10968,7 @@ function DashboardScreen({
       return (a.FechaMuestreo || a.fecha || '').localeCompare(b.FechaMuestreo || b.fecha || '');
     });
     return rs.slice(-10);
-  }, [records, prod, certFiltro]);
+  }, [records, prod, certFiltro, periodType, selWeek, selMonth, selYear, custFrom, custTo]);
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
   function detA36(r) {
@@ -14529,7 +14532,7 @@ function DashboardScreen({
         flexWrap: 'wrap',
         gap: 8
       }
-    }, /*#__PURE__*/React.createElement("span", null, "Muestras — últimos ", certDet.length, " registros de ", GRANU_TITLE[prod] || prod, " (todas las fechas)"), /*#__PURE__*/React.createElement("button", {
+    }, /*#__PURE__*/React.createElement("span", null, "Muestras — últimos ", certDet.length, " registros de ", GRANU_TITLE[prod] || prod, " · ", getPeriodoLabel()), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-primary",
       onClick: function () {
         setShowValForm(true);

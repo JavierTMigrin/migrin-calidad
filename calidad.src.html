@@ -5480,16 +5480,21 @@ function DashboardScreen({account,onBack}){
   /* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (pestana Acopio, A36) ── */
   useEffect(function(){if(tab==='acopio'&&prod!=='A36')setTab('granu');},[prod]);
 
-  // Ultimos 10 registros del producto (todas las fechas, sin filtro de periodo),
+  // Ultimos 10 registros del producto dentro del periodo seleccionado arriba,
   // opcionalmente filtrados por tipo de muestra / N° de acopio.
   var certRecs=useMemo(function(){
     if(prod!=='A36')return[];
-    var rs=records.filter(function(r){return(r.ProductoKey||r.producto||'')===prod;});
+    var dr=getDateRange();
+    var rs=records.filter(function(r){
+      if((r.ProductoKey||r.producto||'')!==prod)return false;
+      var f=r.FechaMuestreo||r.fecha||'';
+      return f>=dr.from&&f<=dr.to;
+    });
     if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio'&&!normAcopio(r.NumAcopio||r.numAcopio);});
     else if(certFiltro!=='__all')rs=rs.filter(function(r){return normAcopio(r.NumAcopio||r.numAcopio)===certFiltro;});
     rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
     return rs.slice(-10);
-  },[records,prod,certFiltro]);
+  },[records,prod,certFiltro,periodType,selWeek,selMonth,selYear,custFrom,custTo]);
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
   function detA36(r){
@@ -7062,7 +7067,7 @@ function DashboardScreen({account,onBack}){
             )}
             <div className="sec-card" style={{marginBottom:16}}>
               <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-                <span>Muestras — últimos {certDet.length} registros de {GRANU_TITLE[prod]||prod} (todas las fechas)</span>
+                <span>Muestras — últimos {certDet.length} registros de {GRANU_TITLE[prod]||prod} · {getPeriodoLabel()}</span>
                 <button className="btn btn-primary" onClick={function(){setShowValForm(true);}}
                   style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>➕ Registrar validación de acopio</button>
               </div>
