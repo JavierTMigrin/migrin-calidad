@@ -1595,12 +1595,23 @@ async function enviarReporteRegistro(data,gc,user){
 }
 
 async function loadEnsayos(){
-  var res=await supabase.from('ensayos')
-    .select('*')
-    .order('fecha_muestreo',{ascending:false})
-    .order('created_at',{ascending:false});
-  if(res.error)throw res.error;
-  return(res.data||[]).map(dbToRow);
+  // Supabase entrega maximo 1000 filas por consulta; con mas de 1000
+  // ensayos los meses antiguos desaparecian de reportes e historial.
+  // Se pagina de a 1000 hasta traer la tabla completa.
+  var PAGE=1000,from=0,all=[];
+  while(true){
+    var res=await supabase.from('ensayos')
+      .select('*')
+      .order('fecha_muestreo',{ascending:false})
+      .order('created_at',{ascending:false})
+      .range(from,from+PAGE-1);
+    if(res.error)throw res.error;
+    var chunk=res.data||[];
+    all=all.concat(chunk);
+    if(chunk.length<PAGE)break;
+    from+=PAGE;
+  }
+  return all.map(dbToRow);
 }
 
 async function deleteEnsayo(id,user){
