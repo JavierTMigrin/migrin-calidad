@@ -10306,9 +10306,8 @@ function DashboardScreen({
     setMsgPdf('');
     setEnviandoPdf(true);
     try {
-      var ids = ['export-page1', 'export-page2', 'export-quim'];
-      var nodos = ids.map(function (id) {
-        return document.getElementById(id);
+      var nodos = exportIdsTab().map(function (par) {
+        return document.getElementById(par[0]);
       }).filter(Boolean);
       if (!nodos.length) {
         setMsgPdf('No hay reporte visible para enviar.');
@@ -10474,6 +10473,17 @@ function DashboardScreen({
     }
     setCertGen(false);
   }
+
+  /* Ids de los contenedores exportables segun la pestana activa */
+  function exportIdsTab() {
+    return {
+      granu: [['export-page1', 'Gran'], ['export-page2', 'Tend']],
+      quim: [['export-quim', 'Quim']],
+      tabla: [['export-tabla', 'Tabla']],
+      acopio: [['export-acopio', 'Acopio']],
+      comparar: [['export-comparar', 'Comparador']]
+    }[tab] || [];
+  }
   async function exportarReporte() {
     var opts = {
       scale: 2,
@@ -10482,28 +10492,27 @@ function DashboardScreen({
       logging: false,
       windowWidth: 1200
     };
+    setMsgPdf('');
     try {
-      var p1 = document.getElementById('export-page1');
-      if (p1) {
-        var c1 = await window.html2canvas(p1, opts);
-        var a1 = document.createElement('a');
-        a1.download = getFilename('Gran');
-        a1.href = c1.toDataURL('image/png');
-        a1.click();
+      var pares = exportIdsTab(),
+        alguno = false;
+      for (var i = 0; i < pares.length; i++) {
+        var node = document.getElementById(pares[i][0]);
+        if (!node) continue;
+        if (alguno) await new Promise(function (res) {
+          setTimeout(res, 500);
+        });
+        var c = await window.html2canvas(node, opts);
+        var a = document.createElement('a');
+        a.download = getFilename(pares[i][1]);
+        a.href = c.toDataURL('image/png');
+        a.click();
+        alguno = true;
       }
-      await new Promise(function (res) {
-        setTimeout(res, 500);
-      });
-      var p2 = document.getElementById('export-page2');
-      if (p2) {
-        var c2 = await window.html2canvas(p2, opts);
-        var a2 = document.createElement('a');
-        a2.download = getFilename('Tend');
-        a2.href = c2.toDataURL('image/png');
-        a2.click();
-      }
+      if (!alguno) setMsgPdf('No hay contenido para exportar en esta pestaña.');
     } catch (e) {
       console.error('Export', e);
+      setMsgPdf('Error al exportar: ' + (e && e.message ? e.message : String(e)));
     }
   }
 
@@ -14017,7 +14026,9 @@ function DashboardScreen({
         }
       }, "Cumplimiento"))));
     }
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("div", {
+      id: "export-comparar"
+    }, /*#__PURE__*/React.createElement("div", {
       className: "sec-card",
       style: {
         marginBottom: 16
@@ -14493,7 +14504,9 @@ function DashboardScreen({
       });
       if (certStats.fondoM != null && certStats.fondoM > maxParc) maxParc = certStats.fondoM;
     }
-    return /*#__PURE__*/React.createElement(React.Fragment, null, valMsg && /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("div", {
+      id: "export-acopio"
+    }, valMsg && /*#__PURE__*/React.createElement("div", {
       style: {
         marginBottom: 10,
         padding: '8px 12px',
@@ -15598,7 +15611,8 @@ function DashboardScreen({
       descargarCSV('TablaDatos_' + (GRANU_TITLE[prod] || prod).replace(/\s/g, '_') + '_' + getPeriodoLabel() + '.csv', hdr, rows);
     }
     return /*#__PURE__*/React.createElement("div", {
-      className: "sec-card"
+      className: "sec-card",
+      id: "export-tabla"
     }, /*#__PURE__*/React.createElement("div", {
       className: "sec-card-hdr",
       style: {

@@ -5075,8 +5075,7 @@ function DashboardScreen({account,onBack}){
     if(enviandoPdf)return;
     setMsgPdf(''); setEnviandoPdf(true);
     try{
-      var ids=['export-page1','export-page2','export-quim'];
-      var nodos=ids.map(function(id){return document.getElementById(id);}).filter(Boolean);
+      var nodos=exportIdsTab().map(function(par){return document.getElementById(par[0]);}).filter(Boolean);
       if(!nodos.length){setMsgPdf('No hay reporte visible para enviar.');setEnviandoPdf(false);return;}
       var JsPDF=(window.jspdf&&window.jspdf.jsPDF)?window.jspdf.jsPDF:null;
       if(!JsPDF){setMsgPdf('No se pudo cargar el generador de PDF.');setEnviandoPdf(false);return;}
@@ -5174,21 +5173,33 @@ function DashboardScreen({account,onBack}){
     setCertGen(false);
   }
 
+  /* Ids de los contenedores exportables segun la pestana activa */
+  function exportIdsTab(){
+    return({
+      granu:[['export-page1','Gran'],['export-page2','Tend']],
+      quim:[['export-quim','Quim']],
+      tabla:[['export-tabla','Tabla']],
+      acopio:[['export-acopio','Acopio']],
+      comparar:[['export-comparar','Comparador']],
+    })[tab]||[];
+  }
+
   async function exportarReporte(){
     var opts={scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1200};
+    setMsgPdf('');
     try{
-      var p1=document.getElementById('export-page1');
-      if(p1){
-        var c1=await window.html2canvas(p1,opts);
-        var a1=document.createElement('a');a1.download=getFilename('Gran');a1.href=c1.toDataURL('image/png');a1.click();
+      var pares=exportIdsTab(),alguno=false;
+      for(var i=0;i<pares.length;i++){
+        var node=document.getElementById(pares[i][0]);
+        if(!node)continue;
+        if(alguno)await new Promise(function(res){setTimeout(res,500);});
+        var c=await window.html2canvas(node,opts);
+        var a=document.createElement('a');
+        a.download=getFilename(pares[i][1]);a.href=c.toDataURL('image/png');a.click();
+        alguno=true;
       }
-      await new Promise(function(res){setTimeout(res,500);});
-      var p2=document.getElementById('export-page2');
-      if(p2){
-        var c2=await window.html2canvas(p2,opts);
-        var a2=document.createElement('a');a2.download=getFilename('Tend');a2.href=c2.toDataURL('image/png');a2.click();
-      }
-    }catch(e){console.error('Export',e);}
+      if(!alguno)setMsgPdf('No hay contenido para exportar en esta pestaña.');
+    }catch(e){console.error('Export',e);setMsgPdf('Error al exportar: '+((e&&e.message)?e.message:String(e)));}
   }
 
   /* Analistas disponibles: union de los presentes en los registros +
@@ -6883,7 +6894,7 @@ function DashboardScreen({account,onBack}){
           );
         }
         return(
-          <>
+          <div id="export-comparar">
             <div className="sec-card" style={{marginBottom:16}}>
               <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Comparador — Lado A (filtros de arriba) vs Lado B</div>
               <div style={{padding:'12px 16px'}}>
@@ -7017,7 +7028,7 @@ function DashboardScreen({account,onBack}){
                 })()}
               </div>
             </div>
-          </>
+          </div>
         );
       })()}
 
@@ -7058,7 +7069,7 @@ function DashboardScreen({account,onBack}){
           if(certStats.fondoM!=null&&certStats.fondoM>maxParc)maxParc=certStats.fondoM;
         }
         return(
-          <>
+          <div id="export-acopio">
             {valMsg&&(
               <div style={{marginBottom:10,padding:'8px 12px',background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:8,fontSize:'.82rem',color:'#1e7e44',display:'flex',justifyContent:'space-between',gap:8}}>
                 <span>✓ {valMsg}</span>
@@ -7418,7 +7429,7 @@ function DashboardScreen({account,onBack}){
                 </div>
               );
             })()}
-          </>
+          </div>
         );
       })()}
 
@@ -7460,7 +7471,7 @@ function DashboardScreen({account,onBack}){
           descargarCSV('TablaDatos_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
         }
         return(
-          <div className="sec-card">
+          <div className="sec-card" id="export-tabla">
             <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,alignItems:'center'}}>
               <span>Tabla de Datos — {GRANU_TITLE[prod]||prod} · {filtered.length} ensayos</span>
               <span style={{display:'flex',gap:10,alignItems:'center'}}>
