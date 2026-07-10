@@ -3170,14 +3170,34 @@ const ANALISTAS_TURCO_DEFAULT = [{
   value: 'Romina Sepulveda',
   label: 'Romina Sepulveda'
 }];
+
+/* Acepta punto o coma como separador decimal (NUNCA se separan miles).
+   El primer separador encontrado es el decimal; separadores extra (typos,
+   duplicaciones del teclado del celular) se descartan. */
 function parseDecimal(s) {
   if (s === null || s === undefined || s === '') return NaN;
-  return parseFloat(String(s).replace(',', '.')) || 0;
+  var t = String(s).trim().replace(/[^0-9.,\-]/g, '').replace(/\./g, ',');
+  var i = t.indexOf(',');
+  if (i !== -1) t = t.slice(0, i) + '.' + t.slice(i + 1).replace(/,/g, '');
+  return parseFloat(t) || 0;
 }
 function fmt(n, d) {
   if (d === undefined) d = 2;
   if (n === null || n === undefined || isNaN(n)) return '';
   return n.toFixed(d).replace('.', ',');
+}
+/* SiO2 se calcula por diferencia: 100 - (suma de los demas oxidos).
+   Devuelve '' mientras falte algun oxido por digitar. */
+function calcSio2(q) {
+  var ks = ['al2o3', 'fe2o3', 'cao', 'mgo', 'k2o', 'na2o', 'tio2'];
+  var s = 0;
+  for (var i = 0; i < ks.length; i++) {
+    var v = q[ks[i]];
+    if (v === '' || v === null || v === undefined) return '';
+    var n = parseDecimal(v);
+    s += isNaN(n) ? 0 : n;
+  }
+  return fmt(100 - s, 2);
 }
 /* Normaliza el N° de acopio: los historicos migrados de Excel guardan "3"
    mientras el formulario guarda "Acopio 3". Devuelve '' si no hay acopio. */
@@ -3461,9 +3481,31 @@ function curvaSVG(gc, producto) {
 function reporteEnsayoHTML(data, gc, params, cumple, incluirCurva) {
   var prodLbl = data.productoLabel || data.producto;
   var fechaFmt = /^\d{4}-\d{2}-\d{2}$/.test(String(data.fecha)) ? String(data.fecha).split('-').reverse().join('-') : data.fecha || '-';
-  var estadoTxt = cumple == null ? 'SIN EVALUACIÓN EETT' : cumple ? 'CUMPLE ESPECIFICACIÓN' : 'NO CUMPLE ESPECIFICACIÓN';
-  var estadoBg = cumple == null ? '#64748b' : cumple ? '#15803d' : '#b91c1c';
-  var hdrBg = cumple === false ? '#b91c1c' : '#1a5276';
+  // Con varias EETT (A36: Lirquen + Cristalerias, incompatibles entre si)
+  // el estado se muestra POR CLIENTE; rojo solo si no cumple ninguna.
+  var specsU = [];
+  params.forEach(function (p) {
+    if (p.spec && specsU.indexOf(p.spec) < 0) specsU.push(p.spec);
+  });
+  var estadoHtml, hdrBg;
+  if (specsU.length > 1) {
+    var algunaOk = false;
+    estadoHtml = specsU.map(function (s) {
+      var ok = params.filter(function (p) {
+        return p.spec === s;
+      }).every(function (p) {
+        return p.ok;
+      });
+      if (ok) algunaOk = true;
+      return '<span style="background:' + (ok ? '#15803d' : '#b91c1c') + ';color:#fff;font-size:11px;font-weight:bold;padding:5px 10px;border-radius:20px;margin-left:6px;display:inline-block">' + s + ': ' + (ok ? 'CUMPLE' : 'FUERA') + '</span>';
+    }).join('');
+    hdrBg = algunaOk ? '#1a5276' : '#b91c1c';
+  } else {
+    var estadoTxt = cumple == null ? 'SIN EVALUACIÓN EETT' : cumple ? 'CUMPLE ESPECIFICACIÓN' : 'NO CUMPLE ESPECIFICACIÓN';
+    var estadoBg = cumple == null ? '#64748b' : cumple ? '#15803d' : '#b91c1c';
+    hdrBg = cumple === false ? '#b91c1c' : '#1a5276';
+    estadoHtml = '<span style="background:' + estadoBg + ';color:#fff;font-size:12px;font-weight:bold;padding:6px 14px;border-radius:20px">' + estadoTxt + '</span>';
+  }
   var datos = '<table width="100%" style="font-size:13px;border-collapse:collapse">' + '<tr><td style="padding:3px 0;color:#888;width:30%">Producto</td><td style="padding:3px 0;font-weight:bold;color:#222">' + prodLbl + '</td>' + '<td style="padding:3px 0;color:#888;width:18%">Turno</td><td style="padding:3px 0;color:#222">' + (data.turno || '-') + '</td></tr>' + '<tr><td style="padding:3px 0;color:#888">Fecha muestreo</td><td style="padding:3px 0;color:#222">' + fechaFmt + '</td>' + '<td style="padding:3px 0;color:#888">Tipo</td><td style="padding:3px 0;color:#222">' + (data.tipoMuestra || '-') + '</td></tr>' + '<tr><td style="padding:3px 0;color:#888">Analista</td><td style="padding:3px 0;color:#222">' + (data.analista || '-') + '</td>' + '<td style="padding:3px 0;color:#888">Emitido</td><td style="padding:3px 0;color:#222">' + today().split('-').reverse().join('-') + '</td></tr></table>';
   var rows = gc && gc.rows ? gc.rows : [];
   var granuTabla = '';
@@ -3497,7 +3539,7 @@ function reporteEnsayoHTML(data, gc, params, cumple, incluirCurva) {
     }).join('') + '</tr></tbody></table>';
   }
   var curva = incluirCurva && rows.length ? '<div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.05em;padding:16px 0 6px">Curva de distribución</div><div style="text-align:center">' + curvaSVG(gc, data.producto) + '</div>' : '';
-  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">' + '<table width="100%" style="background:' + hdrBg + ';border-collapse:collapse"><tr><td style="padding:16px 22px">' + '<div style="color:#fff;font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.8">MIGRIN S.A. — Control de Calidad</div>' + '<div style="color:#fff;font-size:18px;font-weight:bold">Reporte de Ensayo</div></td>' + '<td style="padding:16px 22px;text-align:right;vertical-align:middle"><span style="background:' + estadoBg + ';color:#fff;font-size:12px;font-weight:bold;padding:6px 14px;border-radius:20px">' + estadoTxt + '</span></td></tr></table>' + '<div style="padding:16px 22px">' + datos + '</div>' + '<div style="padding:0 22px 18px">' + curva + granuTabla + cumpTabla + quimTabla + '</div>' + '<div style="padding:14px 22px;border-top:1px solid #f0f0f0">' + '<a href="https://javiertmigrin.github.io/migrin-calidad/calidad.html" style="display:inline-block;background:' + hdrBg + ';color:#fff;text-decoration:none;font-size:13px;font-weight:bold;padding:9px 18px;border-radius:6px">Ver en la app</a>' + '<div style="font-size:11px;color:#aaa;margin-top:12px">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</div></div></div>';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">' + '<table width="100%" style="background:' + hdrBg + ';border-collapse:collapse"><tr><td style="padding:16px 22px">' + '<div style="color:#fff;font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.8">MIGRIN S.A. — Control de Calidad</div>' + '<div style="color:#fff;font-size:18px;font-weight:bold">Reporte de Ensayo</div></td>' + '<td style="padding:16px 22px;text-align:right;vertical-align:middle">' + estadoHtml + '</td></tr></table>' + '<div style="padding:16px 22px">' + datos + '</div>' + '<div style="padding:0 22px 18px">' + curva + granuTabla + cumpTabla + quimTabla + '</div>' + '<div style="padding:14px 22px;border-top:1px solid #f0f0f0">' + '<a href="https://javiertmigrin.github.io/migrin-calidad/calidad.html" style="display:inline-block;background:' + hdrBg + ';color:#fff;text-decoration:none;font-size:13px;font-weight:bold;padding:9px 18px;border-radius:6px">Ver en la app</a>' + '<div style="font-size:11px;color:#aaa;margin-top:12px">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</div></div></div>';
 }
 
 /* Envia el reporte detallado del ensayo recien registrado (siempre, cumpla
@@ -3516,9 +3558,25 @@ async function enviarReporteRegistro(data, gc, user) {
     var cumple = params.length ? params.every(function (p) {
       return p.ok;
     }) : null;
+    // Con varias EETT (A36) el asunto dice FUERA DE NORMA solo si no
+    // cumple NINGUNA; si cumple al menos un cliente es un reporte normal.
+    var specsR = [];
+    params.forEach(function (p) {
+      if (p.spec && specsR.indexOf(p.spec) < 0) specsR.push(p.spec);
+    });
+    var fueraTotal = cumple === false;
+    if (specsR.length > 1) {
+      fueraTotal = !specsR.some(function (s) {
+        return params.filter(function (p) {
+          return p.spec === s;
+        }).every(function (p) {
+          return p.ok;
+        });
+      });
+    }
     var prodLbl = data.productoLabel || data.producto;
     var fechaFmt = /^\d{4}-\d{2}-\d{2}$/.test(String(data.fecha)) ? String(data.fecha).split('-').reverse().join('-') : data.fecha || '-';
-    var asunto = (cumple === false ? 'FUERA DE NORMA' : 'Reporte de ensayo') + ' — ' + prodLbl + ' (' + fechaFmt + ')';
+    var asunto = (fueraTotal ? 'FUERA DE NORMA' : 'Reporte de ensayo') + ' — ' + prodLbl + ' (' + fechaFmt + ')';
     var cuerpo = reporteEnsayoHTML(data, gc, params, cumple, false);
     var pdfB64 = null;
     try {
@@ -3751,22 +3809,24 @@ function Field({
   error,
   readOnly,
   placeholder,
-  maxLength
+  maxLength,
+  calcBadge
 }) {
   if (!type) type = 'text';
-  function handleDecimal(e) {
-    e.target.value = e.target.value.replace('.', ',');
-    onChange(e);
-  }
+  /* NO se muta e.target.value aqui: en Android eso rompe la composicion del
+     teclado y duplica/come digitos ("13,5" -> "135"). parseDecimal acepta
+     punto y coma, asi que el valor se guarda tal como se escribe. */
   var specBg = specSemVal === 'error' ? 'rgba(197,48,48,.07)' : specSemVal === 'warning' ? 'rgba(183,121,31,.07)' : specSemVal === 'ok' ? 'rgba(39,103,73,.07)' : '';
   var specHintColor = specSemVal === 'error' ? '#c53030' : specSemVal === 'warning' ? '#b7791f' : specSemVal === 'ok' ? '#276749' : '#888';
   return /*#__PURE__*/React.createElement("div", {
     className: "field"
   }, /*#__PURE__*/React.createElement("label", {
     htmlFor: name
-  }, label, required && /*#__PURE__*/React.createElement("span", {
+  }, label, required && !calcBadge && /*#__PURE__*/React.createElement("span", {
     className: "req"
-  }, "*")), type === 'textarea' ? /*#__PURE__*/React.createElement("textarea", {
+  }, "*"), calcBadge && /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), type === 'textarea' ? /*#__PURE__*/React.createElement("textarea", {
     id: name,
     value: value,
     onChange: onChange,
@@ -3779,13 +3839,14 @@ function Field({
     type: type === 'decimal' ? 'text' : type,
     inputMode: type === 'decimal' ? 'decimal' : undefined,
     value: value,
-    onChange: type === 'decimal' && !readOnly ? handleDecimal : onChange,
+    onChange: readOnly ? undefined : onChange,
     placeholder: placeholder,
     style: specBg ? {
       background: specBg
     } : {},
     className: (error ? 'err ' : ' ') + (readOnly ? 'f-ro' : ''),
-    readOnly: readOnly
+    readOnly: readOnly,
+    autoComplete: "off"
   }), hint && type !== 'decimal' && !error && /*#__PURE__*/React.createElement("span", {
     className: "fhint"
   }, hint), specHint && !error && /*#__PURE__*/React.createElement("span", {
@@ -3798,52 +3859,31 @@ function Field({
   }, error));
 }
 
-/* Peso del fondo ingresado manualmente por la analista; la masa final se
-   calcula sola: masa final = suma de los pesos por malla + fondo. Asi el
-   fondo ya no se cuadra por diferencia contra la balanza. */
+/* Peso Final SOLO LECTURA: la suma real de las masas de los tamices + el
+   fondo. El fondo se digita en la fila "Fondo" de la tabla de granulometria
+   (misma estructura que las mallas); esta casilla se llena sola. */
 function PesoFinalField({
   name,
-  label,
   value,
-  onChange,
-  error,
-  gv
+  error
 }) {
-  var [fondo, setFondo] = useState('');
-  var sumSieves = useMemo(function () {
-    return (gv || []).reduce(function (s, v) {
-      var n = parseDecimal(v);
-      return s + (isNaN(n) ? 0 : n);
-    }, 0);
-  }, [gv]);
-  useEffect(function () {
-    var f = parseDecimal(fondo);
-    onChange({
-      target: {
-        value: fondo === '' || isNaN(f) ? '' : fmt(sumSieves + f, 2)
-      }
-    });
-    // eslint-disable-next-line
-  }, [fondo, sumSieves]);
   return /*#__PURE__*/React.createElement("div", {
     className: "field"
   }, /*#__PURE__*/React.createElement("label", {
     htmlFor: name
-  }, "Peso del Fondo (g)", /*#__PURE__*/React.createElement("span", {
-    className: "req"
-  }, "*")), /*#__PURE__*/React.createElement("input", {
+  }, "Peso Final (g)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
     id: name,
     type: "text",
-    inputMode: "decimal",
-    value: fondo,
-    onChange: function (e) {
-      setFondo(e.target.value.replace('.', ','));
-    },
-    placeholder: "0,00",
-    className: error ? 'err' : ''
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: value || '',
+    autoComplete: "off"
   }), /*#__PURE__*/React.createElement("span", {
     className: "fhint"
-  }, "Masa final calculada: ", value ? value + ' g' : '—', " (suma de mallas + fondo)"), error && /*#__PURE__*/React.createElement("span", {
+  }, "Suma real de las mallas + fondo (el fondo se ingresa en la tabla)"), error && /*#__PURE__*/React.createElement("span", {
     className: "ferr"
   }, error));
 }
@@ -3946,8 +3986,24 @@ function GranuTable({
   pesoFinal,
   pesoInicial,
   values,
-  onChange
+  onChange,
+  onPesoFinal
 }) {
+  /* Si recibe onPesoFinal, el fondo se DIGITA en su fila (misma estructura
+     que las mallas) y el peso final se calcula solo: suma de mallas + fondo. */
+  var [fondo, setFondo] = useState('');
+  var sumSieves = useMemo(function () {
+    return (values || []).reduce(function (s, v) {
+      var n = parseDecimal(v);
+      return s + (isNaN(n) ? 0 : n);
+    }, 0);
+  }, [values]);
+  useEffect(function () {
+    if (!onPesoFinal) return;
+    var f = parseDecimal(fondo);
+    onPesoFinal(fondo === '' || isNaN(f) ? '' : fmt(sumSieves + f, 2));
+    // eslint-disable-next-line
+  }, [fondo, sumSieves]);
   var gc = useMemo(function () {
     return calcGranu(producto, values, pesoFinal);
   }, [producto, values, pesoFinal]);
@@ -3978,7 +4034,16 @@ function GranuTable({
       style: {
         color: 'var(--text-muted)'
       }
-    }, row.mm), /*#__PURE__*/React.createElement("td", null, isFondo ? /*#__PURE__*/React.createElement("span", {
+    }, row.mm), /*#__PURE__*/React.createElement("td", null, isFondo ? onPesoFinal ? /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      inputMode: "decimal",
+      value: fondo,
+      onChange: function (e) {
+        setFondo(e.target.value);
+      },
+      placeholder: "0,00",
+      autoComplete: "off"
+    }) : /*#__PURE__*/React.createElement("span", {
       style: {
         color: gc.negative ? 'var(--error)' : 'inherit',
         fontWeight: 700
@@ -3988,10 +4053,10 @@ function GranuTable({
       inputMode: "decimal",
       value: values[i] || '',
       onChange: function (e) {
-        e.target.value = e.target.value.replace('.', ',');
         onChange(i, e.target.value);
       },
-      placeholder: "0,00"
+      placeholder: "0,00",
+      autoComplete: "off"
     })), /*#__PURE__*/React.createElement("td", {
       className: "c-neu"
     }, fmt(row.pctP)), /*#__PURE__*/React.createElement("td", {
@@ -4546,86 +4611,101 @@ function ReportModal({
       padding: '5px 14px'
     },
     onClick: onClose
-  }, "X Cerrar")), violations && violations.length > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '14px 20px',
-      background: '#fff5f5',
-      borderBottom: '3px solid #c53030'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontWeight: 800,
-      color: '#c53030',
-      fontSize: '.95rem',
-      marginBottom: 8
-    }
-  }, data.tipoMuestra === 'Acopio' ? '🚨 ACOPIO FUERA DE NORMA' : data.tipoMuestra === 'Despacho' ? '⛔ NO DESPACHAR — PRODUCTO CON POSIBILIDAD DE RECHAZO' : '🚨 PARAMETROS FUERA DE NORMA — Se recomienda cambio a cono de emergencia'), violations.some(function (v) {
-    return v.param === 'Humedad';
-  }) && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontWeight: 700,
-      color: '#c53030',
-      fontSize: '.85rem',
-      marginBottom: 8
-    }
-  }, "⛔ Humedad fuera de limite — producto NO APTO para despacho."), /*#__PURE__*/React.createElement("table", {
-    style: {
-      width: '100%',
-      fontSize: '.8rem',
-      borderCollapse: 'collapse'
-    }
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-    style: {
-      textAlign: 'left',
-      color: '#777'
-    }
-  }, /*#__PURE__*/React.createElement("th", {
-    style: {
-      padding: '3px 8px'
-    }
-  }, "Parametro"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      padding: '3px 8px'
-    }
-  }, "Valor"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      padding: '3px 8px'
-    }
-  }, "Limite"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      padding: '3px 8px'
-    }
-  }, "Especificacion"))), /*#__PURE__*/React.createElement("tbody", null, violations.map(function (v, i) {
-    return /*#__PURE__*/React.createElement("tr", {
-      key: i,
+  }, "X Cerrar")), violations && violations.length > 0 && function () {
+    var specNames = isA36 ? Object.keys(SPECS_A36).map(function (k) {
+      return SPECS_A36[k].nombre;
+    }) : [];
+    var specsFuera = specNames.filter(function (n) {
+      return violations.some(function (v) {
+        return v.spec === n;
+      });
+    });
+    var specsOk = specNames.filter(function (n) {
+      return specsFuera.indexOf(n) < 0;
+    });
+    var parcial = isA36 && specsOk.length > 0;
+    var col = parcial ? '#b7791f' : '#c53030';
+    return /*#__PURE__*/React.createElement("div", {
       style: {
+        padding: '14px 20px',
+        background: parcial ? '#fffbea' : '#fff5f5',
+        borderBottom: '3px solid ' + col
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 800,
+        color: col,
+        fontSize: '.95rem',
+        marginBottom: 8
+      }
+    }, parcial ? '✔ Cumple ' + specsOk.join(' y ') + ' — fuera de norma solo para ' + specsFuera.join(' y ') : data.tipoMuestra === 'Acopio' ? '🚨 ACOPIO FUERA DE NORMA' : data.tipoMuestra === 'Despacho' ? '⛔ NO DESPACHAR — PRODUCTO CON POSIBILIDAD DE RECHAZO' : '🚨 PARAMETROS FUERA DE NORMA — Se recomienda cambio a cono de emergencia'), violations.some(function (v) {
+      return v.param === 'Humedad';
+    }) && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
         color: '#c53030',
-        fontWeight: 600
+        fontSize: '.85rem',
+        marginBottom: 8
       }
-    }, /*#__PURE__*/React.createElement("td", {
+    }, "⛔ Humedad fuera de limite — producto NO APTO para despacho."), /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: '100%',
+        fontSize: '.8rem',
+        borderCollapse: 'collapse'
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+      style: {
+        textAlign: 'left',
+        color: '#777'
+      }
+    }, /*#__PURE__*/React.createElement("th", {
       style: {
         padding: '3px 8px'
       }
-    }, v.param), /*#__PURE__*/React.createElement("td", {
+    }, "Parametro"), /*#__PURE__*/React.createElement("th", {
       style: {
         padding: '3px 8px'
       }
-    }, v.valor), /*#__PURE__*/React.createElement("td", {
+    }, "Valor"), /*#__PURE__*/React.createElement("th", {
       style: {
         padding: '3px 8px'
       }
-    }, v.limite), /*#__PURE__*/React.createElement("td", {
+    }, "Limite"), /*#__PURE__*/React.createElement("th", {
       style: {
         padding: '3px 8px'
       }
-    }, v.spec || '—'));
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '.76rem',
-      color: '#777',
-      marginTop: 6
-    }
-  }, "Se ha enviado una alerta automatica por correo a los responsables.")), sendError && /*#__PURE__*/React.createElement("div", {
+    }, "Especificacion"))), /*#__PURE__*/React.createElement("tbody", null, violations.map(function (v, i) {
+      return /*#__PURE__*/React.createElement("tr", {
+        key: i,
+        style: {
+          color: col,
+          fontWeight: 600
+        }
+      }, /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '3px 8px'
+        }
+      }, v.param), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '3px 8px'
+        }
+      }, v.valor), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '3px 8px'
+        }
+      }, v.limite), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '3px 8px'
+        }
+      }, v.spec || '—'));
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.76rem',
+        color: '#777',
+        marginTop: 6
+      }
+    }, "Se ha enviado el reporte automatico por correo a los responsables."));
+  }(), sendError && /*#__PURE__*/React.createElement("div", {
     style: {
       margin: '0',
       padding: '14px 20px',
@@ -5319,6 +5399,15 @@ function DespachoForm({
     na2o: '',
     tio2: ''
   });
+  useEffect(function () {
+    /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function (p) {
+      var v = calcSio2(p);
+      return v === p.sio2 ? p : Object.assign({}, p, {
+        sio2: v
+      });
+    });
+  }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -5564,7 +5653,10 @@ function DespachoForm({
     pesoFinal: pesoFinal,
     pesoInicial: pesoInicial,
     values: gv,
-    onChange: updGv
+    onChange: updGv,
+    onPesoFinal: function (v) {
+      setPesoFinal(v);
+    }
   }), errors.granu && /*#__PURE__*/React.createElement("div", {
     style: {
       color: 'var(--error)',
@@ -5875,6 +5967,15 @@ function MateriasPrimasForm({
     na2o: '',
     tio2: ''
   });
+  useEffect(function () {
+    /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function (p) {
+      var v = calcSio2(p);
+      return v === p.sio2 ? p : Object.assign({}, p, {
+        sio2: v
+      });
+    });
+  }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   function validate() {
@@ -6232,6 +6333,15 @@ function TurcoEnsayoForm({
     na2o: '',
     tio2: ''
   });
+  useEffect(function () {
+    /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function (p) {
+      var v = calcSio2(p);
+      return v === p.sio2 ? p : Object.assign({}, p, {
+        sio2: v
+      });
+    });
+  }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -6558,7 +6668,10 @@ function TurcoEnsayoForm({
     pesoFinal: pesoFinal,
     pesoInicial: pesoInicial,
     values: gv,
-    onChange: updGv
+    onChange: updGv,
+    onPesoFinal: function (v) {
+      setPesoFinal(v);
+    }
   }), errors.granu && /*#__PURE__*/React.createElement("div", {
     style: {
       color: 'var(--error)',
@@ -7744,6 +7857,15 @@ function PlantaForm({
     na2o: '',
     tio2: ''
   });
+  useEffect(function () {
+    /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function (p) {
+      var v = calcSio2(p);
+      return v === p.sio2 ? p : Object.assign({}, p, {
+        sio2: v
+      });
+    });
+  }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
   var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sendError, setSendError] = useState(null);
@@ -8207,7 +8329,10 @@ function PlantaForm({
     pesoFinal: pesoFinal,
     pesoInicial: pesoInicial,
     values: gv,
-    onChange: updGv
+    onChange: updGv,
+    onPesoFinal: function (v) {
+      setPesoFinal(v);
+    }
   }), errors.granu && /*#__PURE__*/React.createElement("div", {
     style: {
       color: 'var(--error)',
@@ -8459,6 +8584,15 @@ function ValidacionAcopioForm({
     na2o: '',
     tio2: ''
   });
+  useEffect(function () {
+    /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function (p) {
+      var v = calcSio2(p);
+      return v === p.sio2 ? p : Object.assign({}, p, {
+        sio2: v
+      });
+    });
+  }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
   var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
@@ -8688,7 +8822,10 @@ function ValidacionAcopioForm({
     pesoFinal: pesoFinal,
     pesoInicial: pesoInicial,
     values: gv,
-    onChange: updGv
+    onChange: updGv,
+    onPesoFinal: function (v) {
+      setPesoFinal(v);
+    }
   }), errors.granu && /*#__PURE__*/React.createElement("div", {
     style: {
       color: 'var(--error)',
@@ -9284,6 +9421,15 @@ function YacimientoForm({
     na2o: '',
     tio2: ''
   });
+  useEffect(function () {
+    /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function (p) {
+      var v = calcSio2(p);
+      return v === p.sio2 ? p : Object.assign({}, p, {
+        sio2: v
+      });
+    });
+  }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
   var [pctArcilla, setPctArcilla] = useState('');
   var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
@@ -9440,7 +9586,10 @@ function YacimientoForm({
     pesoFinal: pesoFinal,
     pesoInicial: pesoInicial,
     values: gv,
-    onChange: updGv
+    onChange: updGv,
+    onPesoFinal: function (v) {
+      setPesoFinal(v);
+    }
   }), errors.granu && /*#__PURE__*/React.createElement("div", {
     style: {
       color: 'var(--error)',
@@ -10364,7 +10513,11 @@ function DashboardScreen({
         periodo = getPeriodoLabel();
       var si = selIdx != null && selIdx >= 0 && selIdx < filtered.length ? selIdx : filtered.length - 1;
       var muestraTxt = selIdx != null && filtered[si] ? 'Muestra: ' + fmtXDate(filtered[si].FechaMuestreo || filtered[si].fecha) : 'Promedio del período';
-      var cuerpo = '<div style="font-family:Arial"><h2 style="color:#1a5276">Reporte de Calidad — ' + prodLbl + '</h2>' + '<p>Producto: <b>' + prodLbl + '</b><br>Período: <b>' + periodo + '</b><br>' + muestraTxt + '</p>' + (cumplimiento ? '<p>Cumplimiento EETT: <b>' + cumplimiento.pct + '%</b> (' + cumplimiento.ok + '/' + cumplimiento.evaluados + ' ensayos' + (cumplimiento.fuera ? ' — ' + cumplimiento.fuera + ' fuera de norma' : '') + ')</p>' : '') + '<p>Detalle completo con curvas en el PDF adjunto.</p>' + '<p style="font-size:11px;color:#999">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</p></div>';
+      var cuerpo = '<div style="font-family:Arial"><h2 style="color:#1a5276">Reporte de Calidad — ' + prodLbl + '</h2>' + '<p>Producto: <b>' + prodLbl + '</b><br>Período: <b>' + periodo + '</b><br>' + muestraTxt + '</p>' + (cumplimiento ? cumplimiento.porCliente ? '<p>Cumplimiento EETT por cliente: ' + cumplimiento.porCliente.filter(function (c) {
+        return c.pct != null;
+      }).map(function (c) {
+        return '<b>' + c.nombre + ': ' + c.pct + '%</b> (' + c.ok + '/' + c.evaluados + ')';
+      }).join(' · ') + '</p>' : '<p>Cumplimiento EETT: <b>' + cumplimiento.pct + '%</b> (' + cumplimiento.ok + '/' + cumplimiento.evaluados + ' ensayos' + (cumplimiento.fuera ? ' — ' + cumplimiento.fuera + ' fuera de norma' : '') + ')</p>' : '') + '<p>Detalle completo con curvas en el PDF adjunto.</p>' + '<p style="font-size:11px;color:#999">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</p></div>';
       var filename = getFilename('Reporte').replace(/\.png$/i, '.pdf');
       var res = await supabase.functions.invoke('enviar-reporte', {
         body: {
@@ -10565,11 +10718,23 @@ function DashboardScreen({
 
   /* % cumplimiento EETT del periodo: evalua cada ensayo filtrado con
      collectViolations (mismas reglas que la alerta del informe) */
+  /* Cumplimiento EETT del periodo. Para A36 se calcula POR CLIENTE
+     (Lirquen y Cristalerias por separado): sus EETT son incompatibles
+     entre si (p.ej. Al2O3 0,2-0,6 vs 2,2-3,0), por lo que exigir ambas
+     a la vez marcaria siempre 0%. */
   var cumplimiento = useMemo(function () {
     var sieves = SIEVE_CONFIG[prod] || [];
     if (!sieves.length) return null;
     var evaluados = 0,
       fuera = 0;
+    var porCliente = prod === 'A36' ? Object.keys(SPECS_A36).map(function (k) {
+      return {
+        key: k,
+        nombre: SPECS_A36[k].nombre,
+        evaluados: 0,
+        fuera: 0
+      };
+    }) : null;
     filtered.forEach(function (r) {
       var gv = r.granu && Array.isArray(r.granu) ? r.granu : sieves.map(function (s) {
         return String(r[s.us + '_' + s.mm + 'g'] || 0);
@@ -10582,10 +10747,35 @@ function DashboardScreen({
         quimica: r.quimica || {},
         pctHumedad: String(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad !== undefined ? r.pctHumedad : '')
       };
-      var v = collectViolations(data, gc);
-      evaluados++;
-      if (v.length) fuera++;
+      if (porCliente) {
+        var ps = evalParams(data, gc);
+        porCliente.forEach(function (c) {
+          var mios = ps.filter(function (p) {
+            return p.spec === c.nombre;
+          });
+          if (!mios.length) return;
+          c.evaluados++;
+          if (mios.some(function (p) {
+            return !p.ok;
+          })) c.fuera++;
+        });
+      } else {
+        var v = collectViolations(data, gc);
+        evaluados++;
+        if (v.length) fuera++;
+      }
     });
+    if (porCliente) {
+      porCliente.forEach(function (c) {
+        c.ok = c.evaluados - c.fuera;
+        c.pct = c.evaluados ? Math.round((c.evaluados - c.fuera) / c.evaluados * 1000) / 10 : null;
+      });
+      return porCliente.some(function (c) {
+        return c.evaluados;
+      }) ? {
+        porCliente: porCliente
+      } : null;
+    }
     if (!evaluados) return null;
     return {
       evaluados: evaluados,
@@ -10761,13 +10951,26 @@ function DashboardScreen({
         }
       });
       if (tieneEett) {
-        var vio = collectViolations({
+        // "Fuera" solo si no cumple NINGUNA de sus EETT (A36 tiene dos incompatibles)
+        var psL = evalParams({
           producto: pk,
           quimica: q,
           pctHumedad: String(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad !== undefined ? r.pctHumedad : '')
         }, gc);
         nEval++;
-        if (vio.length) nFuera++;
+        var specsL = [];
+        psL.forEach(function (p) {
+          var s = p.spec || '';
+          if (specsL.indexOf(s) < 0) specsL.push(s);
+        });
+        var cumpleAlguna = specsL.length ? specsL.some(function (s) {
+          return psL.filter(function (p) {
+            return (p.spec || '') === s;
+          }).every(function (p) {
+            return p.ok;
+          });
+        }) : true;
+        if (!cumpleAlguna) nFuera++;
       }
     });
     var avgRP = sumRP.map(function (x) {
@@ -13058,26 +13261,48 @@ function DashboardScreen({
       key: i,
       className: "db-badge"
     }, b);
-  }), cumplimiento && /*#__PURE__*/React.createElement("span", {
-    style: {
-      marginLeft: 'auto',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '5px 14px',
-      borderRadius: 20,
-      fontWeight: 700,
-      fontSize: '.82rem',
-      background: cumplimiento.pct >= 95 ? '#f0fff4' : cumplimiento.pct >= 85 ? '#fffff0' : '#fff5f5',
-      color: cumplimiento.pct >= 95 ? 'var(--success)' : cumplimiento.pct >= 85 ? '#b7791f' : 'var(--error)',
-      border: '1px solid ' + (cumplimiento.pct >= 95 ? '#9ae6b4' : cumplimiento.pct >= 85 ? '#f6e05e' : '#feb2b2')
+  }), cumplimiento && function () {
+    function chipCumpl(lbl, c, i) {
+      if (c.pct == null) return null;
+      return /*#__PURE__*/React.createElement("span", {
+        key: i,
+        style: {
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '5px 14px',
+          borderRadius: 20,
+          fontWeight: 700,
+          fontSize: '.82rem',
+          background: c.pct >= 95 ? '#f0fff4' : c.pct >= 85 ? '#fffff0' : '#fff5f5',
+          color: c.pct >= 95 ? 'var(--success)' : c.pct >= 85 ? '#b7791f' : 'var(--error)',
+          border: '1px solid ' + (c.pct >= 95 ? '#9ae6b4' : c.pct >= 85 ? '#f6e05e' : '#feb2b2')
+        }
+      }, lbl, ": ", c.pct, "%", /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 500,
+          fontSize: '.74rem'
+        }
+      }, "(", c.ok, "/", c.evaluados, c.fuera ? ' — ' + c.fuera + ' fuera' : '', ")"));
     }
-  }, "Cumplimiento EETT: ", cumplimiento.pct, "%", /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 500,
-      fontSize: '.74rem'
+    if (cumplimiento.porCliente) {
+      return /*#__PURE__*/React.createElement("span", {
+        style: {
+          marginLeft: 'auto',
+          display: 'inline-flex',
+          gap: 8,
+          flexWrap: 'wrap'
+        }
+      }, cumplimiento.porCliente.map(function (c, i) {
+        return chipCumpl(c.nombre, c, i);
+      }));
     }
-  }, "(", cumplimiento.ok, "/", cumplimiento.evaluados, " ensayos", cumplimiento.fuera ? ' — ' + cumplimiento.fuera + ' fuera' : '', ")"))), loading && /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginLeft: 'auto'
+      }
+    }, chipCumpl('Cumplimiento EETT', cumplimiento, 0));
+  }()), loading && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'center',
