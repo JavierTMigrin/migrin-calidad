@@ -1,11 +1,12 @@
 // ============================================================
 // Edge Function: consulta-ia  (VERSION DE UN SOLO ARCHIVO)
 // Asistente de consultas en lenguaje natural sobre la BD (text-to-SQL).
+// Motor de lenguaje: Groq (API compatible con OpenAI, inferencia rapida).
 // Pega TODO este archivo como el index.ts de la funcion en Supabase.
 //
 // En el panel: "Verify JWT" = OFF (la validación de admin va en el código).
 // SECRETS requeridos:
-//   ANTHROPIC_API_KEY      = sk-ant-...
+//   GROQ_API_KEY           = gsk_...
 //   READONLY_DATABASE_URL  = postgresql://ia_readonly:CLAVE@HOST:5432/postgres?sslmode=require
 //   SB_URL                 = https://wxjclxmtceuhlbwxtptc.supabase.co
 //   SB_SERVICE_ROLE        = service role key (Project Settings -> API)
@@ -13,7 +14,8 @@
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
 const ALLOWED_ORIGIN = "https://javiertmigrin.github.io";
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 const LIMIT_DEFECTO = 200;
 const TIMEOUT_MS = 8000;
 const PREFERIDAS = ["v_ia_ensayos", "v_ia_resumen_mensual"];
@@ -32,28 +34,27 @@ function db() {
   return _sql;
 }
 
-// ── Helper Claude API ──
-async function claude(system: string, userText: string, maxTokens: number): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
+// ── Helper Groq API (chat completions, compatible con OpenAI) ──
+async function groq(system: string, userText: string, maxTokens: number): Promise<string> {
+  const res = await fetch(GROQ_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") ?? "",
-      "anthropic-version": "2023-06-01",
+      "authorization": `Bearer ${Deno.env.get("GROQ_API_KEY") ?? ""}`,
     },
     body: JSON.stringify({
-      model: "claude-opus-4-8",
+      model: GROQ_MODEL,
       max_tokens: maxTokens,
-      thinking: { type: "adaptive" },
-      system,
-      messages: [{ role: "user", content: userText }],
+      temperature: 0.1,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userText },
+      ],
     }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error("Claude API error: " + JSON.stringify(data));
-  return (data.content || [])
-    .filter((b: { type: string }) => b.type === "text")
-    .map((b: { text: string }) => b.text).join("").trim();
+  if (!res.ok) throw new Error("Groq API error: " + JSON.stringify(data));
+  return String(data?.choices?.[0]?.message?.content ?? "").trim();
 }
 
 // ── Introspeccion del esquema (cacheada) ──
@@ -111,7 +112,7 @@ async function generarSQL(pregunta: string, esquema: string, errorPrevio?: strin
   ].join("\n");
   let user = `Pregunta: ${pregunta}\n\nDevuelve solo la consulta SQL.`;
   if (errorPrevio) user += `\n\nLa consulta anterior falló con este error de PostgreSQL. Corrígela:\n${errorPrevio}`;
-  return limpiarSQL(await claude(system, user, 1500));
+  return limpiarSQL(await groq(system, user, 1500));
 }
 
 // ── Validacion + ejecucion segura ──
@@ -156,7 +157,7 @@ async function responder(pregunta: string, sqlUsada: string, filas: Record<strin
     `Resultado (JSON, hasta 50 filas):`, JSON.stringify(filas.slice(0, 50)), ``,
     `Redacta la respuesta para el usuario.`,
   ].join("\n");
-  return await claude(system, user, 1024);
+  return await groq(system, user, 1024);
 }
 
 // ── Orquestacion ──
@@ -188,9 +189,9 @@ Deno.serve(async (req) => {
 
   if (req.method === "GET") {
     return new Response(JSON.stringify({
-      funcion: "consulta-ia (text-to-SQL)",
+      funcion: "consulta-ia (text-to-SQL, motor Groq)",
       estado: "activa",
-      ANTHROPIC_API_KEY: (Deno.env.get("ANTHROPIC_API_KEY") ?? "") ? "presente" : "FALTA",
+      GROQ_API_KEY: (Deno.env.get("GROQ_API_KEY") ?? "") ? "presente" : "FALTA",
       READONLY_DATABASE_URL: (Deno.env.get("READONLY_DATABASE_URL") ?? "") ? "presente" : "FALTA",
       SB_URL: (Deno.env.get("SB_URL") ?? "") ? "presente" : "FALTA",
       SB_SERVICE_ROLE: (Deno.env.get("SB_SERVICE_ROLE") ?? "") ? "presente" : "FALTA",

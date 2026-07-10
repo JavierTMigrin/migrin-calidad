@@ -9875,137 +9875,156 @@ function AuthScreen({onLogin}){
 }
 
 /* ── PREGUNTALE A LOS DATOS (asistente IA / text-to-SQL) ── */
-function ConsultaIAScreen({account,onBack}){
+/* ── ASISTENTE IA (widget flotante, solo admin) ──
+   Chat de preguntas en lenguaje natural sobre los datos de calidad
+   (text-to-SQL via Edge Function consulta-ia, motor Groq). */
+function celdaIA(v,fmtFn){
+  if(v===null||v===undefined||v==='')return '—';
+  var s=String(v);
+  if(/^-?\d+\.\d{3,}$/.test(s)){var n=parseFloat(s);return fmtFn(n,2);}
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s))return s.slice(0,10);
+  return s;
+}
+function AsistenteIA(){
+  var[open,setOpen]=useState(false);
   var[pregunta,setPregunta]=useState('');
   var[cargando,setCargando]=useState(false);
-  var[resp,setResp]=useState(null);
-  var[error,setError]=useState('');
-  var[verSql,setVerSql]=useState(false);
+  var[msgs,setMsgs]=useState([]); // {rol:'user'|'ia', texto, sql, datos, n_filas, error}
+  var listRef=useRef(null);
 
   var EJEMPLOS=[
     '¿Cuál fue el SiO₂ promedio del A36 este año?',
-    '¿Cuántos ensayos por producto y turno hubo en junio?',
-    'Humedad promedio mensual del A38 este año',
+    '¿Cómo va el cumplimiento EETT este mes?',
+    '¿Cuántos ensayos se han registrado este mes?',
+    'Humedad promedio del A38 este año',
   ];
 
-  async function preguntar(q){
+  useEffect(function(){
+    if(listRef.current)listRef.current.scrollTop=listRef.current.scrollHeight;
+  },[msgs,cargando,open]);
+
+  async function enviar(q){
     var texto=((q!==undefined&&typeof q==='string')?q:pregunta).trim();
     if(!texto||cargando)return;
-    setCargando(true);setError('');setResp(null);
+    setMsgs(function(p){return p.concat([{rol:'user',texto:texto}]);});
+    setPregunta('');setCargando(true);
     try{
       var res=await supabase.functions.invoke('consulta-ia',{body:{pregunta:texto}});
       if(res.error)throw res.error;
       var d=res.data||{};
-      if(d.error){setError(d.error);}
-      else setResp(d);
+      if(d.error)setMsgs(function(p){return p.concat([{rol:'ia',error:d.error}]);});
+      else setMsgs(function(p){return p.concat([{rol:'ia',texto:d.respuesta,sql:d.sql_usada,datos:d.datos,n_filas:d.n_filas}]);});
     }catch(e){
-      setError((e&&e.message)?e.message:String(e));
+      setMsgs(function(p){return p.concat([{rol:'ia',error:(e&&e.message)?e.message:String(e)}]);});
     }
     setCargando(false);
   }
 
-  function usarEjemplo(q){setPregunta(q);preguntar(q);}
-
-  function celda(v){
-    if(v===null||v===undefined||v==='')return '—';
-    var s=String(v);
-    // redondear numeros largos
-    if(/^-?\d+\.\d{3,}$/.test(s)){var n=parseFloat(s);return fmt(n,2);}
-    // fechas ISO -> solo fecha
-    if(/^\d{4}-\d{2}-\d{2}T/.test(s))return s.slice(0,10);
-    return s;
-  }
-
-  var cols=(resp&&resp.datos&&resp.datos.length)?Object.keys(resp.datos[0]):[];
-
   return(
-    <div>
-      <div className="page-hdr">
-        <button className="back-btn" onClick={onBack}>&#8592;</button>
-        <div>
-          <h2>Pregúntale a los datos</h2>
-          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>
-            Escribe una pregunta en español sobre los ensayos y la responde con tus datos.
+    <>
+      <button onClick={function(){setOpen(function(v){return !v;});}}
+        title="Asistente de Calidad"
+        style={{position:'fixed',right:20,bottom:20,zIndex:1200,width:56,height:56,borderRadius:28,
+          border:'none',cursor:'pointer',background:'var(--primary)',color:'#fff',fontSize:'1.5rem',
+          boxShadow:'0 4px 14px rgba(0,0,0,.25)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {open?'✕':'💬'}
+      </button>
+
+      {open&&(
+        <div style={{position:'fixed',right:20,bottom:86,zIndex:1200,width:360,maxWidth:'92vw',height:520,maxHeight:'75vh',
+          background:'#fff',borderRadius:14,boxShadow:'0 8px 30px rgba(0,0,0,.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div style={{background:'var(--primary)',color:'#fff',padding:'12px 16px',display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:34,height:34,borderRadius:17,background:'rgba(255,255,255,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem'}}>💬</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:'.9rem'}}>Asistente de Calidad</div>
+              <div style={{fontSize:'.72rem',opacity:.85}}>Pregunta sobre ensayos y EETT</div>
+            </div>
+            <button onClick={function(){setOpen(false);}} style={{background:'none',border:'none',color:'#fff',fontSize:'1.1rem',cursor:'pointer',opacity:.85}}>✕</button>
           </div>
-        </div>
-      </div>
 
-      <SecCard title="Tu pregunta" icon="&#129302;">
-        <textarea value={pregunta} rows={3}
-          onChange={function(e){setPregunta(e.target.value);}}
-          onKeyDown={function(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))preguntar();}}
-          placeholder="Ej: ¿Cuál fue el Fe2O3 promedio del A36 en marzo?"
-          style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid var(--border)',
-            fontFamily:'inherit',fontSize:'.95rem',resize:'vertical'}}/>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10,alignItems:'center'}}>
-          <button className="btn btn-primary" disabled={cargando||!pregunta.trim()}
-            onClick={function(){preguntar();}}>
-            {cargando?'Pensando…':'Preguntar'}
-          </button>
-          <span style={{fontSize:'.74rem',color:'var(--text-secondary)'}}>Ctrl+Enter para enviar</span>
-        </div>
-        <div style={{marginTop:12}}>
-          <div style={{fontSize:'.74rem',color:'var(--text-secondary)',marginBottom:6}}>Ejemplos:</div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            {EJEMPLOS.map(function(q,i){
-              return <button key={i} className="btn btn-secondary"
-                style={{padding:'5px 12px',minHeight:0,fontSize:'.78rem'}}
-                disabled={cargando} onClick={function(){usarEjemplo(q);}}>{q}</button>;
-            })}
-          </div>
-        </div>
-      </SecCard>
-
-      {cargando&&(
-        <div style={{display:'flex',justifyContent:'center',padding:30}}><div className="spinner"/></div>
-      )}
-
-      {error&&(
-        <div className="err-box"><strong>No se pudo responder:</strong><div style={{marginTop:6}}>{error}</div></div>
-      )}
-
-      {resp&&(
-        <>
-          <SecCard title="Respuesta" icon="&#128172;">
-            <div style={{whiteSpace:'pre-wrap',fontSize:'.95rem',lineHeight:1.55}}>{resp.respuesta}</div>
-          </SecCard>
-
-          {cols.length>0&&(
-            <SecCard title={'Datos ('+resp.n_filas+' fila'+(resp.n_filas===1?'':'s')+')'} icon="&#128202;">
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
-                  <thead>
-                    <tr style={{background:'var(--primary)',color:'#fff'}}>
-                      {cols.map(function(c){return <th key={c} style={{padding:'6px 10px',textAlign:'left'}}>{c}</th>;})}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resp.datos.slice(0,200).map(function(row,i){
-                      return(
-                        <tr key={i} style={{background:i%2===0?'#fff':'#f8f9fa',borderBottom:'1px solid var(--border)'}}>
-                          {cols.map(function(c){return <td key={c} style={{padding:'5px 10px'}}>{celda(row[c])}</td>;})}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          <div ref={listRef} style={{flex:1,overflowY:'auto',padding:'14px 12px',background:'#f7f9fb'}}>
+            {msgs.length===0&&(
+              <div style={{textAlign:'center',padding:'20px 8px'}}>
+                <div style={{width:52,height:52,borderRadius:26,background:'var(--primary-xlight)',margin:'0 auto 10px',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.4rem'}}>💬</div>
+                <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:2}}>¿En qué puedo ayudarte?</div>
+                <div style={{fontSize:'.76rem',color:'var(--text-secondary)',marginBottom:14}}>Pregunta sobre ensayos, granulometría, química o cumplimiento EETT</div>
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {EJEMPLOS.map(function(q,i){
+                    return(
+                      <button key={i} onClick={function(){enviar(q);}}
+                        style={{textAlign:'left',padding:'9px 12px',borderRadius:10,border:'1px solid var(--border)',
+                          background:'#fff',color:'var(--primary)',fontSize:'.8rem',cursor:'pointer'}}>{q}</button>
+                    );
+                  })}
+                </div>
               </div>
-            </SecCard>
-          )}
-
-          <div style={{marginTop:6}}>
-            <button className="btn btn-secondary" style={{padding:'5px 12px',minHeight:0,fontSize:'.78rem'}}
-              onClick={function(){setVerSql(!verSql);}}>
-              {verSql?'Ocultar SQL':'Ver consulta SQL'}
-            </button>
-            {verSql&&(
-              <pre style={{marginTop:8,padding:'10px 12px',background:'#1e1e1e',color:'#dcdcdc',
-                borderRadius:8,overflowX:'auto',fontSize:'.78rem'}}>{resp.sql_usada}</pre>
+            )}
+            {msgs.map(function(m,i){
+              if(m.rol==='user'){
+                return(
+                  <div key={i} style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
+                    <div style={{maxWidth:'82%',background:'var(--primary)',color:'#fff',padding:'8px 12px',
+                      borderRadius:'14px 14px 3px 14px',fontSize:'.84rem',lineHeight:1.4}}>{m.texto}</div>
+                  </div>
+                );
+              }
+              var cols=(m.datos&&m.datos.length)?Object.keys(m.datos[0]):[];
+              return(
+                <div key={i} style={{display:'flex',justifyContent:'flex-start',marginBottom:10}}>
+                  <div style={{maxWidth:'88%',background:'#fff',border:'1px solid var(--border)',
+                    padding:'9px 12px',borderRadius:'14px 14px 14px 3px',fontSize:'.84rem',lineHeight:1.45}}>
+                    {m.error
+                      ?<span style={{color:'var(--error)'}}>⚠ {m.error}</span>
+                      :<>
+                        <div style={{whiteSpace:'pre-wrap'}}>{m.texto}</div>
+                        {cols.length>0&&(
+                          <div style={{overflowX:'auto',marginTop:8,border:'1px solid var(--border)',borderRadius:8}}>
+                            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.72rem'}}>
+                              <thead><tr style={{background:'var(--primary-xlight)'}}>
+                                {cols.map(function(c){return <th key={c} style={{padding:'4px 7px',textAlign:'left',whiteSpace:'nowrap'}}>{c}</th>;})}
+                              </tr></thead>
+                              <tbody>
+                                {m.datos.slice(0,8).map(function(row,ri){
+                                  return(
+                                    <tr key={ri} style={{borderTop:'1px solid var(--border)'}}>
+                                      {cols.map(function(c){return <td key={c} style={{padding:'4px 7px',whiteSpace:'nowrap'}}>{celdaIA(row[c],fmt)}</td>;})}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                            {m.n_filas>8&&<div style={{fontSize:'.68rem',color:'var(--text-muted)',padding:'3px 7px'}}>… y {m.n_filas-8} fila(s) más</div>}
+                          </div>
+                        )}
+                      </>
+                    }
+                  </div>
+                </div>
+              );
+            })}
+            {cargando&&(
+              <div style={{display:'flex',justifyContent:'flex-start',marginBottom:10}}>
+                <div style={{background:'#fff',border:'1px solid var(--border)',padding:'8px 14px',borderRadius:'14px 14px 14px 3px'}}>
+                  <div className="spinner" style={{width:16,height:16,margin:0}}/>
+                </div>
+              </div>
             )}
           </div>
-        </>
+
+          <div style={{padding:10,borderTop:'1px solid var(--border)',display:'flex',gap:8,background:'#fff'}}>
+            <input type="text" value={pregunta} placeholder="Escribe tu pregunta..."
+              onChange={function(e){setPregunta(e.target.value);}}
+              onKeyDown={function(e){if(e.key==='Enter')enviar();}}
+              disabled={cargando}
+              style={{flex:1,padding:'9px 12px',borderRadius:20,border:'1px solid var(--border)',fontSize:'.84rem',fontFamily:'inherit'}}/>
+            <button onClick={function(){enviar();}} disabled={cargando||!pregunta.trim()}
+              style={{width:36,height:36,borderRadius:18,border:'none',background:'var(--primary)',color:'#fff',
+                cursor:'pointer',opacity:(cargando||!pregunta.trim())?.5:1,flexShrink:0}}>➤</button>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -10157,6 +10176,7 @@ function App(){
         {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
+      {isAdmin&&<AsistenteIA/>}
     </>
   );
 }
