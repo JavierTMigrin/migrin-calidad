@@ -117,14 +117,19 @@ async function generarSQL(pregunta: string, esquema: string, contexto?: Contexto
     "- Para preguntas sobre RESULTADOS de granulometria/mallas (retenido, pasante) usa v_ia_granulometria (una fila por ensayo+malla).",
     "- Para preguntas sobre EETT / especificacion tecnica / limites / normas / 'cuanto debe ser' usa v_ia_especificaciones (una fila por limite; columna 'limite' indica min/max, o retAcumMin/retAcumMax/retMin/retMax/pasMin/pasMax para mallas).",
     "- Los nombres de texto (cliente, producto) pueden no coincidir exactamente con lo que escribe el usuario: usa ILIKE '%texto%' en vez de '=' para columnas de texto como cliente, salvo que necesites una igualdad exacta por otro motivo.",
-    "- Si la pregunta pide comparar RESULTADOS contra la EETT (p.ej. 'promedio vs limite', 'como van las desviaciones'), sigue este patron: calcula los promedios en una CTE, conviertelos a filas clave-valor con jsonb_each_text(to_jsonb(...)), y haz JOIN contra v_ia_especificaciones por parametro/malla. Ejemplo para quimica:",
-    "  WITH prom AS (",
+    "- Si la pregunta pide comparar RESULTADOS (quimica Y/O mallas) contra la EETT (p.ej. 'promedio vs limite', 'como van las desviaciones'), sigue este patron: calcula los promedios de quimica en una CTE y convierte a filas clave-valor con jsonb_each_text(to_jsonb(...)); calcula los promedios de malla en OTRA CTE agrupando por malla; UNE ambas CTEs con UNION ALL (mismas columnas: parametro, promedio) en una CTE 'todo'; luego haz UN SOLO JOIN de 'todo' contra v_ia_especificaciones que cubra ambos casos con OR. Ejemplo que combina quimica + 2 mallas contra Lirquen:",
+    "  WITH prom_q AS (",
     "    SELECT AVG(sio2) AS \"SiO2\", AVG(al2o3) AS \"Al2O3\", AVG(fe2o3) AS \"Fe2O3\"",
     "    FROM v_ia_ensayos WHERE producto_key='A36' AND date_trunc('month',fecha)='2026-06-01'",
-    "  ), prom_kv AS (SELECT key AS parametro, value::numeric AS promedio FROM prom, jsonb_each_text(to_jsonb(prom)))",
-    "  SELECT k.parametro, k.promedio, e.limite, e.valor AS limite_valor",
-    "  FROM prom_kv k JOIN v_ia_especificaciones e ON e.producto_key='A36' AND e.cliente ILIKE '%Lirquen%' AND e.parametro=k.parametro;",
-    "  Para mallas usa v_ia_granulometria en vez de v_ia_ensayos y une por malla en vez de parametro (parametro='Granulometria').",
+    "  ), prom_q_kv AS (SELECT key AS parametro, value::numeric AS promedio FROM prom_q, jsonb_each_text(to_jsonb(prom_q))),",
+    "  prom_malla AS (",
+    "    SELECT malla AS parametro, AVG(retenido_acumulado_pct) AS promedio FROM v_ia_granulometria",
+    "    WHERE producto_key='A36' AND date_trunc('month',fecha)='2026-06-01' AND malla IN ('#120','#170') GROUP BY malla",
+    "  ), todo AS (SELECT * FROM prom_q_kv UNION ALL SELECT * FROM prom_malla)",
+    "  SELECT t.parametro, t.promedio, e.limite, e.valor AS limite_valor",
+    "  FROM todo t JOIN v_ia_especificaciones e ON e.producto_key='A36' AND e.cliente ILIKE '%Lirquen%'",
+    "    AND (e.parametro=t.parametro OR (e.parametro='Granulometria' AND e.malla=t.parametro));",
+    "  Si la pregunta es SOLO de quimica o SOLO de mallas, omite la CTE que no corresponda (no fuerces el UNION si no hace falta).",
     "- Devuelve SOLO la consulta SQL, sin explicación, sin markdown, sin punto y coma final.",
     "- Si la pregunta NO se puede responder con este esquema, devuelve exactamente:",
     "  SELECT 'NO_RESPONDIBLE' AS error",
@@ -168,10 +173,11 @@ async function responder(pregunta: string, sqlUsada: string, filas: Record<strin
   const system = [
     "Eres un asistente de control de calidad de una planta minera (MIGRIN).",
     "Respondes en español, de forma clara, breve y profesional.",
-    "Te basas ÚNICAMENTE en los datos entregados; no inventes cifras.",
-    "Si el resultado viene vacío, dilo claramente.",
+    "Te basas ÚNICAMENTE en los datos entregados; no inventes cifras ni conclusiones que los datos no respaldan.",
+    "REGLA CRÍTICA: un resultado VACÍO (0 filas) significa que la consulta no encontró filas que cumplan las condiciones — nada más. NUNCA lo interpretes como 'todo está dentro de norma', 'no hay desviaciones', 'cumple' o cualquier conclusión positiva: eso sería inventar una conclusión que los datos no muestran. Si el resultado viene vacío, dilo tal cual: 'No se encontraron datos para esta consulta (periodo, producto o filtro pueden no tener registros, o el cruce de tablas no coincidió). Intenta reformular la pregunta o revisar el período.'",
     "Si ves un único valor 'NO_RESPONDIBLE', explica que la pregunta no se puede responder con los datos disponibles.",
     "Cuando haya números, redondéalos de forma sensata e incluye unidades (%, g) si corresponde.",
+    "Si estás comparando un promedio contra un límite EETT, di explícitamente si CUMPLE o NO CUMPLE cada parámetro (compara el valor real contra el límite: min significa que el valor debe ser mayor o igual; max que debe ser menor o igual).",
   ].join("\n");
   const user = [
     `Pregunta del usuario: ${pregunta}`, ``,
@@ -251,7 +257,7 @@ Deno.serve(async (req) => {
     if (filas.length === 0 && !/no_respondible/i.test(sql)) {
       try {
         const sqlReintento = await generarSQL(pregunta, esquema, contexto,
-          `La consulta anterior se ejecuto correctamente pero devolvio 0 filas:\n${sql}\nRevisa si algun filtro de texto (cliente, producto, parametro) no coincide EXACTAMENTE con los valores reales — usa ILIKE en vez de '=' si no lo hiciste. Revisa tambien fechas y rangos. Genera una version corregida, o la misma consulta si estas seguro de que es correcta.`);
+          `La consulta anterior se ejecuto correctamente pero devolvio 0 filas:\n${sql}\nUn resultado vacio en una consulta de comparacion NO significa que todo cumple, significa que el JOIN o filtro no encontro coincidencias — revisa: (1) si el JOIN entre CTEs de resultados y v_ia_especificaciones tiene la condicion correcta (parametro=... OR (parametro='Granulometria' AND malla=...) si combinas quimica y mallas), (2) si algun filtro de texto (cliente, producto, parametro) no coincide EXACTAMENTE — usa ILIKE en vez de '=' si no lo hiciste, (3) fechas y rangos. Genera una version corregida, o la misma consulta si estas seguro de que es correcta.`);
         if (!/no_respondible/i.test(sqlReintento)) {
           const v2 = validarSelect(sqlReintento);
           if (v2.ok) {
