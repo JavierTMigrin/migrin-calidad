@@ -21038,6 +21038,7 @@ function AsistenteIA() {
   var [pregunta, setPregunta] = useState('');
   var [cargando, setCargando] = useState(false);
   var [msgs, setMsgs] = useState([]); // {rol:'user'|'ia', texto, sql, datos, n_filas, error}
+  var [sqlAbiertos, setSqlAbiertos] = useState({}); // {idx: true} — toggle "Ver SQL" por mensaje
   var listRef = useRef(null);
 
   /* Contexto guiado: acota el text-to-SQL a una planta/producto para
@@ -21076,6 +21077,7 @@ function AsistenteIA() {
     setSelPlanta(null);
     setFase('planta');
     setMsgs([]);
+    setSqlAbiertos({});
   }
   var EJEMPLOS = contexto && contexto.productos.length === 1 ? ['¿Cuál fue el SiO₂ promedio este año?', '¿Cómo va la humedad este mes?', '¿Cuántos ensayos se han registrado este mes?', '¿Cuál fue el Fe₂O₃ máximo registrado?'] : ['¿Cuál fue el SiO₂ promedio del A36 este año?', '¿Cómo va el cumplimiento EETT del A36 este mes?', '¿Cuántos ensayos se han registrado este mes?', 'Humedad promedio del A38 este año'];
   useEffect(function () {
@@ -21548,7 +21550,39 @@ function AsistenteIA() {
         color: 'var(--text-muted)',
         padding: '3px 7px'
       }
-    }, "… y ", m.n_filas - 8, " fila(s) más")))));
+    }, "… y ", m.n_filas - 8, " fila(s) más")), m.sql && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: function () {
+        setSqlAbiertos(function (p) {
+          var n = Object.assign({}, p);
+          n[i] = !n[i];
+          return n;
+        });
+      },
+      style: {
+        background: 'none',
+        border: 'none',
+        color: 'var(--text-secondary)',
+        fontSize: '.68rem',
+        cursor: 'pointer',
+        textDecoration: 'underline',
+        padding: 0
+      }
+    }, sqlAbiertos[i] ? 'Ocultar SQL' : 'Ver SQL'), sqlAbiertos[i] && /*#__PURE__*/React.createElement("pre", {
+      style: {
+        marginTop: 4,
+        padding: '7px 9px',
+        background: '#1e1e1e',
+        color: '#dcdcdc',
+        borderRadius: 6,
+        overflowX: 'auto',
+        fontSize: '.68rem',
+        whiteSpace: 'pre-wrap'
+      }
+    }, m.sql)))));
   }), fase === 'chat' && cargando && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',

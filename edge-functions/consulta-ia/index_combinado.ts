@@ -15,7 +15,7 @@ import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
 const ALLOWED_ORIGIN = "https://javiertmigrin.github.io";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "openai/gpt-oss-120b"; // modelo mas capaz para SQL/razonamiento compuesto
 const LIMIT_DEFECTO = 200;
 const TIMEOUT_MS = 8000;
 const PREFERIDAS = ["v_ia_ensayos", "v_ia_resumen_mensual"];
@@ -104,7 +104,7 @@ function lineaContexto(contexto?: Contexto): string {
 function limpiarSQL(t: string): string {
   return t.trim().replace(/^```(?:sql)?\s*/i, "").replace(/\s*```$/i, "").replace(/;\s*$/, "").trim();
 }
-async function generarSQL(pregunta: string, esquema: string, contexto?: Contexto, errorPrevio?: string): Promise<string> {
+async function generarSQL(pregunta: string, esquema: string, contexto?: Contexto, notaCorreccion?: string): Promise<string> {
   const system = [
     "Eres un experto en PostgreSQL que traduce preguntas en español a una consulta SQL.",
     "",
@@ -113,8 +113,18 @@ async function generarSQL(pregunta: string, esquema: string, contexto?: Contexto
     "- PROHIBIDO: INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, etc. Solo lectura.",
     "- Usa SOLO las tablas y columnas que aparecen en el ESQUEMA. No inventes nombres.",
     "- Dialecto PostgreSQL. Para filtrar por mes usa date_trunc('month', fecha).",
-    "- Para preguntas sobre RESULTADOS de ensayos/mediciones (química, humedad, cuántos ensayos, promedios) usa v_ia_ensayos o v_ia_resumen_mensual.",
-    "- Para preguntas sobre EETT / especificación técnica / límites / normas / 'cuánto debe ser' de un producto usa v_ia_especificaciones (una fila por límite; columna 'limite' indica si es min o max).",
+    "- Para preguntas sobre RESULTADOS quimicos/humedad (promedios, cuantos ensayos) usa v_ia_ensayos o v_ia_resumen_mensual.",
+    "- Para preguntas sobre RESULTADOS de granulometria/mallas (retenido, pasante) usa v_ia_granulometria (una fila por ensayo+malla).",
+    "- Para preguntas sobre EETT / especificacion tecnica / limites / normas / 'cuanto debe ser' usa v_ia_especificaciones (una fila por limite; columna 'limite' indica min/max, o retAcumMin/retAcumMax/retMin/retMax/pasMin/pasMax para mallas).",
+    "- Los nombres de texto (cliente, producto) pueden no coincidir exactamente con lo que escribe el usuario: usa ILIKE '%texto%' en vez de '=' para columnas de texto como cliente, salvo que necesites una igualdad exacta por otro motivo.",
+    "- Si la pregunta pide comparar RESULTADOS contra la EETT (p.ej. 'promedio vs limite', 'como van las desviaciones'), sigue este patron: calcula los promedios en una CTE, conviertelos a filas clave-valor con jsonb_each_text(to_jsonb(...)), y haz JOIN contra v_ia_especificaciones por parametro/malla. Ejemplo para quimica:",
+    "  WITH prom AS (",
+    "    SELECT AVG(sio2) AS \"SiO2\", AVG(al2o3) AS \"Al2O3\", AVG(fe2o3) AS \"Fe2O3\"",
+    "    FROM v_ia_ensayos WHERE producto_key='A36' AND date_trunc('month',fecha)='2026-06-01'",
+    "  ), prom_kv AS (SELECT key AS parametro, value::numeric AS promedio FROM prom, jsonb_each_text(to_jsonb(prom)))",
+    "  SELECT k.parametro, k.promedio, e.limite, e.valor AS limite_valor",
+    "  FROM prom_kv k JOIN v_ia_especificaciones e ON e.producto_key='A36' AND e.cliente ILIKE '%Lirquen%' AND e.parametro=k.parametro;",
+    "  Para mallas usa v_ia_granulometria en vez de v_ia_ensayos y une por malla en vez de parametro (parametro='Granulometria').",
     "- Devuelve SOLO la consulta SQL, sin explicación, sin markdown, sin punto y coma final.",
     "- Si la pregunta NO se puede responder con este esquema, devuelve exactamente:",
     "  SELECT 'NO_RESPONDIBLE' AS error",
@@ -123,8 +133,8 @@ async function generarSQL(pregunta: string, esquema: string, contexto?: Contexto
     esquema,
   ].join("\n");
   let user = `Pregunta: ${pregunta}\n\nDevuelve solo la consulta SQL.`;
-  if (errorPrevio) user += `\n\nLa consulta anterior falló con este error de PostgreSQL. Corrígela:\n${errorPrevio}`;
-  return limpiarSQL(await groq(system, user, 1500));
+  if (notaCorreccion) user += `\n\n${notaCorreccion}`;
+  return limpiarSQL(await groq(system, user, 2000));
 }
 
 // ── Validacion + ejecucion segura ──
@@ -227,10 +237,29 @@ Deno.serve(async (req) => {
       filas = await ejecutar(sql);
     } catch (err1) {
       const motivo = String((err1 as Error)?.message ?? err1);
-      sql = await generarSQL(pregunta, esquema, contexto, motivo);
+      sql = await generarSQL(pregunta, esquema, contexto,
+        `La consulta anterior fallo con este error de PostgreSQL. Corrigela:\n${sql}\n${motivo}`);
       const v = validarSelect(sql);
       if (!v.ok) return new Response(JSON.stringify({ error: "No se pudo generar una consulta segura: " + v.motivo }), { status: 422, headers: ch });
       filas = await ejecutar(sql);
+    }
+    // La consulta corrio sin error pero no trajo filas: puede ser un filtro
+    // de texto que no calzo exactamente (nombre de cliente/producto con
+    // otra redaccion, mayusculas, etc.) o un filtro demasiado estricto.
+    // Se le da al modelo UNA oportunidad de revisar/corregir antes de
+    // aceptar que efectivamente no hay datos.
+    if (filas.length === 0 && !/no_respondible/i.test(sql)) {
+      try {
+        const sqlReintento = await generarSQL(pregunta, esquema, contexto,
+          `La consulta anterior se ejecuto correctamente pero devolvio 0 filas:\n${sql}\nRevisa si algun filtro de texto (cliente, producto, parametro) no coincide EXACTAMENTE con los valores reales — usa ILIKE en vez de '=' si no lo hiciste. Revisa tambien fechas y rangos. Genera una version corregida, o la misma consulta si estas seguro de que es correcta.`);
+        if (!/no_respondible/i.test(sqlReintento)) {
+          const v2 = validarSelect(sqlReintento);
+          if (v2.ok) {
+            const filas2 = await ejecutar(sqlReintento);
+            if (filas2.length > 0) { filas = filas2; sql = sqlReintento; }
+          }
+        }
+      } catch { /* si el reintento falla, se sigue con el resultado vacio original */ }
     }
     const respuesta = await responder(pregunta, sql, filas);
     return new Response(JSON.stringify({ respuesta, sql_usada: sql, datos: filas, n_filas: filas.length }, null, 2), { status: 200, headers: ch });
