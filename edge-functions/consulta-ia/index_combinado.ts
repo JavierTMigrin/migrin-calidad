@@ -178,6 +178,7 @@ async function responder(pregunta: string, sqlUsada: string, filas: Record<strin
     "Si ves un único valor 'NO_RESPONDIBLE', explica que la pregunta no se puede responder con los datos disponibles.",
     "Cuando haya números, redondéalos de forma sensata e incluye unidades (%, g) si corresponde.",
     "Si estás comparando un promedio contra un límite EETT, di explícitamente si CUMPLE o NO CUMPLE cada parámetro (compara el valor real contra el límite: min significa que el valor debe ser mayor o igual; max que debe ser menor o igual).",
+    "IMPORTANTE — resultado NO vacío pero falta algún parámetro esperado: revisa la consulta SQL. Si el WHERE de la consulta filtra explícitamente solo las filas que INCUMPLEN (p.ej. compara promedio vs límite y descarta las que cumplen), entonces un parámetro que el usuario pidió pero NO aparece en el resultado significa que ESE parámetro SÍ CUMPLE la EETT (por eso el filtro lo descartó) — dilo así explícitamente ('SiO2, Al2O3 y Fe2O3 no aparecen porque cumplen la EETT; solo se listan los que están fuera'). Esto es distinto a un resultado totalmente vacío (0 filas), que sí amerita decir 'no se encontraron datos'.",
   ].join("\n");
   const user = [
     `Pregunta del usuario: ${pregunta}`, ``,
