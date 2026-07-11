@@ -9942,7 +9942,19 @@ function AsistenteIA(){
         productos:contexto.productos.map(function(p){return p.value;}),
       };
       var res=await supabase.functions.invoke('consulta-ia',{body:body});
-      if(res.error)throw res.error;
+      if(res.error){
+        // El .message del error de supabase-js es generico ("Edge Function
+        // returned a non-2xx status code"); el detalle real viene en el
+        // cuerpo de la respuesta, expuesto en error.context (Response).
+        var detalle=(res.error&&res.error.message)?res.error.message:String(res.error);
+        if(res.error&&res.error.context&&typeof res.error.context.json==='function'){
+          try{
+            var cuerpoErr=await res.error.context.json();
+            if(cuerpoErr&&cuerpoErr.error)detalle=cuerpoErr.error;
+          }catch(e2){/* el cuerpo puede venir vacio o no-JSON */}
+        }
+        throw new Error(detalle);
+      }
       var d=res.data||{};
       if(d.error)setMsgs(function(p){return p.concat([{rol:'ia',error:d.error}]);});
       else setMsgs(function(p){return p.concat([{rol:'ia',texto:d.respuesta,sql:d.sql_usada,datos:d.datos,n_filas:d.n_filas}]);});
