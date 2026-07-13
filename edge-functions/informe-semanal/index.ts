@@ -1,26 +1,22 @@
 // ============================================================
-// Edge Function: informe-mensual
-// Genera y envia por correo el resumen mensual de ensayos.
-// Se ejecuta automaticamente el dia 1 de cada mes via pg_cron
-// (ver supabase-cron-informe-mensual.sql).
-// Tambien se puede invocar manualmente pasando { year, month }
-// en el body para generar el informe de cualquier mes.
+// Edge Function: informe-semanal
+// Genera y envia por correo el resumen semanal de ensayos.
+// Se ejecuta automaticamente cada lunes via pg_cron (ver
+// supabase/4_automatizacion/04_cron-informe-semanal.sql).
+// Tambien se puede invocar manualmente pasando { desde, hasta }
+// (YYYY-MM-DD) en el body para generar el informe de cualquier semana.
 //
+// En el panel: "Verify JWT" = OFF.
 // SECRETS requeridos:
 //   SB_URL, SB_SERVICE_ROLE   (para leer los datos via RPC)
-//   MS_TENANT_ID, MS_CLIENT_ID, MS_REFRESH_TOKEN  (envio por Microsoft Graph,
-//   permiso delegado Mail.Send + offline_access de jtorres@migrin.cl)
+//   MS_TENANT_ID, MS_CLIENT_ID, MS_REFRESH_TOKEN  (envio por Microsoft
+//   Graph, permiso delegado Mail.Send + offline_access de jtorres@migrin.cl)
 // ============================================================
 
-const REMITENTE     = { name: 'Informe Calidad MIGRIN', email: 'jtorres@migrin.cl' };
-const DESTINATARIOS = ['jtorres@migrin.cl', 'sarce@migrin.cl'];
+// Solo jtorres@migrin.cl, a diferencia de otros envios de la app que
+// van a la lista completa de calidad.
+const DESTINATARIOS = ['jtorres@migrin.cl'];
 
-const MESES = [
-  '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-
-// Envia un correo via Microsoft Graph, desde el buzon jtorres@migrin.cl.
 async function enviarGraph(asunto: string, html: string) {
   const tenant = Deno.env.get('MS_TENANT_ID') ?? '';
   const clientId = Deno.env.get('MS_CLIENT_ID') ?? '';
@@ -52,6 +48,25 @@ async function enviarGraph(asunto: string, html: string) {
   return { ok: res.ok, status: res.status, body };
 }
 
+// Fecha (YYYY-MM-DD) -> dd/mm/aaaa
+function fmtFecha(iso: string) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// Lunes-domingo de la semana ISO mas reciente ya completada, en UTC.
+// Se usa por defecto cuando el body no trae { desde, hasta }.
+function semanaPasada(): { desde: string; hasta: string } {
+  const hoy = new Date();
+  const hoyUTC = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+  const diaSemana = hoyUTC.getUTCDay(); // domingo=0 ... sabado=6
+  const diffALunesActual = diaSemana === 0 ? 6 : diaSemana - 1;
+  const lunesActual = new Date(hoyUTC); lunesActual.setUTCDate(hoyUTC.getUTCDate() - diffALunesActual);
+  const lunesPasado = new Date(lunesActual); lunesPasado.setUTCDate(lunesActual.getUTCDate() - 7);
+  const domingoPasado = new Date(lunesPasado); domingoPasado.setUTCDate(lunesPasado.getUTCDate() + 6);
+  return { desde: lunesPasado.toISOString().slice(0, 10), hasta: domingoPasado.toISOString().slice(0, 10) };
+}
+
 Deno.serve(async (req) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
@@ -63,36 +78,24 @@ Deno.serve(async (req) => {
     const sbUrl = Deno.env.get('SB_URL') ?? '';
     const sbSvc = Deno.env.get('SB_SERVICE_ROLE') ?? '';
 
-    // Mes a reportar: por defecto el mes anterior al actual.
-    // Se puede sobreescribir con { year, month } en el body.
-    let year: number, month: number;
+    let desde: string, hasta: string;
     try {
       const body = await req.json().catch(() => ({}));
-      if (body.year && body.month) {
-        year  = Number(body.year);
-        month = Number(body.month);
-      } else {
-        const now = new Date();
-        month = now.getMonth();   // 0-indexed actual = 1-indexed anterior
-        year  = now.getFullYear();
-        if (month === 0) { month = 12; year--; }
-      }
+      if (body.desde && body.hasta) { desde = body.desde; hasta = body.hasta; }
+      else { const s = semanaPasada(); desde = s.desde; hasta = s.hasta; }
     } catch {
-      const now = new Date();
-      month = now.getMonth();
-      year  = now.getFullYear();
-      if (month === 0) { month = 12; year--; }
+      const s = semanaPasada(); desde = s.desde; hasta = s.hasta;
     }
 
     // ── Llamar a la funcion SQL ───────────────────────────────
-    const rpcRes = await fetch(`${sbUrl}/rest/v1/rpc/fn_informe_mensual`, {
+    const rpcRes = await fetch(`${sbUrl}/rest/v1/rpc/fn_informe_semanal`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${sbSvc}`,
         'apikey': sbSvc,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ p_year: year, p_month: month }),
+      body: JSON.stringify({ p_desde: desde, p_hasta: hasta }),
     });
 
     if (!rpcRes.ok) {
@@ -103,15 +106,15 @@ Deno.serve(async (req) => {
     }
 
     const data = await rpcRes.json();
-    const resumen      = data.resumen      ?? {};
+    const resumen = data.resumen ?? {};
     const porProducto: {
-      producto_label: string; n: number;
+      producto_key: string; producto_label: string; n: number;
       analistas: number; turno_a: number; turno_b: number;
       primera: string; ultima: string; humedad_prom: number | null;
     }[] = data.por_producto ?? [];
 
     // ── Construir email HTML ──────────────────────────────────
-    const periodoLabel = `${MESES[month]} ${year}`;
+    const periodoLabel = `${fmtFecha(desde)} al ${fmtFecha(hasta)}`;
 
     const cards = [
       { label: 'Ensayos totales',    valor: resumen.total_ensayos     ?? 0, color: '#1a56db' },
@@ -153,7 +156,7 @@ Deno.serve(async (req) => {
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.7;margin-bottom:2px">
             MIGRIN S.A. — Control de Calidad
           </div>
-          <h2 style="margin:0;font-size:20px">Informe Mensual — ${periodoLabel}</h2>
+          <h2 style="margin:0;font-size:20px">Informe Semanal — ${periodoLabel}</h2>
           <div style="font-size:11px;opacity:.5;margin-top:4px">
             Generado automaticamente el ${new Date().toLocaleDateString('es-CL')}
           </div>
@@ -175,7 +178,7 @@ Deno.serve(async (req) => {
                 <th style="padding:8px 12px;border:1px solid #374151;text-align:center">Analistas</th>
                 <th style="padding:8px 12px;border:1px solid #374151;text-align:center">Turnos</th>
                 <th style="padding:8px 12px;border:1px solid #374151;text-align:center">Hum. prom.</th>
-                <th style="padding:8px 12px;border:1px solid #374151">Periodo</th>
+                <th style="padding:8px 12px;border:1px solid #374151">Fechas</th>
               </tr>
             </thead>
             <tbody>${filasProducto}</tbody>
@@ -189,14 +192,14 @@ Deno.serve(async (req) => {
       </div>`;
 
     // ── Enviar via Microsoft Graph ────────────────────────────
-    const r = await enviarGraph(`Informe Mensual de Calidad — ${periodoLabel} | MIGRIN S.A.`, html);
+    const r = await enviarGraph(`Informe Semanal de Calidad — ${periodoLabel} | MIGRIN S.A.`, html);
     return new Response(
       JSON.stringify({ ok: r.ok, periodo: periodoLabel, status: r.status, ...(r.ok ? {} : { error_graph: r.body }) }),
       { status: r.ok ? 200 : 502, headers: { ...cors, 'Content-Type': 'application/json' } },
     );
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
+    return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
