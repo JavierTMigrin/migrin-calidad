@@ -2629,7 +2629,6 @@ function DespachoForm({account,producto,onBack,onSuccess}){
       e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
     if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     if(!pctHumedad)e.pctHumedad='Humedad requerida';
-    if(!quimica.sio2)e.sio2='SiO₂ requerido';
     if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
     if(!quimica.fe2o3)e.fe2o3='Fe₂O₃ requerido';
     if(!quimica.cao)e.cao='CaO requerido';
@@ -2763,8 +2762,10 @@ function DespachoForm({account,producto,onBack,onSuccess}){
 
       <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
         <div className="fg-quim">
+          <Field name="sio2D" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"
+            specHint={specChemHint(qspec.SiO2)} specSemVal={specSem(quimica.sio2,qspec.SiO2)}/>
           {[
-            {k:'sio2',l:'SiO₂ (%)',sk:'SiO2'},{k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
+            {k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
             {k:'fe2o3',l:'Fe₂O₃ (%)',sk:'Fe2O3'},{k:'cao',l:'CaO (%)',sk:'CaO'},
             {k:'mgo',l:'MgO (%)',sk:'MgO'},{k:'k2o',l:'K₂O (%)',sk:'K2O'},
             {k:'na2o',l:'Na₂O (%)',sk:'Na2O'},{k:'tio2',l:'TiO₂ (%)',sk:'TiO2'},
@@ -2924,7 +2925,6 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
     var e={};
     if(!fecha)e.fecha='Fecha de muestreo requerida';
     if(!identificacion)e.identificacion='Seleccione la identificacion de la arena';
-    if(!quimica.sio2)e.sio2='SiO₂ requerido';
     if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
     if(!quimica.fe2o3)e.fe2o3='Fe₂O₃ requerido';
     if(!quimica.cao)e.cao='CaO requerido';
@@ -2989,8 +2989,9 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
 
       <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
         <div className="fg-quim">
+          <Field name="sio2MP" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"/>
           {[
-            {k:'sio2',l:'SiO₂ (%)'},{k:'al2o3',l:'Al₂O₃ (%)'},
+            {k:'al2o3',l:'Al₂O₃ (%)'},
             {k:'fe2o3',l:'Fe₂O₃ (%)'},{k:'cao',l:'CaO (%)'},
             {k:'mgo',l:'MgO (%)'},{k:'k2o',l:'K₂O (%)'},
             {k:'na2o',l:'Na₂O (%)'},{k:'tio2',l:'TiO₂ (%)'},
@@ -3028,7 +3029,7 @@ var TT_FORM_CFG={
 };
 
 var TT_QUIM_FIELDS=[
-  {k:'sio2',l:'SiO₂ (%)',sk:'SiO2'},{k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
+  {k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
   {k:'fe2o3',l:'Fe₂O₃ (%)',sk:'Fe2O3'},{k:'cao',l:'CaO (%)',sk:'CaO'},
   {k:'mgo',l:'MgO (%)',sk:'MgO'},{k:'k2o',l:'K₂O (%)',sk:'K2O'},
   {k:'na2o',l:'Na₂O (%)',sk:'Na2O'},{k:'tio2',l:'TiO₂ (%)',sk:'TiO2'},
@@ -3061,6 +3062,8 @@ function TurcoQuimicaCard({quimica,setQuimica,errors,qspec}){
   return(
     <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
       <div className="fg-quim">
+        <Field name="sio2TT" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"
+          specHint={specChemHint(qspec.SiO2)} specSemVal={specSem(quimica.sio2,qspec.SiO2)}/>
         {TT_QUIM_FIELDS.map(function(f){
           return(
             <Field key={f.k} name={f.k+'TT'} label={f.l} type="decimal" required value={quimica[f.k]}
@@ -3931,7 +3934,6 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     if(cfg.tipoMuestra&&tipoMuestra&&!numAcopio)e.numAcopio='Requerido';
     if(cfg.humedad&&!pctHumedad)e.pctHumedad='Requerido';
     if(cfg.quimica){
-      if(!quimica.sio2)e.sio2='Requerido';
       if(!quimica.al2o3)e.al2o3='Requerido';
       if(!quimica.fe2o3)e.fe2o3='Requerido';
       if(!quimica.cao)e.cao='Requerido';
@@ -4191,8 +4193,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
           {cfg.quimica&&(
             <SecCard title="Quimica" icon="&#9879;&#65039;">
               <div className="fg-quim">
-                <Field name="sio2" label="SiO₂ (%)" type="decimal" required value={quimica.sio2}
-                  onChange={function(e){setQuimica(function(p){return Object.assign({},p,{sio2:e.target.value});});}} error={errors.sio2} placeholder="0,00"
+                <Field name="sio2" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"
                   specHint={specChemHint(qspec.SiO2)} specSemVal={specSem(quimica.sio2,qspec.SiO2)}/>
                 <Field name="al2o3" label="Al₂O₃ (%)" type="decimal" required value={quimica.al2o3}
                   onChange={function(e){setQuimica(function(p){return Object.assign({},p,{al2o3:e.target.value});});}} error={errors.al2o3} placeholder="0,00"
@@ -4298,7 +4299,7 @@ function ValidacionAcopioForm({account,onBack,onSuccess}){
     else if(pi>0&&Math.abs(pf-pi)/pi>0.25)e.pesoFinal='La masa final difiere mas del 25% del peso inicial. Verifique.';
     if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     if(!pctHumedad)e.pctHumedad='Humedad requerida';
-    [['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']]
+    [['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']]
       .forEach(function(o){if(!quimica[o[0]])e[o[0]]=o[1]+' requerido';});
     return e;
   }
@@ -4402,8 +4403,10 @@ function ValidacionAcopioForm({account,onBack,onSuccess}){
       </SecCard>
       <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
         <div className="fg-quim">
+          <Field name="sio2VA" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"
+            specHint={specChemHint(qspec.SiO2)} specSemVal={specSem(quimica.sio2,qspec.SiO2)}/>
           {[
-            {k:'sio2',l:'SiO₂ (%)',sk:'SiO2'},{k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
+            {k:'al2o3',l:'Al₂O₃ (%)',sk:'Al2O3'},
             {k:'fe2o3',l:'Fe₂O₃ (%)',sk:'Fe2O3'},{k:'cao',l:'CaO (%)',sk:'CaO'},
             {k:'mgo',l:'MgO (%)',sk:'MgO'},{k:'k2o',l:'K₂O (%)',sk:'K2O'},
             {k:'na2o',l:'Na₂O (%)',sk:'Na2O'},{k:'tio2',l:'TiO₂ (%)',sk:'TiO2'},
@@ -4752,7 +4755,7 @@ function YacimientoForm({account,onBack,onSuccess}){
       </SecCard>
       <SecCard title="Quimica (%)" icon="&#9879;&#65039;">
         <div className="fg-quim">
-          <Field name="sio2YAC" label="SiO₂ (%)" type="decimal" value={quimica.sio2} onChange={setQ('sio2')} placeholder="0,00"/>
+          <Field name="sio2YAC" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"/>
           <Field name="al2o3YAC" label="Al₂O₃ (%)" type="decimal" value={quimica.al2o3} onChange={setQ('al2o3')} placeholder="0,00"/>
           <Field name="fe2o3YAC" label="Fe₂O₃ (%)" type="decimal" value={quimica.fe2o3} onChange={setQ('fe2o3')} placeholder="0,00"/>
           <Field name="caoYAC" label="CaO (%)" type="decimal" value={quimica.cao} onChange={setQ('cao')} placeholder="0,00"/>

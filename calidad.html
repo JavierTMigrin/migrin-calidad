@@ -5443,7 +5443,6 @@ function DespachoForm({
     if (!pesoFinal) e.pesoFinal = 'Peso final requerido';else if (pi > 0 && Math.abs(pf - pi) / pi > 0.25) e.pesoFinal = 'El peso final difiere mas del 25% del peso inicial. Verifique.';
     if (!gc.closeOk) e.granu = 'El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     if (!pctHumedad) e.pctHumedad = 'Humedad requerida';
-    if (!quimica.sio2) e.sio2 = 'SiO₂ requerido';
     if (!quimica.al2o3) e.al2o3 = 'Al₂O₃ requerido';
     if (!quimica.fe2o3) e.fe2o3 = 'Fe₂O₃ requerido';
     if (!quimica.cao) e.cao = 'CaO requerido';
@@ -5694,11 +5693,17 @@ function DespachoForm({
     icon: "⚗️"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fg-quim"
-  }, [{
-    k: 'sio2',
-    l: 'SiO₂ (%)',
-    sk: 'SiO2'
-  }, {
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "sio2D",
+    label: "SiO₂ (%)",
+    type: "decimal",
+    readOnly: true,
+    calcBadge: true,
+    value: quimica.sio2,
+    placeholder: "—",
+    specHint: specChemHint(qspec.SiO2),
+    specSemVal: specSem(quimica.sio2, qspec.SiO2)
+  }), [{
     k: 'al2o3',
     l: 'Al₂O₃ (%)',
     sk: 'Al2O3'
@@ -5987,7 +5992,6 @@ function MateriasPrimasForm({
     var e = {};
     if (!fecha) e.fecha = 'Fecha de muestreo requerida';
     if (!identificacion) e.identificacion = 'Seleccione la identificacion de la arena';
-    if (!quimica.sio2) e.sio2 = 'SiO₂ requerido';
     if (!quimica.al2o3) e.al2o3 = 'Al₂O₃ requerido';
     if (!quimica.fe2o3) e.fe2o3 = 'Fe₂O₃ requerido';
     if (!quimica.cao) e.cao = 'CaO requerido';
@@ -6089,10 +6093,15 @@ function MateriasPrimasForm({
     icon: "⚗️"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fg-quim"
-  }, [{
-    k: 'sio2',
-    l: 'SiO₂ (%)'
-  }, {
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "sio2MP",
+    label: "SiO₂ (%)",
+    type: "decimal",
+    readOnly: true,
+    calcBadge: true,
+    value: quimica.sio2,
+    placeholder: "—"
+  }), [{
     k: 'al2o3',
     l: 'Al₂O₃ (%)'
   }, {
@@ -6191,10 +6200,6 @@ var TT_FORM_CFG = {
   }
 };
 var TT_QUIM_FIELDS = [{
-  k: 'sio2',
-  l: 'SiO₂ (%)',
-  sk: 'SiO2'
-}, {
   k: 'al2o3',
   l: 'Al₂O₃ (%)',
   sk: 'Al2O3'
@@ -6264,7 +6269,17 @@ function TurcoQuimicaCard({
     icon: "⚗️"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fg-quim"
-  }, TT_QUIM_FIELDS.map(function (f) {
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "sio2TT",
+    label: "SiO₂ (%)",
+    type: "decimal",
+    readOnly: true,
+    calcBadge: true,
+    value: quimica.sio2,
+    placeholder: "—",
+    specHint: specChemHint(qspec.SiO2),
+    specSemVal: specSem(quimica.sio2, qspec.SiO2)
+  }), TT_QUIM_FIELDS.map(function (f) {
     return /*#__PURE__*/React.createElement(Field, {
       key: f.k,
       name: f.k + 'TT',
@@ -7911,7 +7926,6 @@ function PlantaForm({
     if (cfg.tipoMuestra && tipoMuestra && !numAcopio) e.numAcopio = 'Requerido';
     if (cfg.humedad && !pctHumedad) e.pctHumedad = 'Requerido';
     if (cfg.quimica) {
-      if (!quimica.sio2) e.sio2 = 'Requerido';
       if (!quimica.al2o3) e.al2o3 = 'Requerido';
       if (!quimica.fe2o3) e.fe2o3 = 'Requerido';
       if (!quimica.cao) e.cao = 'Requerido';
@@ -8373,17 +8387,10 @@ function PlantaForm({
     name: "sio2",
     label: "SiO₂ (%)",
     type: "decimal",
-    required: true,
+    readOnly: true,
+    calcBadge: true,
     value: quimica.sio2,
-    onChange: function (e) {
-      setQuimica(function (p) {
-        return Object.assign({}, p, {
-          sio2: e.target.value
-        });
-      });
-    },
-    error: errors.sio2,
-    placeholder: "0,00",
+    placeholder: "—",
     specHint: specChemHint(qspec.SiO2),
     specSemVal: specSem(quimica.sio2, qspec.SiO2)
   }), /*#__PURE__*/React.createElement(Field, {
@@ -8627,7 +8634,7 @@ function ValidacionAcopioForm({
     if (!pesoFinal) e.pesoFinal = 'Peso del fondo requerido';else if (pi > 0 && Math.abs(pf - pi) / pi > 0.25) e.pesoFinal = 'La masa final difiere mas del 25% del peso inicial. Verifique.';
     if (!gc.closeOk) e.granu = 'El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     if (!pctHumedad) e.pctHumedad = 'Humedad requerida';
-    [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['mgo', 'MgO'], ['k2o', 'K₂O'], ['na2o', 'Na₂O'], ['tio2', 'TiO₂']].forEach(function (o) {
+    [['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['mgo', 'MgO'], ['k2o', 'K₂O'], ['na2o', 'Na₂O'], ['tio2', 'TiO₂']].forEach(function (o) {
       if (!quimica[o[0]]) e[o[0]] = o[1] + ' requerido';
     });
     return e;
@@ -8863,11 +8870,17 @@ function ValidacionAcopioForm({
     icon: "⚗️"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fg-quim"
-  }, [{
-    k: 'sio2',
-    l: 'SiO₂ (%)',
-    sk: 'SiO2'
-  }, {
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "sio2VA",
+    label: "SiO₂ (%)",
+    type: "decimal",
+    readOnly: true,
+    calcBadge: true,
+    value: quimica.sio2,
+    placeholder: "—",
+    specHint: specChemHint(qspec.SiO2),
+    specSemVal: specSem(quimica.sio2, qspec.SiO2)
+  }), [{
     k: 'al2o3',
     l: 'Al₂O₃ (%)',
     sk: 'Al2O3'
@@ -9611,9 +9624,10 @@ function YacimientoForm({
     name: "sio2YAC",
     label: "SiO₂ (%)",
     type: "decimal",
+    readOnly: true,
+    calcBadge: true,
     value: quimica.sio2,
-    onChange: setQ('sio2'),
-    placeholder: "0,00"
+    placeholder: "—"
   }), /*#__PURE__*/React.createElement(Field, {
     name: "al2o3YAC",
     label: "Al₂O₃ (%)",
