@@ -1414,14 +1414,16 @@ const SPECS_A36 = {
       }
     },
     d50Max: 0.290,
+    /* Al2O3 sin limites: fuera de rango de forma conocida y aceptada por
+       el cliente, no debe evaluarse como cumple/no cumple. */
     quimica: {
       SiO2: {
         min: 98.5,
         max: null
       },
       Al2O3: {
-        min: 0.2,
-        max: 0.6
+        min: null,
+        max: null
       },
       Fe2O3: {
         min: 0.08,
@@ -1452,14 +1454,15 @@ const SPECS_A36 = {
         retAcumMin: 98.5
       }
     },
+    /* Al2O3 sin limites: ver nota en LIRQUEN. */
     quimica: {
       SiO2: {
         min: 94.3,
         max: null
       },
       Al2O3: {
-        min: 2.2,
-        max: 3.0
+        min: null,
+        max: null
       },
       Fe2O3: {
         min: 0.06,
@@ -2739,6 +2742,7 @@ const SPECS_DESP_LIRQUEN = {
       pasMin: null
     }
   },
+  /* Al2O3 sin limites: ver nota en SPECS_A36.LIRQUEN. */
   quimica: {
     SiO2: {
       min: 98.5,
@@ -2746,7 +2750,7 @@ const SPECS_DESP_LIRQUEN = {
     },
     Al2O3: {
       min: null,
-      max: 0.2
+      max: null
     },
     Fe2O3: {
       min: null,
@@ -2803,14 +2807,15 @@ const SPECS_DESP_CRIST = {
       pasMin: null
     }
   },
+  /* Al2O3 sin limites: ver nota en SPECS_A36.LIRQUEN. */
   quimica: {
     SiO2: {
       min: 94.3,
       max: null
     },
     Al2O3: {
-      min: 2.2,
-      max: 3.0
+      min: null,
+      max: null
     },
     Fe2O3: {
       min: 0.06,
@@ -15576,14 +15581,12 @@ function DashboardScreen({
         }
       }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
         style: cH
-      }), [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['k2o', 'K₂O'], ['tio2', 'TiO₂'], ['na2o', 'Na₂O'], ['mgo', 'MgO'], ['k2o_na2o', 'Na₂O+K₂O']].map(function (o) {
+      }), [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃']].map(function (o) {
         return /*#__PURE__*/React.createElement("th", {
           key: o[0],
           style: cH
         }, o[1]);
-      }), /*#__PURE__*/React.createElement("th", {
-        style: cH
-      }, "D50 (µm)"))), /*#__PURE__*/React.createElement("tbody", null, [['Media', 'media'], ['Máximo', 'max'], ['Mínimo', 'min'], ['Desv. Est.', 'sd']].map(function (rw) {
+      }))), /*#__PURE__*/React.createElement("tbody", null, [['Media', 'media'], ['Máximo', 'max'], ['Mínimo', 'min'], ['Desv. Est.', 'sd']].map(function (rw) {
         return /*#__PURE__*/React.createElement("tr", {
           key: rw[1]
         }, /*#__PURE__*/React.createElement("td", {
@@ -15591,15 +15594,13 @@ function DashboardScreen({
             fontWeight: 700,
             textAlign: 'left'
           })
-        }, rw[0]), [['sio2', 2], ['al2o3', 2], ['fe2o3', 3], ['cao', 2], ['k2o', 2], ['tio2', 2], ['na2o', 2], ['mgo', 2], ['k2o_na2o', 2]].map(function (o) {
+        }, rw[0]), [['sio2', 2], ['al2o3', 2], ['fe2o3', 3]].map(function (o) {
           var st = certStats.quim[o[0]];
           return /*#__PURE__*/React.createElement("td", {
             key: o[0],
             style: cD
           }, st ? fmt(st[rw[1]], o[1]) : '—');
-        }), /*#__PURE__*/React.createElement("td", {
-          style: cD
-        }, certStats.d50 ? String(Math.round(certStats.d50[rw[1]] * 1000)) : '—'));
+        }));
       }))), /*#__PURE__*/React.createElement("div", {
         style: {
           fontWeight: 700,

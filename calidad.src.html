@@ -635,7 +635,9 @@ const SPECS_A36={
       '#170':{retAcumMax:null,retAcumMin:95.0},
     },
     d50Max:0.290,
-    quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:0.2,max:0.6},Fe2O3:{min:0.08,max:0.11}},
+    /* Al2O3 sin limites: fuera de rango de forma conocida y aceptada por
+       el cliente, no debe evaluarse como cumple/no cumple. */
+    quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:0.08,max:0.11}},
     humedad:{max:4.8},
   },
   CRISTALERIAS:{
@@ -646,7 +648,8 @@ const SPECS_A36={
       '#30':{retAcumMax:0.1,retAcumMin:null},
       '#100':{retAcumMax:null,retAcumMin:98.5},
     },
-    quimica:{SiO2:{min:94.3,max:null},Al2O3:{min:2.2,max:3.0},Fe2O3:{min:0.06,max:0.12}},
+    /* Al2O3 sin limites: ver nota en LIRQUEN. */
+    quimica:{SiO2:{min:94.3,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:0.06,max:0.12}},
     humedad:{max:4.8},
   },
 };
@@ -1123,8 +1126,9 @@ const SPECS_DESP_LIRQUEN={
     '#120':{retMax:null,retMin:86.0,pasMax:null,pasMin:null},
     '#170':{retMax:null,retMin:95.0,pasMax:null,pasMin:null},
   },
+  /* Al2O3 sin limites: ver nota en SPECS_A36.LIRQUEN. */
   quimica:{
-    SiO2:{min:98.5,max:null},Al2O3:{min:null,max:0.2},Fe2O3:{min:null,max:0.11},
+    SiO2:{min:98.5,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:null,max:0.11},
     CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
     Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
   },
@@ -1137,8 +1141,9 @@ const SPECS_DESP_CRIST={
     '#30' :{retMax:0.1, retMin:null,pasMax:null,pasMin:null},
     '#100':{retMax:null,retMin:98.5,pasMax:null,pasMin:null},
   },
+  /* Al2O3 sin limites: ver nota en SPECS_A36.LIRQUEN. */
   quimica:{
-    SiO2:{min:94.3,max:null},Al2O3:{min:2.2,max:3.0},Fe2O3:{min:0.06,max:0.12},
+    SiO2:{min:94.3,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:0.06,max:0.12},
     CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
     Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
   },
@@ -7492,19 +7497,17 @@ function DashboardScreen({account,onBack}){
                       <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
                         <thead><tr>
                           <th style={cH}></th>
-                          {[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['k2o','K₂O'],['tio2','TiO₂'],['na2o','Na₂O'],['mgo','MgO'],['k2o_na2o','Na₂O+K₂O']].map(function(o){return <th key={o[0]} style={cH}>{o[1]}</th>;})}
-                          <th style={cH}>D50 (µm)</th>
+                          {[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃']].map(function(o){return <th key={o[0]} style={cH}>{o[1]}</th>;})}
                         </tr></thead>
                         <tbody>
                           {[['Media','media'],['Máximo','max'],['Mínimo','min'],['Desv. Est.','sd']].map(function(rw){
                             return(
                               <tr key={rw[1]}>
                                 <td style={Object.assign({},cD,{fontWeight:700,textAlign:'left'})}>{rw[0]}</td>
-                                {[['sio2',2],['al2o3',2],['fe2o3',3],['cao',2],['k2o',2],['tio2',2],['na2o',2],['mgo',2],['k2o_na2o',2]].map(function(o){
+                                {[['sio2',2],['al2o3',2],['fe2o3',3]].map(function(o){
                                   var st=certStats.quim[o[0]];
                                   return <td key={o[0]} style={cD}>{st?fmt(st[rw[1]],o[1]):'—'}</td>;
                                 })}
-                                <td style={cD}>{certStats.d50?String(Math.round(certStats.d50[rw[1]]*1000)):'—'}</td>
                               </tr>
                             );
                           })}
