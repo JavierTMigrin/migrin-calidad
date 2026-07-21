@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --primary:#1a5276;--primary-dark:#154360;--primary-light:#2e86c1;--primary-xlight:#d6eaf8;
@@ -1767,6 +1768,45 @@ function calcGranu(producto,gv,pesoFinalRaw){
   var negative=fondPeso<-0.001;
   var closeOk=!negative&&fondAcum>=99&&fondAcum<=101&&fondPas<=1;
   return{rows:rows,fondPeso:fondPeso,fondAcum:fondAcum,fondPas:fondPas,closeOk:closeOk,negative:negative};
+}
+
+/* ── EXPORT EXCEL ──
+   Descarga una planilla .xlsx real (SheetJS). Los valores con pinta de
+   numero (coma o punto decimal) se convierten a celdas numericas para
+   poder operar con ellos en Excel. Si la libreria no cargo (offline sin
+   cache), cae a CSV para no bloquear la exportacion. */
+function descargarExcel(nombre,hdr,rows,hoja){
+  var base=String(nombre).replace(/\.(csv|xlsx)$/i,'');
+  function num(v){
+    if(typeof v==='number')return isFinite(v)?v:'';
+    if(v==null)return'';
+    var s=String(v).trim();
+    return /^-?\d+(?:[.,]\d+)?$/.test(s)?parseFloat(s.replace(',','.')):v;
+  }
+  if(window.XLSX){
+    var data=[hdr].concat(rows.map(function(r){return r.map(num);}));
+    var ws=window.XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=hdr.map(function(h,i){
+      var w=String(h==null?'':h).length;
+      data.forEach(function(r){var v=r[i];if(v!=null&&String(v).length>w)w=String(v).length;});
+      return{wch:Math.min(Math.max(w+2,8),40)};
+    });
+    var wb=window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb,ws,String(hoja||'Datos').slice(0,31));
+    window.XLSX.writeFile(wb,base+'.xlsx');
+    return;
+  }
+  function esc(v){ // fallback CSV: sanitiza formulas (=,+,-,@) y comillas
+    if(v==null)return'';
+    var s=String(v);
+    if(s.match(/^[=+\-@]/))s="'"+s;
+    if(s.indexOf('"')>=0||s.indexOf(',')>=0||s.indexOf('\n')>=0)s='"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }
+  var csv=[hdr].concat(rows).map(function(r){return r.map(esc).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=base+'.csv';a.click();
 }
 
 /* ── SMALL COMPONENTS ── */
@@ -5129,6 +5169,9 @@ function DashboardScreen({account,onBack}){
   var[certGen,setCertGen]=useState(false);
   var[certMsg,setCertMsg]=useState('');
   var[certEmitidos,setCertEmitidos]=useState(null); // historial de certificados emitidos
+  var[certReDet,setCertReDet]=useState(null); // muestras reconstruidas al reabrir un certificado emitido
+  var[certEdit,setCertEdit]=useState(null);   // certificado emitido en edicion (metadatos)
+  var[certEditMsg,setCertEditMsg]=useState('');
   var[showValForm,setShowValForm]=useState(false);  // formulario de validacion de acopio (dentro de la pestana)
   var[valMsg,setValMsg]=useState('');
   var[enviandoPdf,setEnviandoPdf]=useState(false);
@@ -5297,6 +5340,10 @@ function DashboardScreen({account,onBack}){
       }
       var nomCert=(certModal&&certModal.numCert?certModal.numCert:'A36').replace(/[\/\\\s]+/g,'-');
       pdf.save('Certificado_'+nomCert+(certModal&&certModal.lote?'_Lote'+certModal.lote:'')+'.pdf');
+      if(certModal&&certModal.regId){
+        // Reapertura de un certificado ya emitido: no se registra de nuevo
+        setCertMsg('✓ Certificado re-descargado (ya estaba registrado).');
+      }else{
       // Registrar el certificado emitido en Supabase (trazabilidad)
       try{
         var reg={num_cert:certModal.numCert||'',producto:'A36',lote:certModal.lote||'',acopio:certModal.acopio||'',
@@ -5320,6 +5367,7 @@ function DashboardScreen({account,onBack}){
         else cargarCertEmitidos();
       }catch(e2){console.error('registro certificado:',e2);}
       setCertMsg('✓ Certificado descargado y registrado.');
+      }
     }catch(e){setCertMsg('Error: '+((e&&e.message)?e.message:String(e)));}
     setCertGen(false);
   }
@@ -5515,19 +5563,6 @@ function DashboardScreen({account,onBack}){
     }catch(e){console.error('Export resumen',e);}
   }
 
-  function csvEsc(v){
-    if(v==null)return'';
-    var s=String(v);
-    if(s.match(/^[=+\-@]/))s="'"+s;
-    if(s.indexOf('"')>=0||s.indexOf(',')>=0||s.indexOf('\n')>=0)s='"'+s.replace(/"/g,'""')+'"';
-    return s;
-  }
-  function descargarCSV(nombre,hdr,rows){
-    var csv=[hdr].concat(rows).map(function(r){return r.map(csvEsc).join(',');}).join('\n');
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-    a.download=nombre;a.click();
-  }
   /* Exporta la granulometria (retenido parcial %) de los registros filtrados */
   function exportarGranuCSV(){
     var sieves=SIEVE_CONFIG[prod]||[];
@@ -5539,7 +5574,7 @@ function DashboardScreen({account,onBack}){
         r.TipoMuestra||r.tipoMuestra||'',r.NumAcopio||r.numAcopio||'',r.PesoFinal!=null?r.PesoFinal:'']
         .concat(sieves.map(function(s){return st&&st[s.us]?fmt(st[s.us].pctP,2):'';}));
     });
-    descargarCSV('Granulometria_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
+    descargarExcel('Granulometria_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel(),hdr,rows,'Granulometria');
   }
   /* Exporta la quimica de los registros filtrados */
   function exportarQuimicaCSV(){
@@ -5550,7 +5585,7 @@ function DashboardScreen({account,onBack}){
       return[r.Folio||'',r.FechaMuestreo||r.fecha||'',r.Turno||r.turno||'',r.Analista||r.analista||'',
         r.PctHumedad!=null?r.PctHumedad:''].concat(ox.map(function(o){return q[o[0]]!=null?q[o[0]]:'';}));
     });
-    descargarCSV('Quimica_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
+    descargarExcel('Quimica_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel(),hdr,rows,'Quimica');
   }
   /* Exporta el resumen consolidado por planta/producto */
   function exportarResumenCSV(){
@@ -5562,7 +5597,7 @@ function DashboardScreen({account,onBack}){
         rows.push([sec.planta,r.label,r.n,r.pct===null?'':r.ok,r.pct===null?'':r.fuera,r.pct===null?'Sin EETT':fmt(r.pct,1)]);
       });
     });
-    descargarCSV('Resumen_General_'+getPeriodoLabel()+'.csv',hdr,rows);
+    descargarExcel('Resumen_General_'+getPeriodoLabel(),hdr,rows,'Resumen');
   }
 
   function computeStats(row){
@@ -5675,7 +5710,64 @@ function DashboardScreen({account,onBack}){
   }
   useEffect(function(){if(tab==='acopio'&&prod==='A36')cargarCertEmitidos();},[tab,prod]);
 
-  var certSelDet=useMemo(function(){return certDet.filter(function(d){return certSel[d.id];});},[certDet,certSel]);
+  /* Si hay un certificado reabierto, sus muestras reconstruidas mandan
+     (independiente del periodo/filtro actual); si no, la seleccion normal. */
+  var certSelDet=useMemo(function(){
+    if(certReDet)return certReDet;
+    return certDet.filter(function(d){return certSel[d.id];});
+  },[certDet,certSel,certReDet]);
+
+  /* Editar/eliminar certificados: solo jtorres (tambien reforzado por RLS
+     en Supabase — ver supabase/3_seguridad/04_certificados-update-delete.sql) */
+  var puedeGestionarCert=String(account&&account.email||'').trim().toLowerCase()==='jtorres@migrin.cl';
+
+  /* Reabre un certificado emitido: reconstruye sus muestras desde los
+     ensayos cargados (por id) y abre el modal con los datos originales
+     para volver a descargar el PDF. regId evita registrarlo de nuevo. */
+  function reabrirCertificado(c){
+    var ids={};(c.muestras||[]).forEach(function(m){if(m&&m.id!=null)ids[String(m.id)]=true;});
+    var rs=records.filter(function(r){return ids[String(r.ID||r.id||'')];});
+    if(!rs.length){setValMsg('No se encontraron los ensayos del certificado '+(c.num_cert||'')+' — no se puede regenerar.');return;}
+    rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    setCertReDet(rs.map(detA36));
+    setCertModal({numCert:c.num_cert||'',fecha:c.fecha||today(),hora:c.hora||'',lote:c.lote||'',
+      acopio:c.acopio||'',humedad:c.humedad||'',patente:c.patente||'',
+      muestreador:c.muestreador||'',regId:c.id});
+    setCertMsg(rs.length<Object.keys(ids).length?'⚠ Solo se recuperaron '+rs.length+' de '+Object.keys(ids).length+' muestras originales.':'');
+  }
+  function cerrarCertModal(){setCertModal(null);setCertReDet(null);}
+  async function eliminarCertificado(c){
+    if(!window.confirm('¿Eliminar el registro del certificado '+(c.num_cert||'')+'? Esta acción no se puede deshacer.'))return;
+    var res=await supabase.from('certificados').delete().eq('id',c.id);
+    if(res.error){setValMsg('Error al eliminar: '+res.error.message);return;}
+    setValMsg('Certificado '+(c.num_cert||'')+' eliminado del registro.');
+    cargarCertEmitidos();
+  }
+  async function guardarCertEdit(){
+    if(!certEdit)return;
+    setCertEditMsg('Guardando…');
+    var res=await supabase.from('certificados').update({
+      num_cert:certEdit.num_cert||'',fecha:certEdit.fecha||null,hora:certEdit.hora||'',
+      lote:certEdit.lote||'',acopio:certEdit.acopio||'',humedad:certEdit.humedad||'',
+      patente:certEdit.patente||'',muestreador:certEdit.muestreador||'',
+    }).eq('id',certEdit.id);
+    if(res.error){setCertEditMsg('Error: '+res.error.message);return;}
+    setCertEdit(null);setCertEditMsg('');
+    setValMsg('Certificado actualizado.');
+    cargarCertEmitidos();
+  }
+
+  /* Exporta a Excel las muestras marcadas en la tabla de Acopio/Despacho */
+  function exportarSeleccionAcopio(){
+    function r4(v){return v==null||isNaN(v)?'':+(+v).toFixed(4);}
+    var hdr=['Fecha','Folio','Tipo','Turno','Analista','RetAcum #35','RetAcum #120','RetAcum #170','SiO2','Al2O3','Fe2O3','D50 (mm)','Humedad'];
+    var rows=certSelDet.map(function(d){
+      return[d.fecha,d.folio||'',d.acopio||d.tipo||'',d.turno||'',d.analista||'',
+        r4(d.acum['#35']),r4(d.acum['#120']),r4(d.acum['#170']),
+        r4(d.quim.sio2),r4(d.quim.al2o3),r4(d.quim.fe2o3),r4(d.d50),r4(d.hum)];
+    });
+    descargarExcel('Muestras_Acopio_'+getPeriodoLabel(),hdr,rows,'Muestras');
+  }
 
   function aggCert(vals){
     var v=vals.filter(function(x){return x!=null&&!isNaN(x);});
@@ -7034,8 +7126,12 @@ function DashboardScreen({account,onBack}){
             <div className="sec-card" style={{marginBottom:16}}>
               <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
                 <span>Muestras — últimos {certDet.length} registros de {GRANU_TITLE[prod]||prod} · {getPeriodoLabel()}</span>
-                <button className="btn btn-primary" onClick={function(){setShowValForm(true);}}
-                  style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>➕ Registrar validación de acopio</button>
+                <span style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  <button className="btn btn-secondary" disabled={!certSelDet.length} onClick={exportarSeleccionAcopio}
+                    style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>&#11015; Excel selección ({certSelDet.length})</button>
+                  <button className="btn btn-primary" onClick={function(){setShowValForm(true);}}
+                    style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>➕ Registrar validación de acopio</button>
+                </span>
               </div>
               <div style={{padding:'10px 14px'}}>
                 <div style={{display:'flex',gap:14,flexWrap:'wrap',alignItems:'flex-end',marginBottom:10}}>
@@ -7218,6 +7314,7 @@ function DashboardScreen({account,onBack}){
                       var resC=await supabase.from('certificados').select('id',{count:'exact',head:true}).gte('created_at',anio+'-01-01');
                       if(resC.count!=null)sug='CCVL-'+(resC.count+1)+'/'+anio;
                     }catch(eC){}
+                    setCertReDet(null);
                     setCertModal({numCert:sug,fecha:today(),hora:nowTime(),lote:'',
                       acopio:(certFiltro!=='__all'&&certFiltro!=='Puntual')?certFiltro:'',
                       humedad:certStats&&certStats.hum?fmt(certStats.hum.media,2):'',patente:'',
@@ -7236,6 +7333,7 @@ function DashboardScreen({account,onBack}){
                     <thead><tr>
                       <th style={thV}>N° certificado</th><th style={thV}>Fecha</th><th style={thV}>Lote</th><th style={thV}>Acopio</th>
                       <th style={thV}>Patente</th><th style={thV}>Muestras</th><th style={thV}>Emitido por</th>
+                      <th style={thV}>Acciones</th>
                     </tr></thead>
                     <tbody>
                       {certEmitidos.map(function(c){return(
@@ -7247,10 +7345,48 @@ function DashboardScreen({account,onBack}){
                           <td style={tdV}>{c.patente||'—'}</td>
                           <td style={tdV}>{c.n_muestras||'—'}</td>
                           <td style={Object.assign({},tdV,{fontSize:'.72rem',color:'#777'})}>{c.emitido_por||'—'}</td>
+                          <td style={Object.assign({},tdV,{whiteSpace:'nowrap'})}>
+                            <button title="Ver / descargar de nuevo" onClick={function(){reabrirCertificado(c);}}
+                              style={{background:'none',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:'2px 7px',marginRight:4}}>⬇ PDF</button>
+                            {puedeGestionarCert&&<button title="Editar datos" onClick={function(){setCertEdit(Object.assign({},c));setCertEditMsg('');}}
+                              style={{background:'none',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:'2px 7px',marginRight:4}}>✏</button>}
+                            {puedeGestionarCert&&<button title="Eliminar registro" onClick={function(){eliminarCertificado(c);}}
+                              style={{background:'none',border:'1px solid #feb2b2',color:'#c0392b',borderRadius:6,cursor:'pointer',padding:'2px 7px'}}>🗑</button>}
+                          </td>
                         </tr>
                       );})}
                     </tbody>
                   </table>
+                  <div style={{fontSize:'.7rem',color:'var(--text-muted)',marginTop:6}}>
+                    ⬇ PDF reconstruye el certificado desde sus muestras originales y abre el formulario para descargarlo de nuevo (no se duplica el registro).
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {certEdit&&(
+              <div style={{position:'fixed',inset:0,background:'rgba(15,25,40,.55)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'10px'}}
+                onClick={function(e){if(e.target===e.currentTarget){setCertEdit(null);setCertEditMsg('');}}}>
+                <div style={{background:'#fff',borderRadius:12,maxWidth:560,width:'100%',padding:18}}>
+                  <b style={{fontSize:'.92rem'}}>Editar certificado {certEdit.num_cert||''}</b>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10,margin:'14px 0'}}>
+                    {[['num_cert','N° certificado','text'],['fecha','Fecha','date'],['hora','Hora','time'],['lote','Lote N°','text'],
+                      ['acopio','N° Acopio','text'],['humedad','Humedad (%)','text'],['patente','Patente camión','text'],['muestreador','Muestreador','text']].map(function(f){
+                      return(
+                        <div key={f[0]}>
+                          <label style={{fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:3}}>{f[1]}</label>
+                          <input type={f[2]} value={certEdit[f[0]]||''}
+                            onChange={function(e){var v=e.target.value;setCertEdit(function(p){var n=Object.assign({},p);n[f[0]]=v;return n;});}}
+                            style={{width:'100%',padding:'7px 10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:'.85rem'}}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {certEditMsg&&<div style={{fontSize:'.8rem',marginBottom:8,color:certEditMsg.indexOf('Error')===0?'var(--error)':'var(--text-muted)'}}>{certEditMsg}</div>}
+                  <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+                    <button className="btn btn-secondary" onClick={function(){setCertEdit(null);setCertEditMsg('');}}>Cancelar</button>
+                    <button className="btn btn-primary" onClick={guardarCertEdit}>Guardar cambios</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -7264,12 +7400,12 @@ function DashboardScreen({account,onBack}){
               var cD={border:'1px solid #c3d0dd',padding:'3px 4px',textAlign:'center',fontSize:10};
               return(
                 <div style={{position:'fixed',inset:0,background:'rgba(15,25,40,.55)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'3vh 10px',overflowY:'auto'}}
-                  onClick={function(e){if(e.target===e.currentTarget)setCertModal(null);}}>
+                  onClick={function(e){if(e.target===e.currentTarget)cerrarCertModal();}}>
                   <div style={{background:'#f1f5f9',borderRadius:12,maxWidth:940,width:'100%',padding:16,maxHeight:'94vh',overflowY:'auto'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
-                      <b style={{fontSize:'.95rem'}}>Certificado de despacho — completa los datos y descarga</b>
+                      <b style={{fontSize:'.95rem'}}>{cm.regId?'Certificado emitido — revisa y vuelve a descargar':'Certificado de despacho — completa los datos y descarga'}</b>
                       <span style={{display:'flex',gap:8}}>
-                        <button className="btn btn-secondary" onClick={function(){setCertModal(null);}}>Cerrar</button>
+                        <button className="btn btn-secondary" onClick={cerrarCertModal}>Cerrar</button>
                         <button className="btn btn-primary" disabled={certGen} onClick={descargarCertificado}>{certGen?'Generando…':'⬇ Descargar PDF'}</button>
                       </span>
                     </div>
@@ -7421,7 +7557,7 @@ function DashboardScreen({account,onBack}){
             if(hspecT)row.push(r.PctHumedad!=null?r.PctHumedad:(r.pctHumedad!=null?r.pctHumedad:''));
             return row;
           });
-          descargarCSV('TablaDatos_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel()+'.csv',hdr,rows);
+          descargarExcel('TablaDatos_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+'_'+getPeriodoLabel(),hdr,rows,'Tabla de Datos');
         }
         return(
           <div className="sec-card" id="export-tabla">
@@ -7430,7 +7566,7 @@ function DashboardScreen({account,onBack}){
               <span style={{display:'flex',gap:10,alignItems:'center'}}>
                 <span style={{fontWeight:400,fontSize:'.74rem',opacity:.85}}>🔴 fuera de EETT · 🟡 en alerta</span>
                 <button className="btn btn-secondary" style={{padding:'5px 12px',fontSize:'.76rem'}}
-                  disabled={filtered.length===0} onClick={exportTabla}>&#11015; Exportar CSV</button>
+                  disabled={filtered.length===0} onClick={exportTabla}>&#11015; Exportar Excel</button>
               </span>
             </div>
             <div style={{padding:'4px',overflowX:'auto',maxHeight:'70vh'}}>
@@ -7479,12 +7615,12 @@ function DashboardScreen({account,onBack}){
             <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Exportar datos — {GRANU_TITLE[prod]||prod} · {getPeriodoLabel()}</div>
             <div style={{padding:'14px 16px'}}>
               <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginBottom:10}}>
-                Exporta los <strong>{filtered.length}</strong> ensayos filtrados (según planta, producto, período y turno) a CSV para abrir en Excel.
+                Exporta los <strong>{filtered.length}</strong> ensayos filtrados (según planta, producto, período y turno) como planilla Excel (.xlsx).
               </div>
               <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-                <button className="btn btn-primary" disabled={filtered.length===0} onClick={exportarGranuCSV}>&#11015; Granulometría (CSV)</button>
-                {hasChem&&<button className="btn btn-primary" disabled={filtered.length===0} onClick={exportarQuimicaCSV}>&#11015; Química (CSV)</button>}
-                <button className="btn btn-secondary" disabled={!resumen||resumen.length===0} onClick={exportarResumenCSV}>&#11015; Resumen consolidado (CSV)</button>
+                <button className="btn btn-primary" disabled={filtered.length===0} onClick={exportarGranuCSV}>&#11015; Granulometría (Excel)</button>
+                {hasChem&&<button className="btn btn-primary" disabled={filtered.length===0} onClick={exportarQuimicaCSV}>&#11015; Química (Excel)</button>}
+                <button className="btn btn-secondary" disabled={!resumen||resumen.length===0} onClick={exportarResumenCSV}>&#11015; Resumen consolidado (Excel)</button>
               </div>
             </div>
           </div>
@@ -8785,6 +8921,7 @@ function HistoryScreen({account,onBack}){
   var[busca,setBusca]=useState('');
   var[fDesde,setFDesde]=useState('');
   var[fHasta,setFHasta]=useState('');
+  var[fPlanta,setFPlanta]=useState('Arenas'); // filtro por planta; Arenas por defecto
   var PAGE_SIZE=50;
 
   useEffect(function(){load();},[]);
@@ -8882,34 +9019,22 @@ function HistoryScreen({account,onBack}){
     }
   }
 
-  function exportCSV(){
-    // Escapar valores para prevenir CSV injection (H-16)
-    function esc(v){
-      if(v==null)return'';
-      var s=String(v);
-      // Sanitizar fórmulas: prefijos =, +, -, @ son peligrosos en Excel
-      if(s.match(/^[=+\-@]/))s="'"+s;
-      // Escapar comillas dobles
-      if(s.includes('"')||s.includes(','))s='"'+s.replace(/"/g,'""')+'"';
-      return s;
-    }
+  function exportExcel(){
     var hdr=['Folio','ID','Fecha','Hora','Turno','Analista','Planta','Producto','PesoInicial','PesoFinal','Estado'];
     var rows=visibles.map(function(r){
       return[r.Folio||'',r.ID||r.id,r.FechaMuestreo||r.fecha,r.HoraEnvio||r.horaEnvio,r.Turno||r.turno,
         r.Analista||r.analista,getPlanta(r),r.Producto||r.productoLabel,
         r.PesoInicial||r.pesoInicial,r.PesoFinal||r.pesoFinal,
-        r.status==='sent'?'Enviado':'Pendiente'].map(esc);
+        r.status==='sent'?'Enviado':'Pendiente'];
     });
-    var csv=[hdr.map(esc)].concat(rows).map(function(row){return row.join(',');}).join('\n');
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-    a.download='historial_calidad.csv';a.click();
+    descargarExcel('historial_calidad',hdr,rows,'Historial');
   }
 
   var visibles=useMemo(function(){
     var q=busca.trim().toLowerCase();
     return records.filter(function(r){
       var fecha=r.FechaMuestreo||r.fecha||'';
+      if(fPlanta!=='__all'&&getPlanta(r)!==fPlanta)return false;
       if(fDesde&&fecha<fDesde)return false;
       if(fHasta&&fecha>fHasta)return false;
       if(!q)return true;
@@ -8919,7 +9044,7 @@ function HistoryScreen({account,onBack}){
         r.Lote||r.lote||'',r.Guia||r.guia||'',r.NumAcopio||r.numAcopio||''].join(' ').toLowerCase();
       return hay.indexOf(q)!==-1;
     });
-  },[records,busca,fDesde,fHasta]);
+  },[records,busca,fDesde,fHasta,fPlanta]);
 
   if(reportView){
     return(
@@ -8943,13 +9068,22 @@ function HistoryScreen({account,onBack}){
         <h2>Historial — Calidad</h2>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
-        <button className="btn btn-secondary" onClick={exportCSV}>Exportar CSV</button>
+        <button className="btn btn-secondary" onClick={exportExcel}>&#11015; Exportar Excel</button>
         {!isAdmin&&<button className="btn btn-secondary" onClick={function(){setShowPass(true);}}>Modo Admin</button>}
         {isAdmin&&<span className="badge badge-s" style={{padding:'4px 12px'}}>Admin activo</span>}
         <button className="btn btn-secondary" onClick={load} style={{marginLeft:'auto'}}>&#8635; Actualizar</button>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end',
         background:'var(--card)',padding:'10px 14px',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
+        <div className="field" style={{flex:1,minWidth:120}}>
+          <label style={{fontSize:'.72rem'}}>Planta</label>
+          <select value={fPlanta} onChange={function(e){setFPlanta(e.target.value);setPage(0);}}>
+            <option value="Arenas">Arenas</option>
+            <option value="Cuarzo">Cuarzo</option>
+            <option value="Turco">Turco</option>
+            <option value="__all">Todas</option>
+          </select>
+        </div>
         <div className="field" style={{flex:2,minWidth:180}}>
           <label style={{fontSize:'.72rem'}}>Buscar</label>
           <input type="text" value={busca} placeholder="Folio, lote, guía, acopio, producto, analista..."
@@ -8963,9 +9097,9 @@ function HistoryScreen({account,onBack}){
           <label style={{fontSize:'.72rem'}}>Hasta</label>
           <input type="date" value={fHasta} onChange={function(e){setFHasta(e.target.value);setPage(0);}}/>
         </div>
-        {(busca||fDesde||fHasta)&&(
+        {(busca||fDesde||fHasta||fPlanta!=='Arenas')&&(
           <button className="btn btn-secondary" style={{padding:'8px 14px'}}
-            onClick={function(){setBusca('');setFDesde('');setFHasta('');setPage(0);}}>
+            onClick={function(){setBusca('');setFDesde('');setFHasta('');setFPlanta('Arenas');setPage(0);}}>
             ✕ Limpiar
           </button>
         )}
