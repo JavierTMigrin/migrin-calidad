@@ -514,6 +514,9 @@ const SIEVE_CONFIG={
   'TT_FLOC':[],
   'TT_AMCRIST':[],
   'TT_GOLF':    GOLF_SIEVES,
+  // ── SECADO TURCO ──
+  'TT_IMAN_ALIM': TURCO_SIEVES,
+  'TT_IMAN_PROD': TURCO_SIEVES,
   // ── CUARZO ──
   'CALIM':  CALIM_SIEVES,
   'CTLH':   CALIM_SIEVES,
@@ -575,6 +578,8 @@ const PRODUCT_CONFIG={
   'TT_FLOC':    {quimica:false,humedad:false,tipoMuestra:false},
   'TT_AMCRIST': {quimica:true, humedad:false,tipoMuestra:false},
   'TT_GOLF':    {quimica:true, humedad:true, tipoMuestra:false},
+  'TT_IMAN_ALIM': {quimica:true, humedad:false, tipoMuestra:false},
+  'TT_IMAN_PROD': {quimica:true, humedad:false, tipoMuestra:false},
   'CALIM':  {quimica:true, humedad:true, tipoMuestra:false},
   'CTLH':   {quimica:true, humedad:true, tipoMuestra:false},
   'CCOMP':  {quimica:true, humedad:true, tipoMuestra:false},
@@ -600,6 +605,7 @@ const GRANU_TITLE={
   TT_GMINA:'Grano Mina',TT_GRANOS:'Control Granos Produccion',
   TT_ARCILLAS:'% Arcillas',TT_FLOC:'Floculante',TT_AMCRIST:'Arena Mina Cristaleria',
   TT_GOLF:'Arena Golf',
+  TT_IMAN_ALIM:'Alimentacion Arena Iman',TT_IMAN_PROD:'Produccion Arena Iman',
   CALIM:'Alimentacion Cuarzo',CTLH:'TLH Cuarzo',CCOMP:'Compacta',CDLK:'DLK',CLODOS:'Lodos Cuarzo',
   YACIMIENTO:'Yacimiento',ARCILLAS:'Arcillas',LODOS_CZ:'Lodos Proceso',
   CHANC_ENT:'Chancador Entrada',CHANC_SAL:'Chancador Salida',
@@ -1008,6 +1014,12 @@ function turcoIndicadores(rec){
     out.push({label:'+#40 (ret.acum)',valor:f(P40),unit:'%',tipo:'max',max:25});
     out.push({label:'-#100 (pasante)',valor:f(B100),unit:'%',tipo:'max',max:2.5});
     out.push({label:'AFS',valor:calcAFS(m),unit:'',tipo:'tendencia'});
+  }else if(prod==='TT_IMAN_PROD'){
+    out.push({label:'#16 retenido',valor:+(m['#16']||0).toFixed(2),unit:'%',tipo:'max',max:0});
+    out.push({label:'+#30 (ret.acum)',valor:f(P30),unit:'%',tipo:'max',max:1.5});
+    out.push({label:'+#40 (ret.acum)',valor:f(P40),unit:'%',tipo:'max',max:25});
+    out.push({label:'-#100 (pasante)',valor:f(B100),unit:'%',tipo:'max',max:2});
+    out.push({label:'AFS',valor:calcAFS(m),unit:'',tipo:'tendencia'});
   }else if(prod==='TT_ALIM'||prod==='TT_AMINAS'){
     var arc=parseDecimal(extra.pctArcilla);
     out.push({label:'% Arcillas',valor:isNaN(arc)?null:arc,unit:'%',tipo:'max_lt',lim:15});
@@ -1176,6 +1188,10 @@ const LAVTURCO_PRODUCTS=[
   {value:'TT_FIERRC',  label:'Fierrillo Casillero'},
   {value:'TT_GOLF',    label:'Arena Golf'},
 ];
+const SECADO_PRODUCTS=[
+  {value:'TT_IMAN_ALIM',label:'Alimentacion Arena Iman'},
+  {value:'TT_IMAN_PROD',label:'Produccion Arena Iman'},
+];
 const TURNOS_ABC=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'},{value:'C',label:'Turno C'}];
 const ACOPIOS_TURCO=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8']
   .map(function(n){return{value:n,label:n};});
@@ -1211,13 +1227,25 @@ const SPECS_TT_GOLF={
   },
   humedad:{max:5.0},
 };
-const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(CUARZO_PROC_KEYS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS);
+/* Produccion Arena Iman (Secado Turco): quimica, sin humedad (material seco).
+   Granulometria se controla por indicadores (igual que TT_TLH). La
+   alimentacion (TT_IMAN_ALIM) no tiene EETT definida por ahora. */
+const SPECS_TT_IMAN_PROD={
+  granulometria:{},
+  quimica:{
+    SiO2:{min:89.0,max:95.0},Al2O3:{min:2.5,max:4.5},Fe2O3:{min:0.05,max:0.3},
+    CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
+    Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
+  },
+};
+const ALL_PRODUCTS=ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(CUARZO_PROC_KEYS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS).concat(SECADO_PRODUCTS);
 /* Productos agrupados por planta para el filtro en cascada de Reportes */
 const PLANTAS_PROD={
   'Arenas':ARENA_PRODUCTS.concat(OTROS_PRODUCTS.filter(function(p){return p.value==='CGRANOS';})),
   'Cuarzo':CUARZO_PRODUCTS.concat(CUARZO_PROC_KEYS).concat(OTROS_PRODUCTS.filter(function(p){return p.value==='MPRIMA';})),
   'Despachos':DESPACHO_PRODUCTS,
   'Lavado Turco':LAVTURCO_PRODUCTS,
+  'Secado Turco':SECADO_PRODUCTS,
 };
 
 /* ── EETT EDITABLES ──
@@ -1256,6 +1284,7 @@ var EETT_DEFAULTS={
   TT_LODO:SPECS_TT_LODO,
   TT_TLH:SPECS_TT_TLH,
   TT_GOLF:SPECS_TT_GOLF,
+  TT_IMAN_PROD:SPECS_TT_IMAN_PROD,
 };
 var EETT_LIVE={};
 ALL_PRODUCTS.forEach(function(p){
@@ -1270,6 +1299,8 @@ var EETT_PRODUCTS=ARENA_PRODUCTS.map(function(p){
 })).concat(OTROS_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Arenas'};
 })).concat(LAVTURCO_PRODUCTS.map(function(p){
+  return{key:p.value,label:p.label,planta:'Turco'};
+})).concat(SECADO_PRODUCTS.map(function(p){
   return{key:p.value,label:p.label,planta:'Turco'};
 }));
 async function loadEETT(){
@@ -3031,6 +3062,8 @@ var TT_FORM_CFG={
   TT_FIERRC: {granu:true,quimica:true},
   TT_AMCRIST:{quimica:true,tipoArena:true},
   TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
+  TT_IMAN_ALIM:{granu:true,quimica:true,analista:true},
+  TT_IMAN_PROD:{granu:true,quimica:true,analista:true},
 };
 
 var TT_QUIM_FIELDS=[
@@ -3092,7 +3125,7 @@ function validaQuimica(quimica,e){
    Arenas Minas, Fierrillo Casillero, Arena Mina Cristaleria) */
 function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
   var cfg=TT_FORM_CFG[producto]||{};
-  var prodObj=LAVTURCO_PRODUCTS.find(function(p){return p.value===producto;});
+  var prodObj=LAVTURCO_PRODUCTS.concat(SECADO_PRODUCTS).find(function(p){return p.value===producto;});
   var prodLabel=prodObj?prodObj.label:producto;
 
   var[analistasList,setAnalistasList]=useState(ANALISTAS_TURCO_DEFAULT);
@@ -3873,6 +3906,31 @@ function LavadoTurcoScreen({account,onBack,onSuccess}){
       </div>
       <div className="prod-mosaic">
         {LAVTURCO_PRODUCTS.map(function(p){
+          return(
+            <button key={p.value} className="prod-btn" onClick={function(){setSel(p.value);}}>
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="prod-no-sel">Selecciona un control para continuar</div>
+    </div>
+  );
+}
+
+/* Pantalla principal Secado Turco (Arena Iman: alimentacion y produccion) */
+function SecadoTurcoScreen({account,onBack,onSuccess}){
+  var[sel,setSel]=useState(null);
+  function back(){setSel(null);}
+  if(sel)return <TurcoEnsayoForm account={account} producto={sel} onBack={back} onSuccess={onSuccess}/>;
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div><h2>Secado Turco</h2></div>
+      </div>
+      <div className="prod-mosaic">
+        {SECADO_PRODUCTS.map(function(p){
           return(
             <button key={p.value} className="prod-btn" onClick={function(){setSel(p.value);}}>
               {p.label}
@@ -5086,12 +5144,6 @@ function DashboardScreen({account,onBack}){
   var tInsts=useRef([null,null,null,null,null,null]);
   // chemistry chart
   var cQRef=useRef(null);var iQRef=useRef(null);
-  // Comparador (lado B)
-  var[cmpPlanta,setCmpPlanta]=useState('Arenas');
-  var[cmpProd,setCmpProd]=useState('A36');
-  var[cmpYear,setCmpYear]=useState(function(){return new Date().getFullYear();});
-  var[cmpMonth,setCmpMonth]=useState(-1); // -1 = año completo
-  var cmpRef=useRef(null);var cmpInst=useRef(null);
   // per-oxide chemistry charts
   var chemRefs=useRef({});var chemInsts=useRef({});
   var logoSrc=useMemo(function(){var img=document.querySelector('.hdr-brand img');return img?img.src:'';},[]);
@@ -5279,7 +5331,6 @@ function DashboardScreen({account,onBack}){
       quim:[['export-quim','Quim']],
       tabla:[['export-tabla','Tabla']],
       acopio:[['export-acopio','Acopio']],
-      comparar:[['export-comparar','Comparador']],
     })[tab]||[];
   }
 
@@ -5452,68 +5503,6 @@ function DashboardScreen({account,onBack}){
     });
     return sections;
   },[records,tab,selYear,filterTurno]);
-
-  /* Comparador: calcula promedios de retenido parcial, quimica y
-     cumplimiento para un conjunto de registros de un producto. */
-  function ladoStats(pk,recs){
-    var sieves=SIEVE_CONFIG[pk]||[];
-    var sumRP=sieves.map(function(){return{s:0,n:0};});
-    var oxs=[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']];
-    var sumQ={};oxs.forEach(function(o){sumQ[o[0]]={s:0,n:0};});
-    var nFuera=0,nEval=0;
-    var tieneEett=specHasLimits(getSpecs(pk))||pk==='A36';
-    recs.forEach(function(r){
-      var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
-      var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
-      var gc=calcGranu(pk,gv,pf);
-      (gc.rows||[]).filter(function(x){return !x.isFondo;}).forEach(function(row,i){
-        if(sumRP[i]&&row.pctP!=null&&!isNaN(row.pctP)){sumRP[i].s+=row.pctP;sumRP[i].n++;}
-      });
-      var q=r.quimica||{};
-      oxs.forEach(function(o){var v=parseDecimal(q[o[0]]);if(!isNaN(v)){sumQ[o[0]].s+=v;sumQ[o[0]].n++;}});
-      if(tieneEett){
-        // "Fuera" solo si no cumple NINGUNA de sus EETT (A36 tiene dos incompatibles)
-        var psL=evalParams({producto:pk,quimica:q,pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')},gc);
-        nEval++;
-        var specsL=[];psL.forEach(function(p){var s=p.spec||'';if(specsL.indexOf(s)<0)specsL.push(s);});
-        var cumpleAlguna=specsL.length?specsL.some(function(s){return psL.filter(function(p){return(p.spec||'')===s;}).every(function(p){return p.ok;});}):true;
-        if(!cumpleAlguna)nFuera++;
-      }
-    });
-    var avgRP=sumRP.map(function(x){return x.n?+(x.s/x.n).toFixed(2):null;});
-    // Pasante acumulado promedio por malla
-    var cum=0;
-    var pas=avgRP.map(function(rp){cum+=(rp!=null?rp:0);return +(100-cum).toFixed(2);});
-    // Percentil: tamano (mm) por el que pasa 'target' % (interpola la curva)
-    function mmDe(mm){return parseFloat(String(mm).replace(',','.'))||0;}
-    function percMm(target){
-      for(var i=0;i<sieves.length-1;i++){
-        var pa=pas[i], pb=pas[i+1];
-        if(pa>=target&&pb<target&&pa!==pb){
-          var ma=mmDe(sieves[i].mm), mb=mmDe(sieves[i+1].mm);
-          return +(ma+(mb-ma)*((pa-target)/(pa-pb))).toFixed(3);
-        }
-      }
-      return null;
-    }
-    return{
-      n:recs.length,sieves:sieves,avgRP:avgRP,pas:pas,
-      p80:percMm(80),p50:percMm(50),p20:percMm(20),
-      quim:oxs.map(function(o){return{label:o[1],avg:sumQ[o[0]].n?+(sumQ[o[0]].s/sumQ[o[0]].n).toFixed(3):null};}),
-      pct:tieneEett&&nEval?Math.round((nEval-nFuera)/nEval*1000)/10:null,
-    };
-  }
-  var comparador=useMemo(function(){
-    if(tab!=='comparar')return null;
-    var recB=records.filter(function(r){
-      if((r.ProductoKey||r.producto||'')!==cmpProd)return false;
-      var f=r.FechaMuestreo||r.fecha||'';
-      if(f.slice(0,4)!==String(cmpYear))return false;
-      if(cmpMonth>=0&&(parseInt(f.slice(5,7),10)-1)!==cmpMonth)return false;
-      return true;
-    });
-    return{A:ladoStats(prod,filtered),B:ladoStats(cmpProd,recB)};
-  },[tab,records,filtered,prod,cmpProd,cmpYear,cmpMonth]);
 
   async function exportarResumen(){
     var el=document.getElementById('export-resumen');
@@ -5965,26 +5954,6 @@ function DashboardScreen({account,onBack}){
     });
     return function(){tInsts.current.forEach(function(inst,i){if(inst){inst.destroy();tInsts.current[i]=null;}});};
   },[tab,filtered,prod,maWin,allCtrls,showMA,showAvg,showLims,turcoRecInds,selIdx]);
-
-  // === CHART: Comparador (retenido parcial promedio A vs B) ===
-  useEffect(function(){
-    if(tab!=='comparar'||!window.Chart||!comparador||!cmpRef.current)return;
-    if(cmpInst.current){cmpInst.current.destroy();cmpInst.current=null;}
-    var A=comparador.A,B=comparador.B;
-    // etiquetas = union de tamices de A y B (por nombre)
-    var labels=A.sieves.map(function(s){return s.us;});
-    B.sieves.forEach(function(s){if(labels.indexOf(s.us)<0)labels.push(s.us);});
-    function alinea(lado){return labels.map(function(us){var i=lado.sieves.findIndex(function(s){return s.us===us;});return i>=0?lado.avgRP[i]:null;});}
-    cmpInst.current=new window.Chart(cmpRef.current,{type:'line',
-      data:{labels:labels,datasets:[
-        {label:'A: '+(GRANU_TITLE[prod]||prod),data:alinea(A),borderColor:'#1a5276',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,spanGaps:true},
-        {label:'B: '+(GRANU_TITLE[cmpProd]||cmpProd),data:alinea(B),borderColor:'#c0392b',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,spanGaps:true,borderDash:[5,3]},
-      ]},
-      options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{position:'top',labels:{font:{size:10}}}},
-        scales:{x:{ticks:{font:{size:8}}},y:{title:{display:true,text:'Retenido parcial (%)'},ticks:{font:{size:8}}}}}});
-    return function(){if(cmpInst.current){cmpInst.current.destroy();cmpInst.current=null;}};
-  },[tab,comparador,prod,cmpProd]);
 
   // === CHART: Chemistry (un grafico por oxido, estilo tendencias EETT) ===
   useEffect(function(){
@@ -6587,7 +6556,6 @@ function DashboardScreen({account,onBack}){
           {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           <button className={'dash-tab'+(tab==='tabla'?' act':'')} onClick={function(){setTab('tabla');}}>Tabla de Datos</button>
           {prod==='A36'&&<button className={'dash-tab'+(tab==='acopio'?' act':'')} onClick={function(){setTab('acopio');}}>Acopio / Despacho</button>}
-          <button className={'dash-tab'+(tab==='comparar'?' act':'')} onClick={function(){setTab('comparar');}}>Comparador</button>
         </div>
       )}
       {!loading&&filtered.length===0&&(tab==='granu'||tab==='quim')&&(
@@ -7018,159 +6986,6 @@ function DashboardScreen({account,onBack}){
         </>
       )}
 
-      {!loading&&tab==='comparar'&&comparador&&(function(){
-        var A=comparador.A,B=comparador.B;
-        var MN2=['Año completo','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-        function card(titulo,lado,subt,color){
-          return(
-            <div style={{flex:1,minWidth:240,background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',padding:'14px 16px',borderTop:'4px solid '+color}}>
-              <div style={{fontSize:'.9rem',fontWeight:800,color:color}}>{titulo}</div>
-              <div style={{fontSize:'.74rem',color:'var(--text-muted)',marginBottom:8}}>{subt}</div>
-              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-                <div><div style={{fontSize:'1.3rem',fontWeight:800}}>{lado.n}</div><div style={{fontSize:'.66rem',color:'var(--text-muted)'}}>Ensayos</div></div>
-                <div><div style={{fontSize:'1.3rem',fontWeight:800,color:lado.pct==null?'#999':lado.pct>=95?'var(--success)':lado.pct>=85?'#b7791f':'var(--error)'}}>{lado.pct==null?'—':fmt(lado.pct,1)+'%'}</div><div style={{fontSize:'.66rem',color:'var(--text-muted)'}}>Cumplimiento</div></div>
-              </div>
-            </div>
-          );
-        }
-        return(
-          <div id="export-comparar">
-            <div className="sec-card" style={{marginBottom:16}}>
-              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Comparador — Lado A (filtros de arriba) vs Lado B</div>
-              <div style={{padding:'12px 16px'}}>
-                <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end',marginBottom:14}}>
-                  <div className="dff"><label>Planta B</label>
-                    <select value={cmpPlanta} onChange={function(e){var pl=e.target.value;setCmpPlanta(pl);var l=PLANTAS_PROD[pl]||[];if(l.length)setCmpProd(l[0].value);}}>
-                      {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
-                    </select>
-                  </div>
-                  <div className="dff"><label>Producto B</label>
-                    <select value={cmpProd} onChange={function(e){setCmpProd(e.target.value);}}>
-                      {(PLANTAS_PROD[cmpPlanta]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
-                    </select>
-                  </div>
-                  <div className="dff"><label>Año B</label>
-                    <select value={cmpYear} onChange={function(e){setCmpYear(parseInt(e.target.value));}}>
-                      {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
-                    </select>
-                  </div>
-                  <div className="dff"><label>Mes B</label>
-                    <select value={cmpMonth} onChange={function(e){setCmpMonth(parseInt(e.target.value));}}>
-                      {MN2.map(function(m,i){return <option key={i} value={i-1}>{m}</option>;})}
-                    </select>
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
-                  {card('A — '+(GRANU_TITLE[prod]||prod),A,getPeriodoLabel()+(filterTurno?' · Turno '+filterTurno:''),'#1a5276')}
-                  {card('B — '+(GRANU_TITLE[cmpProd]||cmpProd),B,(cmpMonth>=0?MN2[cmpMonth+1]+' ':'')+cmpYear,'#c0392b')}
-                </div>
-              </div>
-            </div>
-
-            <div className="dash-chart-card" style={{marginBottom:16}}>
-              <div className="dash-chart-title">Curva granulométrica promedio — A vs B (retenido parcial %)</div>
-              <div style={{position:'relative',minHeight:300}}><canvas ref={cmpRef}/></div>
-            </div>
-
-            <div className="sec-card">
-              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Química promedio — A vs B</div>
-              <div style={{padding:'8px 14px',overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
-                  <thead><tr style={{background:'#f0f4f8'}}>
-                    <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Óxido</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>A</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>B</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
-                  </tr></thead>
-                  <tbody>
-                    {A.quim.map(function(qa,i){
-                      var qb=B.quim[i];var d=(qa.avg!=null&&qb.avg!=null)?+(qb.avg-qa.avg).toFixed(3):null;
-                      if(qa.avg==null&&qb.avg==null)return null;
-                      return(
-                        <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
-                          <td style={{padding:'4px 10px',fontWeight:600}}>{qa.label}</td>
-                          <td style={{padding:'4px 10px',textAlign:'center'}}>{qa.avg!=null?fmt(qa.avg,3):'—'}</td>
-                          <td style={{padding:'4px 10px',textAlign:'center'}}>{qb.avg!=null?fmt(qb.avg,3):'—'}</td>
-                          <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:d==null?'#999':d>0?'#c0392b':d<0?'#1e7e44':'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,3)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="sec-card" style={{marginTop:16}}>
-              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Granulometría — pasante acumulado y cortes (P80 / P50 / P20) — A vs B</div>
-              <div style={{padding:'8px 14px',overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem',marginBottom:12}}>
-                  <thead><tr style={{background:'#f0f4f8'}}>
-                    <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Tamaño de corte</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>A (mm)</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>B (mm)</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
-                  </tr></thead>
-                  <tbody>
-                    {[['P80 — 80% pasa','p80'],['P50 — mediana','p50'],['P20 — 20% pasa','p20']].map(function(row){
-                      var a=A[row[1]],b=B[row[1]];var d=(a!=null&&b!=null)?+(b-a).toFixed(3):null;
-                      return(<tr key={row[1]} style={{borderBottom:'1px solid #f0f0f0'}}>
-                        <td style={{padding:'4px 10px',fontWeight:600}}>{row[0]}</td>
-                        <td style={{padding:'4px 10px',textAlign:'center'}}>{a!=null?fmt(a,3):'—'}</td>
-                        <td style={{padding:'4px 10px',textAlign:'center'}}>{b!=null?fmt(b,3):'—'}</td>
-                        <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,3)}</td>
-                      </tr>);
-                    })}
-                  </tbody>
-                </table>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
-                  <thead><tr style={{background:'#f0f4f8'}}>
-                    <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Malla</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>% Pasante A</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>% Pasante B</th>
-                    <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
-                  </tr></thead>
-                  <tbody>
-                    {(function(){
-                      var labels=A.sieves.map(function(s){return s.us;});
-                      B.sieves.forEach(function(s){if(labels.indexOf(s.us)<0)labels.push(s.us);});
-                      function pasDe(lado,us){var i=lado.sieves.findIndex(function(s){return s.us===us;});return i>=0?lado.pas[i]:null;}
-                      return labels.map(function(us,i){
-                        var pa=pasDe(A,us),pb=pasDe(B,us);var d=(pa!=null&&pb!=null)?+(pb-pa).toFixed(2):null;
-                        return(<tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
-                          <td style={{padding:'4px 10px',fontWeight:600}}>{us}</td>
-                          <td style={{padding:'4px 10px',textAlign:'center'}}>{pa!=null?fmt(pa,2):'—'}</td>
-                          <td style={{padding:'4px 10px',textAlign:'center'}}>{pb!=null?fmt(pb,2):'—'}</td>
-                          <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:d==null?'#999':d>0?'#c0392b':d<0?'#1e7e44':'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,2)}</td>
-                        </tr>);
-                      });
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="sec-card" style={{marginTop:16}}>
-              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Comentario — diferencias A vs B</div>
-              <div style={{padding:'10px 16px',fontSize:'.86rem',lineHeight:1.6}}>
-                {(function(){
-                  var nA=GRANU_TITLE[prod]||prod, nB=GRANU_TITLE[cmpProd]||cmpProd, f=[];
-                  function ox(lado,lbl){var o=lado.quim.find(function(x){return x.label===lbl;});return o?o.avg:null;}
-                  if(A.p80!=null&&B.p80!=null){var d=+(B.p80-A.p80).toFixed(3);
-                    if(Math.abs(d)<0.005)f.push('Granulometría muy similar (P80 '+fmt(A.p80,3)+' vs '+fmt(B.p80,3)+' mm).');
-                    else f.push((A.p80<B.p80?nA:nB)+' es más fino (P80 '+fmt(Math.min(A.p80,B.p80),3)+' vs '+fmt(Math.max(A.p80,B.p80),3)+' mm).');}
-                  var siA=ox(A,'SiO₂'),siB=ox(B,'SiO₂');
-                  if(siA!=null&&siB!=null&&Math.abs(siB-siA)>=0.1)f.push('SiO₂ más alto en '+(siB>siA?nB:nA)+' ('+fmt(Math.max(siA,siB),2)+'% vs '+fmt(Math.min(siA,siB),2)+'%).');
-                  var feA=ox(A,'Fe₂O₃'),feB=ox(B,'Fe₂O₃');
-                  if(feA!=null&&feB!=null&&Math.abs(feB-feA)>=0.02)f.push('Fe₂O₃ (hierro) más bajo en '+(feB<feA?nB:nA)+' ('+fmt(Math.min(feA,feB),3)+'% vs '+fmt(Math.max(feA,feB),3)+'%).');
-                  if(A.pct!=null&&B.pct!=null&&Math.abs(A.pct-B.pct)>=1)f.push('Mejor cumplimiento EETT en '+(A.pct>B.pct?nA:nB)+' ('+fmt(Math.max(A.pct,B.pct),1)+'% vs '+fmt(Math.min(A.pct,B.pct),1)+'%).');
-                  if(!f.length)f.push('No se observan diferencias relevantes entre A y B en el período comparado.');
-                  return <ul style={{margin:0,paddingLeft:18}}>{f.map(function(t,i){return <li key={i} style={{marginBottom:4}}>{t}</li>;})}</ul>;
-                })()}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (A36) ── */}
       {!loading&&tab==='acopio'&&prod==='A36'&&(function(){
@@ -8279,6 +8094,8 @@ function EstadisticasScreen({account,onBack}){
   var[showS2,setShowS2]=useState(true);
   var[showS3,setShowS3]=useState(true);
   var[chartType,setChartType]=useState('imr'); // imr | ewma | cusum
+  var[groupBy,setGroupBy]=useState('dia'); // dia | semana | mes — agrupa los puntos del grafico
+  var[selBucket,setSelBucket]=useState(null); // punto/barra seleccionado en el grafico (drill-down del KPI)
   var chartRefs=useRef({});var chartInsts=useRef({});
   var histRefs=useRef({});var histInsts=useRef({});
 
@@ -8287,6 +8104,15 @@ function EstadisticasScreen({account,onBack}){
       var sl=arr.slice(Math.max(0,i-w+1),i+1).filter(function(x){return x!=null&&!isNaN(x);});
       return sl.length?sl.reduce(function(a,b){return a+b;},0)/sl.length:null;
     });
+  }
+  /* Semana ISO (lunes-domingo), mismo algoritmo ya validado en DashboardScreen */
+  function isoWeekKey(fecha){
+    var d=new Date(fecha+'T12:00:00');
+    var dc=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    var dn=dc.getUTCDay()||7;dc.setUTCDate(dc.getUTCDate()+4-dn);
+    var ys=new Date(Date.UTC(dc.getUTCFullYear(),0,1));
+    var wk=Math.ceil((((dc-ys)/86400000)+1)/7);
+    return{year:dc.getUTCFullYear(),week:wk};
   }
 
   useEffect(function(){load();},[]);
@@ -8322,6 +8148,37 @@ function EstadisticasScreen({account,onBack}){
       return rec;
     });
   },[filtered,prod]);
+
+  /* Agrupa los registros filtrados en "puntos" de dia/semana/mes para el
+     grafico (cada punto guarda sus registros crudos, para el KPI drill-down). */
+  var buckets=useMemo(function(){
+    if(groupBy==='dia'){
+      return enriched.map(function(r,i){
+        var f=r.FechaMuestreo||r.fecha||'';
+        return{key:f+'_'+i,label:f.slice(5),records:[r]};
+      });
+    }
+    var map={},order=[];
+    enriched.forEach(function(r){
+      var f=r.FechaMuestreo||r.fecha||'';
+      if(!f)return;
+      var key,label;
+      if(groupBy==='semana'){
+        var iw=isoWeekKey(f);
+        key=iw.year+'-W'+(iw.week<10?'0':'')+iw.week;
+        label='S'+iw.week+'-'+String(iw.year).slice(2);
+      }else{ // mes
+        key=f.slice(0,7);
+        var mm=parseInt(f.slice(5,7),10)-1;
+        label=(MN[mm]||key.slice(5))+'-'+f.slice(2,4);
+      }
+      if(!map[key]){map[key]={key:key,label:label,records:[]};order.push(key);}
+      map[key].records.push(r);
+    });
+    return order.map(function(k){return map[k];});
+  },[enriched,groupBy]);
+
+  useEffect(function(){setSelBucket(null);},[groupBy,prod,desde,hasta,turno]);
 
   var columns=useMemo(function(){
     var cols=[];
@@ -8375,12 +8232,19 @@ function EstadisticasScreen({account,onBack}){
       if(c.limMin!=null||c.limMax!=null){
         vals.forEach(function(v){if((c.limMin!=null&&v<c.limMin)||(c.limMax!=null&&v>c.limMax))outEett++;});
       }
-      return Object.assign({},c,{series:series,st:st,ma:movAvgLocal(series,maWin),
+      // Promedio por punto del grafico (dia/semana/mes) — las estadisticas
+      // arriba (media, sigma, out3, etc.) siguen calculandose sobre los
+      // registros crudos, no sobre estos promedios, para no sesgar el SPC.
+      var bucketSeries=buckets.map(function(b){
+        var bv=b.records.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
+        return bv.length?bv.reduce(function(a,b2){return a+b2;},0)/bv.length:null;
+      });
+      return Object.assign({},c,{series:series,bucketSeries:bucketSeries,st:st,ma:movAvgLocal(bucketSeries,maWin),
         out3:out3,out2:out2,outEett:outEett,maxRun:maxRun,sig:sig,nLow:st?st.n<20:false});
     });
-  },[columns,enriched,maWin]);
+  },[columns,enriched,buckets,maWin]);
 
-  var lbls=useMemo(function(){return filtered.map(function(r){var f=r.FechaMuestreo||r.fecha||'';return f.slice(5);});},[filtered]);
+  var lbls=useMemo(function(){return buckets.map(function(b){return b.label;});},[buckets]);
 
   useEffect(function(){
     if(!window.Chart)return;
@@ -8388,11 +8252,12 @@ function EstadisticasScreen({account,onBack}){
     colStats.forEach(function(c){
       var el=chartRefs.current[c.key];if(!el||!c.st)return;
       var m=c.st.mean,sd=c.sig||c.st.sd,col=c.color||'#1a5276';
-      function band(v){return c.series.map(function(){return v;});}
+      var bs=c.bucketSeries||[];
+      function band(v){return bs.map(function(){return v;});}
       var ds=[];
       if(chartType==='ewma'){
         // EWMA λ=0.2; limites asintoticos m ± 3σ·sqrt(λ/(2-λ))
-        var lam=0.2,z=m,ew=c.series.map(function(v){if(v!=null&&!isNaN(v))z=lam*v+(1-lam)*z;return v!=null?+z.toFixed(3):null;});
+        var lam=0.2,z=m,ew=bs.map(function(v){if(v!=null&&!isNaN(v))z=lam*v+(1-lam)*z;return v!=null?+z.toFixed(3):null;});
         var Lk=3*sd*Math.sqrt(lam/(2-lam));
         ds.push({label:'EWMA',data:ew,borderColor:col,backgroundColor:'transparent',borderWidth:1.8,pointRadius:2,tension:.3,spanGaps:true});
         ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.2,pointRadius:0,borderDash:[2,2]});
@@ -8402,7 +8267,7 @@ function EstadisticasScreen({account,onBack}){
         // CUSUM tabular: k=0.5σ, H=5σ
         var kk=0.5*sd,H=5*sd,cp=0,cn=0;
         var sp=[],sn=[];
-        c.series.forEach(function(v){
+        bs.forEach(function(v){
           if(v==null||isNaN(v)){sp.push(null);sn.push(null);return;}
           cp=Math.max(0,cp+(v-m)-kk);cn=Math.max(0,cn+(m-v)-kk);
           sp.push(+cp.toFixed(3));sn.push(+(-cn).toFixed(3));
@@ -8413,11 +8278,13 @@ function EstadisticasScreen({account,onBack}){
         ds.push({label:'-H',data:band(-H),borderColor:'#c62828',borderWidth:1.4,pointRadius:0,borderDash:[5,3]});
         ds.push({label:'0',data:band(0),borderColor:'#555',borderWidth:1,pointRadius:0,borderDash:[2,2]});
       }else{
-        // I-mR (individuales)
-        var ptCol=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?'#c62828':col;});
-        var ptRad=c.series.map(function(v){return(v!=null&&sd&&Math.abs(v-m)>3*sd)?5:3;});
-        ds.push({label:c.label,data:c.series.map(function(v){return v!=null?+v.toFixed(3):null;}),
-          borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:ptRad,pointBackgroundColor:ptCol,tension:.3,spanGaps:true});
+        // I-mR (individuales, o promedio por punto si esta agrupado)
+        var ptCol=bs.map(function(v,i){return i===selBucket?'#111':(v!=null&&sd&&Math.abs(v-m)>3*sd)?'#c62828':col;});
+        var ptRad=bs.map(function(v,i){return i===selBucket?7:(v!=null&&sd&&Math.abs(v-m)>3*sd)?5:3;});
+        var ptBW=bs.map(function(v,i){return i===selBucket?2:0;});
+        ds.push({label:c.label,data:bs.map(function(v){return v!=null?+v.toFixed(3):null;}),
+          borderColor:col,backgroundColor:'transparent',borderWidth:1.6,pointRadius:ptRad,pointBackgroundColor:ptCol,
+          pointBorderColor:'#111',pointBorderWidth:ptBW,tension:.3,spanGaps:true});
         if(showMA)ds.push({label:'MA'+maWin,data:c.ma.map(function(v){return v!=null?+v.toFixed(3):null;}),borderColor:'#e67e22',borderWidth:2,pointRadius:0,tension:.4,spanGaps:true,borderDash:[4,2]});
         ds.push({label:'Media',data:band(m),borderColor:'#555',borderWidth:1.3,pointRadius:0,borderDash:[2,2]});
         if(showS1){
@@ -8437,11 +8304,17 @@ function EstadisticasScreen({account,onBack}){
       }
       chartInsts.current[c.key]=new window.Chart(el,{type:'line',data:{labels:lbls,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+          interaction:{mode:'index',intersect:false},
+          onClick:function(evt,els,chart){
+            var ix=(els&&els.length)?els[0].index:null;
+            if(ix==null){var cc=chart||this;var pp=cc.getElementsAtEventForMode(evt,'index',{intersect:false},true);if(pp&&pp.length)ix=(pp[0].index!=null?pp[0].index:pp[0]._index);}
+            if(ix!=null)setSelBucket(function(prev){return prev===ix?null:ix;});
+          },
           plugins:{legend:{display:false}},
           scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:10}},y:{ticks:{font:{size:8}}}}}});
     });
     return function(){Object.keys(chartInsts.current).forEach(function(k){if(chartInsts.current[k]){chartInsts.current[k].destroy();chartInsts.current[k]=null;}});};
-  },[colStats,lbls,showMA,maWin,colSel,showS1,showS2,showS3,chartType]);
+  },[colStats,lbls,showMA,maWin,colSel,showS1,showS2,showS3,chartType,selBucket]);
 
   // === Histograma de distribucion por columna ===
   useEffect(function(){
@@ -8469,7 +8342,7 @@ function EstadisticasScreen({account,onBack}){
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <div><h2>Análisis Estadístico</h2>
-          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Control estadístico por columna — solo administrador</div>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Control estadístico por columna, período personalizado y KPI con drill-down</div>
         </div>
       </div>
 
@@ -8492,6 +8365,13 @@ function EstadisticasScreen({account,onBack}){
         </div>
         <div className="dff"><label>Desde</label><input type="date" value={desde} onChange={function(e){setDesde(e.target.value);}}/></div>
         <div className="dff"><label>Hasta</label><input type="date" value={hasta} onChange={function(e){setHasta(e.target.value);}}/></div>
+        <div className="dff"><label>Agrupar por</label>
+          <select value={groupBy} onChange={function(e){setGroupBy(e.target.value);}}>
+            <option value="dia">Día (dato a dato)</option>
+            <option value="semana">Semana</option>
+            <option value="mes">Mes</option>
+          </select>
+        </div>
         <div className="dff"><label>Turno</label>
           <select value={turno} onChange={function(e){setTurno(e.target.value);}}>
             <option value="">Todos</option><option value="A">A</option><option value="B">B</option><option value="C">C</option>
@@ -8542,6 +8422,49 @@ function EstadisticasScreen({account,onBack}){
           <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginBottom:12}}>
             <strong>{GRANU_TITLE[prod]||prod}</strong> · {filtered.length} ensayos · carta de individuales I-mR · límites ±1σ (verde) ±2σ (ámbar) ±3σ/LCS-LCI (rojo) · σ estimada del rango móvil · 🔴 puntos fuera de control
           </div>
+
+          {/* KPI general: promedio de la columna seleccionada sobre el filtro
+              actual, con drill-down al hacer clic en un punto del grafico
+              (estilo Power BI: la seleccion recalcula el KPI a ese punto). */}
+          {(function(){
+            var cs=colSel!=='__all'?colStats.find(function(c){return c.key===colSel;}):null;
+            if(!cs||!cs.st)return(
+              <div style={{background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',
+                padding:'10px 16px',marginBottom:16,fontSize:'.78rem',color:'var(--text-muted)'}}>
+                Selecciona una columna arriba para ver su KPI general (promedio del filtro actual).
+              </div>
+            );
+            var b=(selBucket!=null&&buckets[selBucket])?buckets[selBucket]:null;
+            var bucketVal=b?cs.bucketSeries[selBucket]:null;
+            var dp=2;
+            return(
+              <div style={{display:'flex',gap:14,flexWrap:'wrap',alignItems:'stretch',marginBottom:16}}>
+                <div style={{background:'linear-gradient(135deg,#1a5276,#2980b9)',color:'#fff',borderRadius:'var(--radius)',
+                  padding:'14px 22px',minWidth:200,boxShadow:'var(--shadow)'}}>
+                  <div style={{fontSize:'.68rem',opacity:.85,textTransform:'uppercase',letterSpacing:'.03em'}}>KPI general · {cs.label}</div>
+                  <div style={{fontSize:'1.9rem',fontWeight:800,lineHeight:1.15}}>{fmt(cs.st.mean,dp)}</div>
+                  <div style={{fontSize:'.72rem',opacity:.85}}>Promedio de {cs.st.n} ensayos en el filtro actual</div>
+                </div>
+                {b&&(
+                  <div style={{background:'#fff',border:'2px solid #1a5276',borderRadius:'var(--radius)',
+                    padding:'14px 22px',minWidth:200,boxShadow:'var(--shadow)'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                      <div style={{fontSize:'.68rem',color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.03em'}}>Selección: {b.label}</div>
+                      <button className="btn btn-secondary" style={{padding:'2px 10px',minHeight:0,fontSize:'.7rem'}}
+                        onClick={function(){setSelBucket(null);}}>Quitar ✕</button>
+                    </div>
+                    <div style={{fontSize:'1.9rem',fontWeight:800,lineHeight:1.15,color:'#1a5276'}}>{bucketVal!=null?fmt(bucketVal,dp):'—'}</div>
+                    <div style={{fontSize:'.72rem',color:'var(--text-muted)'}}>Promedio de {b.records.length} ensayo{b.records.length===1?'':'s'} en este {groupBy==='mes'?'mes':groupBy==='semana'?'semana':'día'}</div>
+                  </div>
+                )}
+                {!b&&(
+                  <div style={{display:'flex',alignItems:'center',fontSize:'.76rem',color:'var(--text-muted)',fontStyle:'italic',padding:'0 4px'}}>
+                    Haz clic en un punto del gráfico de abajo para ver el detalle de ese {groupBy==='mes'?'mes':groupBy==='semana'?'semana':'día'}.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Overview: resumen de todas las columnas de un vistazo */}
           {colSel==='__all'&&(
@@ -9767,13 +9690,333 @@ function SettingsScreen({account,onBack,onLogout}){
   );
 }
 
+/* Comparador: calcula promedios de retenido parcial, quimica y
+   cumplimiento para un conjunto de registros de un producto. Reutilizado
+   por ComparadorScreen (antes vivia como pestana dentro de Reportes). */
+function ladoStats(pk,recs){
+  var sieves=SIEVE_CONFIG[pk]||[];
+  var sumRP=sieves.map(function(){return{s:0,n:0};});
+  var oxs=[['sio2','SiO₂'],['al2o3','Al₂O₃'],['fe2o3','Fe₂O₃'],['cao','CaO'],['mgo','MgO'],['k2o','K₂O'],['na2o','Na₂O'],['tio2','TiO₂']];
+  var sumQ={};oxs.forEach(function(o){sumQ[o[0]]={s:0,n:0};});
+  var nFuera=0,nEval=0;
+  var tieneEett=specHasLimits(getSpecs(pk))||pk==='A36';
+  recs.forEach(function(r){
+    var gv=(r.granu&&Array.isArray(r.granu))?r.granu:sieves.map(function(s){return String(r[s.us+'_'+s.mm+'g']||0);});
+    var pf=String(r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal!==undefined?r.pesoFinal:0);
+    var gc=calcGranu(pk,gv,pf);
+    (gc.rows||[]).filter(function(x){return !x.isFondo;}).forEach(function(row,i){
+      if(sumRP[i]&&row.pctP!=null&&!isNaN(row.pctP)){sumRP[i].s+=row.pctP;sumRP[i].n++;}
+    });
+    var q=r.quimica||{};
+    oxs.forEach(function(o){var v=parseDecimal(q[o[0]]);if(!isNaN(v)){sumQ[o[0]].s+=v;sumQ[o[0]].n++;}});
+    if(tieneEett){
+      // "Fuera" solo si no cumple NINGUNA de sus EETT (A36 tiene dos incompatibles)
+      var psL=evalParams({producto:pk,quimica:q,pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')},gc);
+      nEval++;
+      var specsL=[];psL.forEach(function(p){var s=p.spec||'';if(specsL.indexOf(s)<0)specsL.push(s);});
+      var cumpleAlguna=specsL.length?specsL.some(function(s){return psL.filter(function(p){return(p.spec||'')===s;}).every(function(p){return p.ok;});}):true;
+      if(!cumpleAlguna)nFuera++;
+    }
+  });
+  var avgRP=sumRP.map(function(x){return x.n?+(x.s/x.n).toFixed(2):null;});
+  // Pasante acumulado promedio por malla
+  var cum=0;
+  var pas=avgRP.map(function(rp){cum+=(rp!=null?rp:0);return +(100-cum).toFixed(2);});
+  // Percentil: tamano (mm) por el que pasa 'target' % (interpola la curva)
+  function mmDe(mm){return parseFloat(String(mm).replace(',','.'))||0;}
+  function percMm(target){
+    for(var i=0;i<sieves.length-1;i++){
+      var pa=pas[i], pb=pas[i+1];
+      if(pa>=target&&pb<target&&pa!==pb){
+        var ma=mmDe(sieves[i].mm), mb=mmDe(sieves[i+1].mm);
+        return +(ma+(mb-ma)*((pa-target)/(pa-pb))).toFixed(3);
+      }
+    }
+    return null;
+  }
+  return{
+    n:recs.length,sieves:sieves,avgRP:avgRP,pas:pas,
+    p80:percMm(80),p50:percMm(50),p20:percMm(20),
+    quim:oxs.map(function(o){return{label:o[1],avg:sumQ[o[0]].n?+(sumQ[o[0]].s/sumQ[o[0]].n).toFixed(3):null};}),
+    pct:tieneEett&&nEval?Math.round((nEval-nFuera)/nEval*1000)/10:null,
+  };
+}
+
+/* ── COMPARADOR SCREEN (antes pestana de Reportes, ahora pantalla propia) ── */
+function ComparadorScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[loading,setLoading]=useState(true);
+  var[plantaA,setPlantaA]=useState('Arenas');
+  var[prodA,setProdA]=useState('A36');
+  var[yearA,setYearA]=useState(function(){return new Date().getFullYear();});
+  var[monthA,setMonthA]=useState(-1); // -1 = año completo
+  var[plantaB,setPlantaB]=useState('Arenas');
+  var[prodB,setProdB]=useState('A36');
+  var[yearB,setYearB]=useState(function(){return new Date().getFullYear();});
+  var[monthB,setMonthB]=useState(-1);
+  var cmpRef=useRef(null);var cmpInst=useRef(null);
+  var MN2=['Año completo','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  useEffect(function(){load();},[]);
+  async function load(){
+    setLoading(true);
+    var cloud=[];try{cloud=await loadEnsayos();}catch(e){console.error(e);}
+    var pa=getPending(),pc=getPendingCuarzo();
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pa.filter(function(r){return !ids.has(r.id);}))
+                    .concat(pc.filter(function(r){return !ids.has(r.id);}));
+    merged.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    setRecords(merged);setLoading(false);
+  }
+
+  function recsFor(pk,year,month){
+    return records.filter(function(r){
+      if((r.ProductoKey||r.producto||'')!==pk)return false;
+      var f=r.FechaMuestreo||r.fecha||'';
+      if(f.slice(0,4)!==String(year))return false;
+      if(month>=0&&(parseInt(f.slice(5,7),10)-1)!==month)return false;
+      return true;
+    });
+  }
+
+  var comparador=useMemo(function(){
+    return{A:ladoStats(prodA,recsFor(prodA,yearA,monthA)),B:ladoStats(prodB,recsFor(prodB,yearB,monthB))};
+  },[records,prodA,yearA,monthA,prodB,yearB,monthB]);
+
+  useEffect(function(){
+    if(!window.Chart||!cmpRef.current)return;
+    if(cmpInst.current){cmpInst.current.destroy();cmpInst.current=null;}
+    var A=comparador.A,B=comparador.B;
+    /* Union de mallas de ambos lados ordenada por apertura (mm) descendente:
+       si un lado no tiene una malla, su curva simplemente la salta (null +
+       spanGaps), pero el eje mantiene el orden granulometrico real. */
+    var union=[];
+    [A,B].forEach(function(lado){
+      lado.sieves.forEach(function(s){
+        if(!union.some(function(u){return u.us===s.us;}))
+          union.push({us:s.us,mm:parseFloat(String(s.mm).replace(',','.'))||0});
+      });
+    });
+    union.sort(function(a,b){return b.mm-a.mm;});
+    var labels=union.map(function(u){return u.us;});
+    function alinea(lado){return labels.map(function(us){var i=lado.sieves.findIndex(function(s){return s.us===us;});return i>=0?lado.avgRP[i]:null;});}
+    cmpInst.current=new window.Chart(cmpRef.current,{type:'line',
+      data:{labels:labels,datasets:[
+        {label:'A: '+(GRANU_TITLE[prodA]||prodA),data:alinea(A),borderColor:'#1a5276',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,spanGaps:true},
+        {label:'B: '+(GRANU_TITLE[prodB]||prodB),data:alinea(B),borderColor:'#c0392b',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,spanGaps:true,borderDash:[5,3]},
+      ]},
+      options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+        scales:{x:{ticks:{font:{size:8}}},y:{title:{display:true,text:'Retenido parcial (%)'},ticks:{font:{size:8}}}}}});
+    return function(){if(cmpInst.current){cmpInst.current.destroy();cmpInst.current=null;}};
+  },[comparador,prodA,prodB]);
+
+  async function exportarComparar(){
+    var el=document.getElementById('export-comparar');
+    if(!el)return;
+    try{
+      var c=await window.html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1100});
+      var a=document.createElement('a');
+      a.download='Comparador_'+(GRANU_TITLE[prodA]||prodA)+'_vs_'+(GRANU_TITLE[prodB]||prodB)+'.png';
+      a.href=c.toDataURL('image/png');a.click();
+    }catch(e){console.error('Export comparador',e);}
+  }
+
+  var A=comparador.A,B=comparador.B;
+  function card(titulo,lado,subt,color){
+    return(
+      <div style={{flex:1,minWidth:240,background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',padding:'14px 16px',borderTop:'4px solid '+color}}>
+        <div style={{fontSize:'.9rem',fontWeight:800,color:color}}>{titulo}</div>
+        <div style={{fontSize:'.74rem',color:'var(--text-muted)',marginBottom:8}}>{subt}</div>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+          <div><div style={{fontSize:'1.3rem',fontWeight:800}}>{lado.n}</div><div style={{fontSize:'.66rem',color:'var(--text-muted)'}}>Ensayos</div></div>
+          <div><div style={{fontSize:'1.3rem',fontWeight:800,color:lado.pct==null?'#999':lado.pct>=95?'var(--success)':lado.pct>=85?'#b7791f':'var(--error)'}}>{lado.pct==null?'—':fmt(lado.pct,1)+'%'}</div><div style={{fontSize:'.66rem',color:'var(--text-muted)'}}>Cumplimiento</div></div>
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div><h2>Comparador</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Compara granulometría, química y cumplimiento EETT entre dos productos/períodos</div>
+        </div>
+        <button className="btn btn-secondary" style={{marginLeft:'auto'}} onClick={exportarComparar}>&#11015; Exportar</button>
+      </div>
+
+      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+      {!loading&&(
+        <div id="export-comparar">
+          <div className="sec-card" style={{marginBottom:16}}>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Selección — Lado A vs Lado B</div>
+            <div style={{padding:'12px 16px'}}>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end',marginBottom:10}}>
+                <div className="dff"><label>Planta A</label>
+                  <select value={plantaA} onChange={function(e){var pl=e.target.value;setPlantaA(pl);var l=PLANTAS_PROD[pl]||[];if(l.length)setProdA(l[0].value);}}>
+                    {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+                  </select>
+                </div>
+                <div className="dff"><label>Producto A</label>
+                  <select value={prodA} onChange={function(e){setProdA(e.target.value);}}>
+                    {(PLANTAS_PROD[plantaA]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+                  </select>
+                </div>
+                <div className="dff"><label>Año A</label>
+                  <select value={yearA} onChange={function(e){setYearA(parseInt(e.target.value));}}>
+                    {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+                  </select>
+                </div>
+                <div className="dff"><label>Mes A</label>
+                  <select value={monthA} onChange={function(e){setMonthA(parseInt(e.target.value));}}>
+                    {MN2.map(function(m,i){return <option key={i} value={i-1}>{m}</option>;})}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end',marginBottom:14}}>
+                <div className="dff"><label>Planta B</label>
+                  <select value={plantaB} onChange={function(e){var pl=e.target.value;setPlantaB(pl);var l=PLANTAS_PROD[pl]||[];if(l.length)setProdB(l[0].value);}}>
+                    {Object.keys(PLANTAS_PROD).map(function(pl){return <option key={pl} value={pl}>{pl}</option>;})}
+                  </select>
+                </div>
+                <div className="dff"><label>Producto B</label>
+                  <select value={prodB} onChange={function(e){setProdB(e.target.value);}}>
+                    {(PLANTAS_PROD[plantaB]||[]).map(function(p){return <option key={p.value} value={p.value}>{p.label}</option>;})}
+                  </select>
+                </div>
+                <div className="dff"><label>Año B</label>
+                  <select value={yearB} onChange={function(e){setYearB(parseInt(e.target.value));}}>
+                    {[2024,2025,2026,2027].map(function(y){return <option key={y} value={y}>{y}</option>;})}
+                  </select>
+                </div>
+                <div className="dff"><label>Mes B</label>
+                  <select value={monthB} onChange={function(e){setMonthB(parseInt(e.target.value));}}>
+                    {MN2.map(function(m,i){return <option key={i} value={i-1}>{m}</option>;})}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
+                {card('A — '+(GRANU_TITLE[prodA]||prodA),A,(monthA>=0?MN2[monthA+1]+' ':'')+yearA,'#1a5276')}
+                {card('B — '+(GRANU_TITLE[prodB]||prodB),B,(monthB>=0?MN2[monthB+1]+' ':'')+yearB,'#c0392b')}
+              </div>
+            </div>
+          </div>
+
+          <div className="dash-chart-card" style={{marginBottom:16}}>
+            <div className="dash-chart-title">Curva granulométrica promedio — A vs B (retenido parcial %)</div>
+            <div style={{position:'relative',minHeight:300}}><canvas ref={cmpRef}/></div>
+          </div>
+
+          <div className="sec-card">
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Química promedio — A vs B</div>
+            <div style={{padding:'8px 14px',overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                <thead><tr style={{background:'#f0f4f8'}}>
+                  <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Óxido</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>A</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>B</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
+                </tr></thead>
+                <tbody>
+                  {A.quim.map(function(qa,i){
+                    var qb=B.quim[i];var d=(qa.avg!=null&&qb.avg!=null)?+(qb.avg-qa.avg).toFixed(3):null;
+                    if(qa.avg==null&&qb.avg==null)return null;
+                    return(
+                      <tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
+                        <td style={{padding:'4px 10px',fontWeight:600}}>{qa.label}</td>
+                        <td style={{padding:'4px 10px',textAlign:'center'}}>{qa.avg!=null?fmt(qa.avg,3):'—'}</td>
+                        <td style={{padding:'4px 10px',textAlign:'center'}}>{qb.avg!=null?fmt(qb.avg,3):'—'}</td>
+                        <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:d==null?'#999':d>0?'#c0392b':d<0?'#1e7e44':'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,3)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="sec-card" style={{marginTop:16}}>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Granulometría — pasante acumulado y cortes (P80 / P50 / P20) — A vs B</div>
+            <div style={{padding:'8px 14px',overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem',marginBottom:12}}>
+                <thead><tr style={{background:'#f0f4f8'}}>
+                  <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Tamaño de corte</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>A (mm)</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>B (mm)</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
+                </tr></thead>
+                <tbody>
+                  {[['P80 — 80% pasa','p80'],['P50 — mediana','p50'],['P20 — 20% pasa','p20']].map(function(row){
+                    var a=A[row[1]],b=B[row[1]];var d=(a!=null&&b!=null)?+(b-a).toFixed(3):null;
+                    return(<tr key={row[1]} style={{borderBottom:'1px solid #f0f0f0'}}>
+                      <td style={{padding:'4px 10px',fontWeight:600}}>{row[0]}</td>
+                      <td style={{padding:'4px 10px',textAlign:'center'}}>{a!=null?fmt(a,3):'—'}</td>
+                      <td style={{padding:'4px 10px',textAlign:'center'}}>{b!=null?fmt(b,3):'—'}</td>
+                      <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,3)}</td>
+                    </tr>);
+                  })}
+                </tbody>
+              </table>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
+                <thead><tr style={{background:'#f0f4f8'}}>
+                  <th style={{padding:'5px 10px',textAlign:'left',color:'#555'}}>Malla</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#1a5276'}}>% Pasante A</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#c0392b'}}>% Pasante B</th>
+                  <th style={{padding:'5px 10px',textAlign:'center',color:'#555'}}>Δ (B−A)</th>
+                </tr></thead>
+                <tbody>
+                  {(function(){
+                    var labels=A.sieves.map(function(s){return s.us;});
+                    B.sieves.forEach(function(s){if(labels.indexOf(s.us)<0)labels.push(s.us);});
+                    function pasDe(lado,us){var i=lado.sieves.findIndex(function(s){return s.us===us;});return i>=0?lado.pas[i]:null;}
+                    return labels.map(function(us,i){
+                      var pa=pasDe(A,us),pb=pasDe(B,us);var d=(pa!=null&&pb!=null)?+(pb-pa).toFixed(2):null;
+                      return(<tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}>
+                        <td style={{padding:'4px 10px',fontWeight:600}}>{us}</td>
+                        <td style={{padding:'4px 10px',textAlign:'center'}}>{pa!=null?fmt(pa,2):'—'}</td>
+                        <td style={{padding:'4px 10px',textAlign:'center'}}>{pb!=null?fmt(pb,2):'—'}</td>
+                        <td style={{padding:'4px 10px',textAlign:'center',fontWeight:700,color:d==null?'#999':d>0?'#c0392b':d<0?'#1e7e44':'#555'}}>{d==null?'—':(d>0?'+':'')+fmt(d,2)}</td>
+                      </tr>);
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="sec-card" style={{marginTop:16}}>
+            <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Comentario — diferencias A vs B</div>
+            <div style={{padding:'10px 16px',fontSize:'.86rem',lineHeight:1.6}}>
+              {(function(){
+                var nA=GRANU_TITLE[prodA]||prodA, nB=GRANU_TITLE[prodB]||prodB, f=[];
+                function ox(lado,lbl){var o=lado.quim.find(function(x){return x.label===lbl;});return o?o.avg:null;}
+                if(A.p80!=null&&B.p80!=null){var d=+(B.p80-A.p80).toFixed(3);
+                  if(Math.abs(d)<0.005)f.push('Granulometría muy similar (P80 '+fmt(A.p80,3)+' vs '+fmt(B.p80,3)+' mm).');
+                  else f.push((A.p80<B.p80?nA:nB)+' es más fino (P80 '+fmt(Math.min(A.p80,B.p80),3)+' vs '+fmt(Math.max(A.p80,B.p80),3)+' mm).');}
+                var siA=ox(A,'SiO₂'),siB=ox(B,'SiO₂');
+                if(siA!=null&&siB!=null&&Math.abs(siB-siA)>=0.1)f.push('SiO₂ más alto en '+(siB>siA?nB:nA)+' ('+fmt(Math.max(siA,siB),2)+'% vs '+fmt(Math.min(siA,siB),2)+'%).');
+                var feA=ox(A,'Fe₂O₃'),feB=ox(B,'Fe₂O₃');
+                if(feA!=null&&feB!=null&&Math.abs(feB-feA)>=0.02)f.push('Fe₂O₃ (hierro) más bajo en '+(feB<feA?nB:nA)+' ('+fmt(Math.min(feA,feB),3)+'% vs '+fmt(Math.max(feA,feB),3)+'%).');
+                if(A.pct!=null&&B.pct!=null&&Math.abs(A.pct-B.pct)>=1)f.push('Mejor cumplimiento EETT en '+(A.pct>B.pct?nA:nB)+' ('+fmt(Math.max(A.pct,B.pct),1)+'% vs '+fmt(Math.min(A.pct,B.pct),1)+'%).');
+                if(!f.length)f.push('No se observan diferencias relevantes entre A y B en el período comparado.');
+                return <ul style={{margin:0,paddingLeft:18}}>{f.map(function(t,i){return <li key={i} style={{marginBottom:4}}>{t}</li>;})}</ul>;
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── HOME SCREEN ── */
 const MODULES=[
   {id:'arenas',label:'Arenas',icon:'⏳',desc:'Granulometria, quimica y humedad',active:true},
   {id:'cuarzo',label:'Cuarzo',icon:'💎',desc:'Granulometria, quimica y humedad',active:true},
   {id:'secado-peral',label:'Secado Peral',icon:'♨️',desc:'Control de secado',active:false},
   {id:'lavado-peral',label:'Lavado Peral',icon:'💧',desc:'Control de lavado',active:false},
-  {id:'secado-turco',label:'Secado Turco',icon:'♨️',desc:'Control de secado',active:false},
+  {id:'secado-turco',label:'Secado Turco',icon:'♨️',desc:'Arena Iman: alimentacion y produccion',active:true},
   {id:'lavado-turco',label:'Lavado Turco',icon:'💧',desc:'TLH, minas, cilindro, floculante y mas',active:true},
 ];
 
@@ -9830,6 +10073,26 @@ function HomeScreen({onSelect,onNav,isViewer,account}){
             <div>
               <div className="nc-tit">Historial</div>
               <div className="nc-desc">Busca ensayos por folio, producto o fecha y reimprime informes</div>
+            </div>
+            <div className="nc-arrow">›</div>
+          </div>
+          <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
+            onClick={function(){onNav('estadisticas');}}
+            onKeyDown={function(e){if(e.key==='Enter')onNav('estadisticas');}}>
+            <div className="nc-ico" style={{background:'linear-gradient(135deg,#6c3483,#9b59b6)'}}>📉</div>
+            <div>
+              <div className="nc-tit">Estadísticas</div>
+              <div className="nc-desc">Control estadístico por columna, cartas I-mR, capacidad y distribución</div>
+            </div>
+            <div className="nc-arrow">›</div>
+          </div>
+          <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
+            onClick={function(){onNav('comparador');}}
+            onKeyDown={function(e){if(e.key==='Enter')onNav('comparador');}}>
+            <div className="nc-ico" style={{background:'linear-gradient(135deg,#1a5276,#c0392b)'}}>⚖️</div>
+            <div>
+              <div className="nc-tit">Comparador</div>
+              <div className="nc-desc">Compara granulometría, química y cumplimiento entre dos productos/períodos</div>
             </div>
             <div className="nc-arrow">›</div>
           </div>
@@ -10239,11 +10502,9 @@ function App(){
           <button className="btn-hdr" onClick={function(){setScreen('history');}}>
             <span className="lbl">Historial </span>&#128202;
           </button>
-          {isAdmin&&(
-            <button className="btn-hdr" onClick={function(){setScreen('estadisticas');}}>
-              <span className="lbl">Estadísticas </span>&#128201;
-            </button>
-          )}
+          <button className="btn-hdr" onClick={function(){setScreen('estadisticas');}}>
+            <span className="lbl">Estadísticas </span>&#128201;
+          </button>
           {!isViewer&&(
             <button className="btn-hdr" onClick={function(){setScreen('settings');}}>
               <span className="lbl">Ajustes </span>&#9881;&#65039;
@@ -10290,14 +10551,17 @@ function App(){
           if(id==='arenas')setScreen('arenas');
           else if(id==='cuarzo')setScreen('cuarzo');
           else if(id==='lavado-turco')setScreen('lavado-turco');
+          else if(id==='secado-turco')setScreen('secado-turco');
         }}/>}
         {!isViewer&&screen==='arenas'&&<ArenasForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {!isViewer&&screen==='cuarzo'&&<CuarzoForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {!isViewer&&screen==='lavado-turco'&&<LavadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
+        {!isViewer&&screen==='secado-turco'&&<SecadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
         {/* Pantalla 'Preguntar' (consulta-ia) oculta: requiere ANTHROPIC_API_KEY. Reactivar el boton y esta ruta si se repone la key. */}
-        {isAdmin&&screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='comparador'&&<ComparadorScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
       {isAdmin&&<AsistenteIA/>}

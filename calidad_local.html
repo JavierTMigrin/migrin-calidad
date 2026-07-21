@@ -1018,6 +1018,9 @@ const SIEVE_CONFIG = {
   'TT_FLOC': [],
   'TT_AMCRIST': [],
   'TT_GOLF': GOLF_SIEVES,
+  // ── SECADO TURCO ──
+  'TT_IMAN_ALIM': TURCO_SIEVES,
+  'TT_IMAN_PROD': TURCO_SIEVES,
   // ── CUARZO ──
   'CALIM': CALIM_SIEVES,
   'CTLH': CALIM_SIEVES,
@@ -1265,6 +1268,16 @@ const PRODUCT_CONFIG = {
     humedad: true,
     tipoMuestra: false
   },
+  'TT_IMAN_ALIM': {
+    quimica: true,
+    humedad: false,
+    tipoMuestra: false
+  },
+  'TT_IMAN_PROD': {
+    quimica: true,
+    humedad: false,
+    tipoMuestra: false
+  },
   'CALIM': {
     quimica: true,
     humedad: true,
@@ -1357,6 +1370,8 @@ const GRANU_TITLE = {
   TT_FLOC: 'Floculante',
   TT_AMCRIST: 'Arena Mina Cristaleria',
   TT_GOLF: 'Arena Golf',
+  TT_IMAN_ALIM: 'Alimentacion Arena Iman',
+  TT_IMAN_PROD: 'Produccion Arena Iman',
   CALIM: 'Alimentacion Cuarzo',
   CTLH: 'TLH Cuarzo',
   CCOMP: 'Compacta',
@@ -2361,6 +2376,41 @@ function turcoIndicadores(rec) {
       unit: '',
       tipo: 'tendencia'
     });
+  } else if (prod === 'TT_IMAN_PROD') {
+    out.push({
+      label: '#16 retenido',
+      valor: +(m['#16'] || 0).toFixed(2),
+      unit: '%',
+      tipo: 'max',
+      max: 0
+    });
+    out.push({
+      label: '+#30 (ret.acum)',
+      valor: f(P30),
+      unit: '%',
+      tipo: 'max',
+      max: 1.5
+    });
+    out.push({
+      label: '+#40 (ret.acum)',
+      valor: f(P40),
+      unit: '%',
+      tipo: 'max',
+      max: 25
+    });
+    out.push({
+      label: '-#100 (pasante)',
+      valor: f(B100),
+      unit: '%',
+      tipo: 'max',
+      max: 2
+    });
+    out.push({
+      label: 'AFS',
+      valor: calcAFS(m),
+      unit: '',
+      tipo: 'tendencia'
+    });
   } else if (prod === 'TT_ALIM' || prod === 'TT_AMINAS') {
     var arc = parseDecimal(extra.pctArcilla);
     out.push({
@@ -2906,6 +2956,13 @@ const LAVTURCO_PRODUCTS = [{
   value: 'TT_GOLF',
   label: 'Arena Golf'
 }];
+const SECADO_PRODUCTS = [{
+  value: 'TT_IMAN_ALIM',
+  label: 'Alimentacion Arena Iman'
+}, {
+  value: 'TT_IMAN_PROD',
+  label: 'Produccion Arena Iman'
+}];
 const TURNOS_ABC = [{
   value: 'A',
   label: 'Turno A'
@@ -3034,7 +3091,51 @@ const SPECS_TT_GOLF = {
     max: 5.0
   }
 };
-const ALL_PRODUCTS = ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(CUARZO_PROC_KEYS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS);
+/* Produccion Arena Iman (Secado Turco): quimica, sin humedad (material seco).
+   Granulometria se controla por indicadores (igual que TT_TLH). La
+   alimentacion (TT_IMAN_ALIM) no tiene EETT definida por ahora. */
+const SPECS_TT_IMAN_PROD = {
+  granulometria: {},
+  quimica: {
+    SiO2: {
+      min: 89.0,
+      max: 95.0
+    },
+    Al2O3: {
+      min: 2.5,
+      max: 4.5
+    },
+    Fe2O3: {
+      min: 0.05,
+      max: 0.3
+    },
+    CaO: {
+      min: null,
+      max: null
+    },
+    MgO: {
+      min: null,
+      max: null
+    },
+    K2O: {
+      min: null,
+      max: null
+    },
+    Na2O: {
+      min: null,
+      max: null
+    },
+    TiO2: {
+      min: null,
+      max: null
+    },
+    K2O_Na2O: {
+      min: null,
+      max: null
+    }
+  }
+};
+const ALL_PRODUCTS = ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(CUARZO_PROC_KEYS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).concat(LAVTURCO_PRODUCTS).concat(SECADO_PRODUCTS);
 /* Productos agrupados por planta para el filtro en cascada de Reportes */
 const PLANTAS_PROD = {
   'Arenas': ARENA_PRODUCTS.concat(OTROS_PRODUCTS.filter(function (p) {
@@ -3044,7 +3145,8 @@ const PLANTAS_PROD = {
     return p.value === 'MPRIMA';
   })),
   'Despachos': DESPACHO_PRODUCTS,
-  'Lavado Turco': LAVTURCO_PRODUCTS
+  'Lavado Turco': LAVTURCO_PRODUCTS,
+  'Secado Turco': SECADO_PRODUCTS
 };
 
 /* ── EETT EDITABLES ──
@@ -3100,7 +3202,8 @@ var EETT_DEFAULTS = {
   DESP_LLAY: JSON.parse(JSON.stringify(SPECS_DESP_CRIST)),
   TT_LODO: SPECS_TT_LODO,
   TT_TLH: SPECS_TT_TLH,
-  TT_GOLF: SPECS_TT_GOLF
+  TT_GOLF: SPECS_TT_GOLF,
+  TT_IMAN_PROD: SPECS_TT_IMAN_PROD
 };
 var EETT_LIVE = {};
 ALL_PRODUCTS.forEach(function (p) {
@@ -3131,6 +3234,12 @@ var EETT_PRODUCTS = ARENA_PRODUCTS.map(function (p) {
     planta: 'Arenas'
   };
 })).concat(LAVTURCO_PRODUCTS.map(function (p) {
+  return {
+    key: p.value,
+    label: p.label,
+    planta: 'Turco'
+  };
+})).concat(SECADO_PRODUCTS.map(function (p) {
   return {
     key: p.value,
     label: p.label,
@@ -6202,6 +6311,16 @@ var TT_FORM_CFG = {
     humedad: true,
     acopio: true,
     analista: true
+  },
+  TT_IMAN_ALIM: {
+    granu: true,
+    quimica: true,
+    analista: true
+  },
+  TT_IMAN_PROD: {
+    granu: true,
+    quimica: true,
+    analista: true
   }
 };
 var TT_QUIM_FIELDS = [{
@@ -6322,7 +6441,7 @@ function TurcoEnsayoForm({
   onSuccess
 }) {
   var cfg = TT_FORM_CFG[producto] || {};
-  var prodObj = LAVTURCO_PRODUCTS.find(function (p) {
+  var prodObj = LAVTURCO_PRODUCTS.concat(SECADO_PRODUCTS).find(function (p) {
     return p.value === producto;
   });
   var prodLabel = prodObj ? prodObj.label : producto;
@@ -7830,6 +7949,42 @@ function LavadoTurcoScreen({
   }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Lavado Turco"))), /*#__PURE__*/React.createElement("div", {
     className: "prod-mosaic"
   }, LAVTURCO_PRODUCTS.map(function (p) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: p.value,
+      className: "prod-btn",
+      onClick: function () {
+        setSel(p.value);
+      }
+    }, p.label);
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "prod-no-sel"
+  }, "Selecciona un control para continuar"));
+}
+
+/* Pantalla principal Secado Turco (Arena Iman: alimentacion y produccion) */
+function SecadoTurcoScreen({
+  account,
+  onBack,
+  onSuccess
+}) {
+  var [sel, setSel] = useState(null);
+  function back() {
+    setSel(null);
+  }
+  if (sel) return /*#__PURE__*/React.createElement(TurcoEnsayoForm, {
+    account: account,
+    producto: sel,
+    onBack: back,
+    onSuccess: onSuccess
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Secado Turco"))), /*#__PURE__*/React.createElement("div", {
+    className: "prod-mosaic"
+  }, SECADO_PRODUCTS.map(function (p) {
     return /*#__PURE__*/React.createElement("button", {
       key: p.value,
       className: "prod-btn",
@@ -10353,15 +10508,6 @@ function DashboardScreen({
   // chemistry chart
   var cQRef = useRef(null);
   var iQRef = useRef(null);
-  // Comparador (lado B)
-  var [cmpPlanta, setCmpPlanta] = useState('Arenas');
-  var [cmpProd, setCmpProd] = useState('A36');
-  var [cmpYear, setCmpYear] = useState(function () {
-    return new Date().getFullYear();
-  });
-  var [cmpMonth, setCmpMonth] = useState(-1); // -1 = año completo
-  var cmpRef = useRef(null);
-  var cmpInst = useRef(null);
   // per-oxide chemistry charts
   var chemRefs = useRef({});
   var chemInsts = useRef({});
@@ -10657,8 +10803,7 @@ function DashboardScreen({
       granu: [['export-page1', 'Gran'], ['export-page2', 'Tend']],
       quim: [['export-quim', 'Quim']],
       tabla: [['export-tabla', 'Tabla']],
-      acopio: [['export-acopio', 'Acopio']],
-      comparar: [['export-comparar', 'Comparador']]
+      acopio: [['export-acopio', 'Acopio']]
     }[tab] || [];
   }
   async function exportarReporte() {
@@ -10930,129 +11075,6 @@ function DashboardScreen({
     });
     return sections;
   }, [records, tab, selYear, filterTurno]);
-
-  /* Comparador: calcula promedios de retenido parcial, quimica y
-     cumplimiento para un conjunto de registros de un producto. */
-  function ladoStats(pk, recs) {
-    var sieves = SIEVE_CONFIG[pk] || [];
-    var sumRP = sieves.map(function () {
-      return {
-        s: 0,
-        n: 0
-      };
-    });
-    var oxs = [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['mgo', 'MgO'], ['k2o', 'K₂O'], ['na2o', 'Na₂O'], ['tio2', 'TiO₂']];
-    var sumQ = {};
-    oxs.forEach(function (o) {
-      sumQ[o[0]] = {
-        s: 0,
-        n: 0
-      };
-    });
-    var nFuera = 0,
-      nEval = 0;
-    var tieneEett = specHasLimits(getSpecs(pk)) || pk === 'A36';
-    recs.forEach(function (r) {
-      var gv = r.granu && Array.isArray(r.granu) ? r.granu : sieves.map(function (s) {
-        return String(r[s.us + '_' + s.mm + 'g'] || 0);
-      });
-      var pf = String(r.PesoFinal !== undefined ? r.PesoFinal : r.pesoFinal !== undefined ? r.pesoFinal : 0);
-      var gc = calcGranu(pk, gv, pf);
-      (gc.rows || []).filter(function (x) {
-        return !x.isFondo;
-      }).forEach(function (row, i) {
-        if (sumRP[i] && row.pctP != null && !isNaN(row.pctP)) {
-          sumRP[i].s += row.pctP;
-          sumRP[i].n++;
-        }
-      });
-      var q = r.quimica || {};
-      oxs.forEach(function (o) {
-        var v = parseDecimal(q[o[0]]);
-        if (!isNaN(v)) {
-          sumQ[o[0]].s += v;
-          sumQ[o[0]].n++;
-        }
-      });
-      if (tieneEett) {
-        // "Fuera" solo si no cumple NINGUNA de sus EETT (A36 tiene dos incompatibles)
-        var psL = evalParams({
-          producto: pk,
-          quimica: q,
-          pctHumedad: String(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad !== undefined ? r.pctHumedad : '')
-        }, gc);
-        nEval++;
-        var specsL = [];
-        psL.forEach(function (p) {
-          var s = p.spec || '';
-          if (specsL.indexOf(s) < 0) specsL.push(s);
-        });
-        var cumpleAlguna = specsL.length ? specsL.some(function (s) {
-          return psL.filter(function (p) {
-            return (p.spec || '') === s;
-          }).every(function (p) {
-            return p.ok;
-          });
-        }) : true;
-        if (!cumpleAlguna) nFuera++;
-      }
-    });
-    var avgRP = sumRP.map(function (x) {
-      return x.n ? +(x.s / x.n).toFixed(2) : null;
-    });
-    // Pasante acumulado promedio por malla
-    var cum = 0;
-    var pas = avgRP.map(function (rp) {
-      cum += rp != null ? rp : 0;
-      return +(100 - cum).toFixed(2);
-    });
-    // Percentil: tamano (mm) por el que pasa 'target' % (interpola la curva)
-    function mmDe(mm) {
-      return parseFloat(String(mm).replace(',', '.')) || 0;
-    }
-    function percMm(target) {
-      for (var i = 0; i < sieves.length - 1; i++) {
-        var pa = pas[i],
-          pb = pas[i + 1];
-        if (pa >= target && pb < target && pa !== pb) {
-          var ma = mmDe(sieves[i].mm),
-            mb = mmDe(sieves[i + 1].mm);
-          return +(ma + (mb - ma) * ((pa - target) / (pa - pb))).toFixed(3);
-        }
-      }
-      return null;
-    }
-    return {
-      n: recs.length,
-      sieves: sieves,
-      avgRP: avgRP,
-      pas: pas,
-      p80: percMm(80),
-      p50: percMm(50),
-      p20: percMm(20),
-      quim: oxs.map(function (o) {
-        return {
-          label: o[1],
-          avg: sumQ[o[0]].n ? +(sumQ[o[0]].s / sumQ[o[0]].n).toFixed(3) : null
-        };
-      }),
-      pct: tieneEett && nEval ? Math.round((nEval - nFuera) / nEval * 1000) / 10 : null
-    };
-  }
-  var comparador = useMemo(function () {
-    if (tab !== 'comparar') return null;
-    var recB = records.filter(function (r) {
-      if ((r.ProductoKey || r.producto || '') !== cmpProd) return false;
-      var f = r.FechaMuestreo || r.fecha || '';
-      if (f.slice(0, 4) !== String(cmpYear)) return false;
-      if (cmpMonth >= 0 && parseInt(f.slice(5, 7), 10) - 1 !== cmpMonth) return false;
-      return true;
-    });
-    return {
-      A: ladoStats(prod, filtered),
-      B: ladoStats(cmpProd, recB)
-    };
-  }, [tab, records, filtered, prod, cmpProd, cmpYear, cmpMonth]);
   async function exportarResumen() {
     var el = document.getElementById('export-resumen');
     if (!el) return;
@@ -12019,101 +12041,6 @@ function DashboardScreen({
       });
     };
   }, [tab, filtered, prod, maWin, allCtrls, showMA, showAvg, showLims, turcoRecInds, selIdx]);
-
-  // === CHART: Comparador (retenido parcial promedio A vs B) ===
-  useEffect(function () {
-    if (tab !== 'comparar' || !window.Chart || !comparador || !cmpRef.current) return;
-    if (cmpInst.current) {
-      cmpInst.current.destroy();
-      cmpInst.current = null;
-    }
-    var A = comparador.A,
-      B = comparador.B;
-    // etiquetas = union de tamices de A y B (por nombre)
-    var labels = A.sieves.map(function (s) {
-      return s.us;
-    });
-    B.sieves.forEach(function (s) {
-      if (labels.indexOf(s.us) < 0) labels.push(s.us);
-    });
-    function alinea(lado) {
-      return labels.map(function (us) {
-        var i = lado.sieves.findIndex(function (s) {
-          return s.us === us;
-        });
-        return i >= 0 ? lado.avgRP[i] : null;
-      });
-    }
-    cmpInst.current = new window.Chart(cmpRef.current, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'A: ' + (GRANU_TITLE[prod] || prod),
-          data: alinea(A),
-          borderColor: '#1a5276',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 3,
-          tension: .3,
-          spanGaps: true
-        }, {
-          label: 'B: ' + (GRANU_TITLE[cmpProd] || cmpProd),
-          data: alinea(B),
-          borderColor: '#c0392b',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 3,
-          tension: .3,
-          spanGaps: true,
-          borderDash: [5, 3]
-        }]
-      },
-      options: {
-        animation: {
-          duration: 0
-        },
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              font: {
-                size: 10
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: {
-              font: {
-                size: 8
-              }
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Retenido parcial (%)'
-            },
-            ticks: {
-              font: {
-                size: 8
-              }
-            }
-          }
-        }
-      }
-    });
-    return function () {
-      if (cmpInst.current) {
-        cmpInst.current.destroy();
-        cmpInst.current = null;
-      }
-    };
-  }, [tab, comparador, prod, cmpProd]);
 
   // === CHART: Chemistry (un grafico por oxido, estilo tendencias EETT) ===
   useEffect(function () {
@@ -13356,12 +13283,7 @@ function DashboardScreen({
     onClick: function () {
       setTab('acopio');
     }
-  }, "Acopio / Despacho"), /*#__PURE__*/React.createElement("button", {
-    className: 'dash-tab' + (tab === 'comparar' ? ' act' : ''),
-    onClick: function () {
-      setTab('comparar');
-    }
-  }, "Comparador")), !loading && filtered.length === 0 && (tab === 'granu' || tab === 'quim') && /*#__PURE__*/React.createElement("div", {
+  }, "Acopio / Despacho")), !loading && filtered.length === 0 && (tab === 'granu' || tab === 'quim') && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: 'center',
       padding: 32,
@@ -14219,450 +14141,7 @@ function DashboardScreen({
       textAlign: 'center',
       marginTop: 10
     }
-  }, "Cumplimiento evaluado contra las EETT vigentes · Productos sin EETT definida se informan solo con cantidad de ensayos"))), !loading && tab === 'comparar' && comparador && function () {
-    var A = comparador.A,
-      B = comparador.B;
-    var MN2 = ['Año completo', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-    function card(titulo, lado, subt, color) {
-      return /*#__PURE__*/React.createElement("div", {
-        style: {
-          flex: 1,
-          minWidth: 240,
-          background: 'var(--card)',
-          borderRadius: 'var(--radius)',
-          boxShadow: 'var(--shadow)',
-          padding: '14px 16px',
-          borderTop: '4px solid ' + color
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: '.9rem',
-          fontWeight: 800,
-          color: color
-        }
-      }, titulo), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: '.74rem',
-          color: 'var(--text-muted)',
-          marginBottom: 8
-        }
-      }, subt), /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: 'flex',
-          gap: 10,
-          flexWrap: 'wrap'
-        }
-      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: '1.3rem',
-          fontWeight: 800
-        }
-      }, lado.n), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: '.66rem',
-          color: 'var(--text-muted)'
-        }
-      }, "Ensayos")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: '1.3rem',
-          fontWeight: 800,
-          color: lado.pct == null ? '#999' : lado.pct >= 95 ? 'var(--success)' : lado.pct >= 85 ? '#b7791f' : 'var(--error)'
-        }
-      }, lado.pct == null ? '—' : fmt(lado.pct, 1) + '%'), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: '.66rem',
-          color: 'var(--text-muted)'
-        }
-      }, "Cumplimiento"))));
-    }
-    return /*#__PURE__*/React.createElement("div", {
-      id: "export-comparar"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "sec-card",
-      style: {
-        marginBottom: 16
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "sec-card-hdr",
-      style: {
-        fontSize: '.8rem'
-      }
-    }, "Comparador — Lado A (filtros de arriba) vs Lado B"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: '12px 16px'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 10,
-        flexWrap: 'wrap',
-        alignItems: 'flex-end',
-        marginBottom: 14
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "dff"
-    }, /*#__PURE__*/React.createElement("label", null, "Planta B"), /*#__PURE__*/React.createElement("select", {
-      value: cmpPlanta,
-      onChange: function (e) {
-        var pl = e.target.value;
-        setCmpPlanta(pl);
-        var l = PLANTAS_PROD[pl] || [];
-        if (l.length) setCmpProd(l[0].value);
-      }
-    }, Object.keys(PLANTAS_PROD).map(function (pl) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: pl,
-        value: pl
-      }, pl);
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "dff"
-    }, /*#__PURE__*/React.createElement("label", null, "Producto B"), /*#__PURE__*/React.createElement("select", {
-      value: cmpProd,
-      onChange: function (e) {
-        setCmpProd(e.target.value);
-      }
-    }, (PLANTAS_PROD[cmpPlanta] || []).map(function (p) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: p.value,
-        value: p.value
-      }, p.label);
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "dff"
-    }, /*#__PURE__*/React.createElement("label", null, "Año B"), /*#__PURE__*/React.createElement("select", {
-      value: cmpYear,
-      onChange: function (e) {
-        setCmpYear(parseInt(e.target.value));
-      }
-    }, [2024, 2025, 2026, 2027].map(function (y) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: y,
-        value: y
-      }, y);
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "dff"
-    }, /*#__PURE__*/React.createElement("label", null, "Mes B"), /*#__PURE__*/React.createElement("select", {
-      value: cmpMonth,
-      onChange: function (e) {
-        setCmpMonth(parseInt(e.target.value));
-      }
-    }, MN2.map(function (m, i) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: i,
-        value: i - 1
-      }, m);
-    })))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 14,
-        flexWrap: 'wrap'
-      }
-    }, card('A — ' + (GRANU_TITLE[prod] || prod), A, getPeriodoLabel() + (filterTurno ? ' · Turno ' + filterTurno : ''), '#1a5276'), card('B — ' + (GRANU_TITLE[cmpProd] || cmpProd), B, (cmpMonth >= 0 ? MN2[cmpMonth + 1] + ' ' : '') + cmpYear, '#c0392b')))), /*#__PURE__*/React.createElement("div", {
-      className: "dash-chart-card",
-      style: {
-        marginBottom: 16
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "dash-chart-title"
-    }, "Curva granulométrica promedio — A vs B (retenido parcial %)"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        position: 'relative',
-        minHeight: 300
-      }
-    }, /*#__PURE__*/React.createElement("canvas", {
-      ref: cmpRef
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "sec-card"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "sec-card-hdr",
-      style: {
-        fontSize: '.8rem'
-      }
-    }, "Química promedio — A vs B"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: '8px 14px',
-        overflowX: 'auto'
-      }
-    }, /*#__PURE__*/React.createElement("table", {
-      style: {
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: '.82rem'
-      }
-    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-      style: {
-        background: '#f0f4f8'
-      }
-    }, /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'left',
-        color: '#555'
-      }
-    }, "Óxido"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#1a5276'
-      }
-    }, "A"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#c0392b'
-      }
-    }, "B"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#555'
-      }
-    }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, A.quim.map(function (qa, i) {
-      var qb = B.quim[i];
-      var d = qa.avg != null && qb.avg != null ? +(qb.avg - qa.avg).toFixed(3) : null;
-      if (qa.avg == null && qb.avg == null) return null;
-      return /*#__PURE__*/React.createElement("tr", {
-        key: i,
-        style: {
-          borderBottom: '1px solid #f0f0f0'
-        }
-      }, /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          fontWeight: 600
-        }
-      }, qa.label), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          textAlign: 'center'
-        }
-      }, qa.avg != null ? fmt(qa.avg, 3) : '—'), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          textAlign: 'center'
-        }
-      }, qb.avg != null ? fmt(qb.avg, 3) : '—'), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          textAlign: 'center',
-          fontWeight: 700,
-          color: d == null ? '#999' : d > 0 ? '#c0392b' : d < 0 ? '#1e7e44' : '#555'
-        }
-      }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 3)));
-    }))))), /*#__PURE__*/React.createElement("div", {
-      className: "sec-card",
-      style: {
-        marginTop: 16
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "sec-card-hdr",
-      style: {
-        fontSize: '.8rem'
-      }
-    }, "Granulometría — pasante acumulado y cortes (P80 / P50 / P20) — A vs B"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: '8px 14px',
-        overflowX: 'auto'
-      }
-    }, /*#__PURE__*/React.createElement("table", {
-      style: {
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: '.82rem',
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-      style: {
-        background: '#f0f4f8'
-      }
-    }, /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'left',
-        color: '#555'
-      }
-    }, "Tamaño de corte"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#1a5276'
-      }
-    }, "A (mm)"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#c0392b'
-      }
-    }, "B (mm)"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#555'
-      }
-    }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, [['P80 — 80% pasa', 'p80'], ['P50 — mediana', 'p50'], ['P20 — 20% pasa', 'p20']].map(function (row) {
-      var a = A[row[1]],
-        b = B[row[1]];
-      var d = a != null && b != null ? +(b - a).toFixed(3) : null;
-      return /*#__PURE__*/React.createElement("tr", {
-        key: row[1],
-        style: {
-          borderBottom: '1px solid #f0f0f0'
-        }
-      }, /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          fontWeight: 600
-        }
-      }, row[0]), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          textAlign: 'center'
-        }
-      }, a != null ? fmt(a, 3) : '—'), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          textAlign: 'center'
-        }
-      }, b != null ? fmt(b, 3) : '—'), /*#__PURE__*/React.createElement("td", {
-        style: {
-          padding: '4px 10px',
-          textAlign: 'center',
-          fontWeight: 700,
-          color: '#555'
-        }
-      }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 3)));
-    }))), /*#__PURE__*/React.createElement("table", {
-      style: {
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: '.8rem'
-      }
-    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-      style: {
-        background: '#f0f4f8'
-      }
-    }, /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'left',
-        color: '#555'
-      }
-    }, "Malla"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#1a5276'
-      }
-    }, "% Pasante A"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#c0392b'
-      }
-    }, "% Pasante B"), /*#__PURE__*/React.createElement("th", {
-      style: {
-        padding: '5px 10px',
-        textAlign: 'center',
-        color: '#555'
-      }
-    }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, function () {
-      var labels = A.sieves.map(function (s) {
-        return s.us;
-      });
-      B.sieves.forEach(function (s) {
-        if (labels.indexOf(s.us) < 0) labels.push(s.us);
-      });
-      function pasDe(lado, us) {
-        var i = lado.sieves.findIndex(function (s) {
-          return s.us === us;
-        });
-        return i >= 0 ? lado.pas[i] : null;
-      }
-      return labels.map(function (us, i) {
-        var pa = pasDe(A, us),
-          pb = pasDe(B, us);
-        var d = pa != null && pb != null ? +(pb - pa).toFixed(2) : null;
-        return /*#__PURE__*/React.createElement("tr", {
-          key: i,
-          style: {
-            borderBottom: '1px solid #f0f0f0'
-          }
-        }, /*#__PURE__*/React.createElement("td", {
-          style: {
-            padding: '4px 10px',
-            fontWeight: 600
-          }
-        }, us), /*#__PURE__*/React.createElement("td", {
-          style: {
-            padding: '4px 10px',
-            textAlign: 'center'
-          }
-        }, pa != null ? fmt(pa, 2) : '—'), /*#__PURE__*/React.createElement("td", {
-          style: {
-            padding: '4px 10px',
-            textAlign: 'center'
-          }
-        }, pb != null ? fmt(pb, 2) : '—'), /*#__PURE__*/React.createElement("td", {
-          style: {
-            padding: '4px 10px',
-            textAlign: 'center',
-            fontWeight: 700,
-            color: d == null ? '#999' : d > 0 ? '#c0392b' : d < 0 ? '#1e7e44' : '#555'
-          }
-        }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 2)));
-      });
-    }())))), /*#__PURE__*/React.createElement("div", {
-      className: "sec-card",
-      style: {
-        marginTop: 16
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "sec-card-hdr",
-      style: {
-        fontSize: '.8rem'
-      }
-    }, "Comentario — diferencias A vs B"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: '10px 16px',
-        fontSize: '.86rem',
-        lineHeight: 1.6
-      }
-    }, function () {
-      var nA = GRANU_TITLE[prod] || prod,
-        nB = GRANU_TITLE[cmpProd] || cmpProd,
-        f = [];
-      function ox(lado, lbl) {
-        var o = lado.quim.find(function (x) {
-          return x.label === lbl;
-        });
-        return o ? o.avg : null;
-      }
-      if (A.p80 != null && B.p80 != null) {
-        var d = +(B.p80 - A.p80).toFixed(3);
-        if (Math.abs(d) < 0.005) f.push('Granulometría muy similar (P80 ' + fmt(A.p80, 3) + ' vs ' + fmt(B.p80, 3) + ' mm).');else f.push((A.p80 < B.p80 ? nA : nB) + ' es más fino (P80 ' + fmt(Math.min(A.p80, B.p80), 3) + ' vs ' + fmt(Math.max(A.p80, B.p80), 3) + ' mm).');
-      }
-      var siA = ox(A, 'SiO₂'),
-        siB = ox(B, 'SiO₂');
-      if (siA != null && siB != null && Math.abs(siB - siA) >= 0.1) f.push('SiO₂ más alto en ' + (siB > siA ? nB : nA) + ' (' + fmt(Math.max(siA, siB), 2) + '% vs ' + fmt(Math.min(siA, siB), 2) + '%).');
-      var feA = ox(A, 'Fe₂O₃'),
-        feB = ox(B, 'Fe₂O₃');
-      if (feA != null && feB != null && Math.abs(feB - feA) >= 0.02) f.push('Fe₂O₃ (hierro) más bajo en ' + (feB < feA ? nB : nA) + ' (' + fmt(Math.min(feA, feB), 3) + '% vs ' + fmt(Math.max(feA, feB), 3) + '%).');
-      if (A.pct != null && B.pct != null && Math.abs(A.pct - B.pct) >= 1) f.push('Mejor cumplimiento EETT en ' + (A.pct > B.pct ? nA : nB) + ' (' + fmt(Math.max(A.pct, B.pct), 1) + '% vs ' + fmt(Math.min(A.pct, B.pct), 1) + '%).');
-      if (!f.length) f.push('No se observan diferencias relevantes entre A y B en el período comparado.');
-      return /*#__PURE__*/React.createElement("ul", {
-        style: {
-          margin: 0,
-          paddingLeft: 18
-        }
-      }, f.map(function (t, i) {
-        return /*#__PURE__*/React.createElement("li", {
-          key: i,
-          style: {
-            marginBottom: 4
-          }
-        }, t);
-      }));
-    }())));
-  }(), !loading && tab === 'acopio' && prod === 'A36' && function () {
+  }, "Cumplimiento evaluado contra las EETT vigentes · Productos sin EETT definida se informan solo con cantidad de ensayos"))), !loading && tab === 'acopio' && prod === 'A36' && function () {
     var sieves = SIEVE_CONFIG[prod] || [];
     var glir = (SPECS_A36.LIRQUEN || {}).granulometria || {};
     var gcch = (SPECS_A36.CRISTALERIAS || {}).granulometria || {};
@@ -17541,6 +17020,8 @@ function EstadisticasScreen({
   var [showS2, setShowS2] = useState(true);
   var [showS3, setShowS3] = useState(true);
   var [chartType, setChartType] = useState('imr'); // imr | ewma | cusum
+  var [groupBy, setGroupBy] = useState('dia'); // dia | semana | mes — agrupa los puntos del grafico
+  var [selBucket, setSelBucket] = useState(null); // punto/barra seleccionado en el grafico (drill-down del KPI)
   var chartRefs = useRef({});
   var chartInsts = useRef({});
   var histRefs = useRef({});
@@ -17554,6 +17035,19 @@ function EstadisticasScreen({
         return a + b;
       }, 0) / sl.length : null;
     });
+  }
+  /* Semana ISO (lunes-domingo), mismo algoritmo ya validado en DashboardScreen */
+  function isoWeekKey(fecha) {
+    var d = new Date(fecha + 'T12:00:00');
+    var dc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var dn = dc.getUTCDay() || 7;
+    dc.setUTCDate(dc.getUTCDate() + 4 - dn);
+    var ys = new Date(Date.UTC(dc.getUTCFullYear(), 0, 1));
+    var wk = Math.ceil(((dc - ys) / 86400000 + 1) / 7);
+    return {
+      year: dc.getUTCFullYear(),
+      week: wk
+    };
   }
   useEffect(function () {
     load();
@@ -17608,6 +17102,53 @@ function EstadisticasScreen({
       return rec;
     });
   }, [filtered, prod]);
+
+  /* Agrupa los registros filtrados en "puntos" de dia/semana/mes para el
+     grafico (cada punto guarda sus registros crudos, para el KPI drill-down). */
+  var buckets = useMemo(function () {
+    if (groupBy === 'dia') {
+      return enriched.map(function (r, i) {
+        var f = r.FechaMuestreo || r.fecha || '';
+        return {
+          key: f + '_' + i,
+          label: f.slice(5),
+          records: [r]
+        };
+      });
+    }
+    var map = {},
+      order = [];
+    enriched.forEach(function (r) {
+      var f = r.FechaMuestreo || r.fecha || '';
+      if (!f) return;
+      var key, label;
+      if (groupBy === 'semana') {
+        var iw = isoWeekKey(f);
+        key = iw.year + '-W' + (iw.week < 10 ? '0' : '') + iw.week;
+        label = 'S' + iw.week + '-' + String(iw.year).slice(2);
+      } else {
+        // mes
+        key = f.slice(0, 7);
+        var mm = parseInt(f.slice(5, 7), 10) - 1;
+        label = (MN[mm] || key.slice(5)) + '-' + f.slice(2, 4);
+      }
+      if (!map[key]) {
+        map[key] = {
+          key: key,
+          label: label,
+          records: []
+        };
+        order.push(key);
+      }
+      map[key].records.push(r);
+    });
+    return order.map(function (k) {
+      return map[k];
+    });
+  }, [enriched, groupBy]);
+  useEffect(function () {
+    setSelBucket(null);
+  }, [groupBy, prod, desde, hasta, turno]);
   var columns = useMemo(function () {
     var cols = [];
     var sieves = SIEVE_CONFIG[prod] || [];
@@ -17718,10 +17259,22 @@ function EstadisticasScreen({
           if (c.limMin != null && v < c.limMin || c.limMax != null && v > c.limMax) outEett++;
         });
       }
+      // Promedio por punto del grafico (dia/semana/mes) — las estadisticas
+      // arriba (media, sigma, out3, etc.) siguen calculandose sobre los
+      // registros crudos, no sobre estos promedios, para no sesgar el SPC.
+      var bucketSeries = buckets.map(function (b) {
+        var bv = b.records.map(c.get).filter(function (v) {
+          return v != null && !isNaN(v);
+        });
+        return bv.length ? bv.reduce(function (a, b2) {
+          return a + b2;
+        }, 0) / bv.length : null;
+      });
       return Object.assign({}, c, {
         series: series,
+        bucketSeries: bucketSeries,
         st: st,
-        ma: movAvgLocal(series, maWin),
+        ma: movAvgLocal(bucketSeries, maWin),
         out3: out3,
         out2: out2,
         outEett: outEett,
@@ -17730,13 +17283,12 @@ function EstadisticasScreen({
         nLow: st ? st.n < 20 : false
       });
     });
-  }, [columns, enriched, maWin]);
+  }, [columns, enriched, buckets, maWin]);
   var lbls = useMemo(function () {
-    return filtered.map(function (r) {
-      var f = r.FechaMuestreo || r.fecha || '';
-      return f.slice(5);
+    return buckets.map(function (b) {
+      return b.label;
     });
-  }, [filtered]);
+  }, [buckets]);
   useEffect(function () {
     if (!window.Chart) return;
     Object.keys(chartInsts.current).forEach(function (k) {
@@ -17751,8 +17303,9 @@ function EstadisticasScreen({
       var m = c.st.mean,
         sd = c.sig || c.st.sd,
         col = c.color || '#1a5276';
+      var bs = c.bucketSeries || [];
       function band(v) {
-        return c.series.map(function () {
+        return bs.map(function () {
           return v;
         });
       }
@@ -17761,7 +17314,7 @@ function EstadisticasScreen({
         // EWMA λ=0.2; limites asintoticos m ± 3σ·sqrt(λ/(2-λ))
         var lam = 0.2,
           z = m,
-          ew = c.series.map(function (v) {
+          ew = bs.map(function (v) {
             if (v != null && !isNaN(v)) z = lam * v + (1 - lam) * z;
             return v != null ? +z.toFixed(3) : null;
           });
@@ -17808,7 +17361,7 @@ function EstadisticasScreen({
           cn = 0;
         var sp = [],
           sn = [];
-        c.series.forEach(function (v) {
+        bs.forEach(function (v) {
           if (v == null || isNaN(v)) {
             sp.push(null);
             sn.push(null);
@@ -17864,16 +17417,19 @@ function EstadisticasScreen({
           borderDash: [2, 2]
         });
       } else {
-        // I-mR (individuales)
-        var ptCol = c.series.map(function (v) {
-          return v != null && sd && Math.abs(v - m) > 3 * sd ? '#c62828' : col;
+        // I-mR (individuales, o promedio por punto si esta agrupado)
+        var ptCol = bs.map(function (v, i) {
+          return i === selBucket ? '#111' : v != null && sd && Math.abs(v - m) > 3 * sd ? '#c62828' : col;
         });
-        var ptRad = c.series.map(function (v) {
-          return v != null && sd && Math.abs(v - m) > 3 * sd ? 5 : 3;
+        var ptRad = bs.map(function (v, i) {
+          return i === selBucket ? 7 : v != null && sd && Math.abs(v - m) > 3 * sd ? 5 : 3;
+        });
+        var ptBW = bs.map(function (v, i) {
+          return i === selBucket ? 2 : 0;
         });
         ds.push({
           label: c.label,
-          data: c.series.map(function (v) {
+          data: bs.map(function (v) {
             return v != null ? +v.toFixed(3) : null;
           }),
           borderColor: col,
@@ -17881,6 +17437,8 @@ function EstadisticasScreen({
           borderWidth: 1.6,
           pointRadius: ptRad,
           pointBackgroundColor: ptCol,
+          pointBorderColor: '#111',
+          pointBorderWidth: ptBW,
           tension: .3,
           spanGaps: true
         });
@@ -17985,6 +17543,23 @@ function EstadisticasScreen({
           },
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          onClick: function (evt, els, chart) {
+            var ix = els && els.length ? els[0].index : null;
+            if (ix == null) {
+              var cc = chart || this;
+              var pp = cc.getElementsAtEventForMode(evt, 'index', {
+                intersect: false
+              }, true);
+              if (pp && pp.length) ix = pp[0].index != null ? pp[0].index : pp[0]._index;
+            }
+            if (ix != null) setSelBucket(function (prev) {
+              return prev === ix ? null : ix;
+            });
+          },
           plugins: {
             legend: {
               display: false
@@ -18019,7 +17594,7 @@ function EstadisticasScreen({
         }
       });
     };
-  }, [colStats, lbls, showMA, maWin, colSel, showS1, showS2, showS3, chartType]);
+  }, [colStats, lbls, showMA, maWin, colSel, showS1, showS2, showS3, chartType, selBucket]);
 
   // === Histograma de distribucion por columna ===
   useEffect(function () {
@@ -18113,7 +17688,7 @@ function EstadisticasScreen({
       fontSize: '.82rem',
       color: 'var(--text-secondary)'
     }
-  }, "Control estadístico por columna — solo administrador"))), /*#__PURE__*/React.createElement("div", {
+  }, "Control estadístico por columna, período personalizado y KPI con drill-down"))), /*#__PURE__*/React.createElement("div", {
     className: "db-filter-row"
   }, /*#__PURE__*/React.createElement("div", {
     className: "dff"
@@ -18174,6 +17749,19 @@ function EstadisticasScreen({
       setHasta(e.target.value);
     }
   })), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Agrupar por"), /*#__PURE__*/React.createElement("select", {
+    value: groupBy,
+    onChange: function (e) {
+      setGroupBy(e.target.value);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "dia"
+  }, "Día (dato a dato)"), /*#__PURE__*/React.createElement("option", {
+    value: "semana"
+  }, "Semana"), /*#__PURE__*/React.createElement("option", {
+    value: "mes"
+  }, "Mes"))), /*#__PURE__*/React.createElement("div", {
     className: "dff"
   }, /*#__PURE__*/React.createElement("label", null, "Turno"), /*#__PURE__*/React.createElement("select", {
     value: turno,
@@ -18312,7 +17900,115 @@ function EstadisticasScreen({
       color: 'var(--text-secondary)',
       marginBottom: 12
     }
-  }, /*#__PURE__*/React.createElement("strong", null, GRANU_TITLE[prod] || prod), " · ", filtered.length, " ensayos · carta de individuales I-mR · límites ±1σ (verde) ±2σ (ámbar) ±3σ/LCS-LCI (rojo) · σ estimada del rango móvil · 🔴 puntos fuera de control"), colSel === '__all' && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, GRANU_TITLE[prod] || prod), " · ", filtered.length, " ensayos · carta de individuales I-mR · límites ±1σ (verde) ±2σ (ámbar) ±3σ/LCS-LCI (rojo) · σ estimada del rango móvil · 🔴 puntos fuera de control"), function () {
+    var cs = colSel !== '__all' ? colStats.find(function (c) {
+      return c.key === colSel;
+    }) : null;
+    if (!cs || !cs.st) return /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'var(--card)',
+        borderRadius: 'var(--radius)',
+        boxShadow: 'var(--shadow)',
+        padding: '10px 16px',
+        marginBottom: 16,
+        fontSize: '.78rem',
+        color: 'var(--text-muted)'
+      }
+    }, "Selecciona una columna arriba para ver su KPI general (promedio del filtro actual).");
+    var b = selBucket != null && buckets[selBucket] ? buckets[selBucket] : null;
+    var bucketVal = b ? cs.bucketSeries[selBucket] : null;
+    var dp = 2;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 14,
+        flexWrap: 'wrap',
+        alignItems: 'stretch',
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'linear-gradient(135deg,#1a5276,#2980b9)',
+        color: '#fff',
+        borderRadius: 'var(--radius)',
+        padding: '14px 22px',
+        minWidth: 200,
+        boxShadow: 'var(--shadow)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        opacity: .85,
+        textTransform: 'uppercase',
+        letterSpacing: '.03em'
+      }
+    }, "KPI general · ", cs.label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1.9rem',
+        fontWeight: 800,
+        lineHeight: 1.15
+      }
+    }, fmt(cs.st.mean, dp)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.72rem',
+        opacity: .85
+      }
+    }, "Promedio de ", cs.st.n, " ensayos en el filtro actual")), b && /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: '#fff',
+        border: '2px solid #1a5276',
+        borderRadius: 'var(--radius)',
+        padding: '14px 22px',
+        minWidth: 200,
+        boxShadow: 'var(--shadow)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '.03em'
+      }
+    }, "Selección: ", b.label), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      style: {
+        padding: '2px 10px',
+        minHeight: 0,
+        fontSize: '.7rem'
+      },
+      onClick: function () {
+        setSelBucket(null);
+      }
+    }, "Quitar ✕")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1.9rem',
+        fontWeight: 800,
+        lineHeight: 1.15,
+        color: '#1a5276'
+      }
+    }, bucketVal != null ? fmt(bucketVal, dp) : '—'), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.72rem',
+        color: 'var(--text-muted)'
+      }
+    }, "Promedio de ", b.records.length, " ensayo", b.records.length === 1 ? '' : 's', " en este ", groupBy === 'mes' ? 'mes' : groupBy === 'semana' ? 'semana' : 'día')), !b && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        fontSize: '.76rem',
+        color: 'var(--text-muted)',
+        fontStyle: 'italic',
+        padding: '0 4px'
+      }
+    }, "Haz clic en un punto del gráfico de abajo para ver el detalle de ese ", groupBy === 'mes' ? 'mes' : groupBy === 'semana' ? 'semana' : 'día', "."));
+  }(), colSel === '__all' && /*#__PURE__*/React.createElement("div", {
     className: "sec-card",
     style: {
       marginBottom: 16
@@ -20817,6 +20513,831 @@ function SettingsScreen({
   }, JSON.stringify(auditDetail.datos_previos, null, 2))))));
 }
 
+/* Comparador: calcula promedios de retenido parcial, quimica y
+   cumplimiento para un conjunto de registros de un producto. Reutilizado
+   por ComparadorScreen (antes vivia como pestana dentro de Reportes). */
+function ladoStats(pk, recs) {
+  var sieves = SIEVE_CONFIG[pk] || [];
+  var sumRP = sieves.map(function () {
+    return {
+      s: 0,
+      n: 0
+    };
+  });
+  var oxs = [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['mgo', 'MgO'], ['k2o', 'K₂O'], ['na2o', 'Na₂O'], ['tio2', 'TiO₂']];
+  var sumQ = {};
+  oxs.forEach(function (o) {
+    sumQ[o[0]] = {
+      s: 0,
+      n: 0
+    };
+  });
+  var nFuera = 0,
+    nEval = 0;
+  var tieneEett = specHasLimits(getSpecs(pk)) || pk === 'A36';
+  recs.forEach(function (r) {
+    var gv = r.granu && Array.isArray(r.granu) ? r.granu : sieves.map(function (s) {
+      return String(r[s.us + '_' + s.mm + 'g'] || 0);
+    });
+    var pf = String(r.PesoFinal !== undefined ? r.PesoFinal : r.pesoFinal !== undefined ? r.pesoFinal : 0);
+    var gc = calcGranu(pk, gv, pf);
+    (gc.rows || []).filter(function (x) {
+      return !x.isFondo;
+    }).forEach(function (row, i) {
+      if (sumRP[i] && row.pctP != null && !isNaN(row.pctP)) {
+        sumRP[i].s += row.pctP;
+        sumRP[i].n++;
+      }
+    });
+    var q = r.quimica || {};
+    oxs.forEach(function (o) {
+      var v = parseDecimal(q[o[0]]);
+      if (!isNaN(v)) {
+        sumQ[o[0]].s += v;
+        sumQ[o[0]].n++;
+      }
+    });
+    if (tieneEett) {
+      // "Fuera" solo si no cumple NINGUNA de sus EETT (A36 tiene dos incompatibles)
+      var psL = evalParams({
+        producto: pk,
+        quimica: q,
+        pctHumedad: String(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad !== undefined ? r.pctHumedad : '')
+      }, gc);
+      nEval++;
+      var specsL = [];
+      psL.forEach(function (p) {
+        var s = p.spec || '';
+        if (specsL.indexOf(s) < 0) specsL.push(s);
+      });
+      var cumpleAlguna = specsL.length ? specsL.some(function (s) {
+        return psL.filter(function (p) {
+          return (p.spec || '') === s;
+        }).every(function (p) {
+          return p.ok;
+        });
+      }) : true;
+      if (!cumpleAlguna) nFuera++;
+    }
+  });
+  var avgRP = sumRP.map(function (x) {
+    return x.n ? +(x.s / x.n).toFixed(2) : null;
+  });
+  // Pasante acumulado promedio por malla
+  var cum = 0;
+  var pas = avgRP.map(function (rp) {
+    cum += rp != null ? rp : 0;
+    return +(100 - cum).toFixed(2);
+  });
+  // Percentil: tamano (mm) por el que pasa 'target' % (interpola la curva)
+  function mmDe(mm) {
+    return parseFloat(String(mm).replace(',', '.')) || 0;
+  }
+  function percMm(target) {
+    for (var i = 0; i < sieves.length - 1; i++) {
+      var pa = pas[i],
+        pb = pas[i + 1];
+      if (pa >= target && pb < target && pa !== pb) {
+        var ma = mmDe(sieves[i].mm),
+          mb = mmDe(sieves[i + 1].mm);
+        return +(ma + (mb - ma) * ((pa - target) / (pa - pb))).toFixed(3);
+      }
+    }
+    return null;
+  }
+  return {
+    n: recs.length,
+    sieves: sieves,
+    avgRP: avgRP,
+    pas: pas,
+    p80: percMm(80),
+    p50: percMm(50),
+    p20: percMm(20),
+    quim: oxs.map(function (o) {
+      return {
+        label: o[1],
+        avg: sumQ[o[0]].n ? +(sumQ[o[0]].s / sumQ[o[0]].n).toFixed(3) : null
+      };
+    }),
+    pct: tieneEett && nEval ? Math.round((nEval - nFuera) / nEval * 1000) / 10 : null
+  };
+}
+
+/* ── COMPARADOR SCREEN (antes pestana de Reportes, ahora pantalla propia) ── */
+function ComparadorScreen({
+  account,
+  onBack
+}) {
+  var [records, setRecords] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [plantaA, setPlantaA] = useState('Arenas');
+  var [prodA, setProdA] = useState('A36');
+  var [yearA, setYearA] = useState(function () {
+    return new Date().getFullYear();
+  });
+  var [monthA, setMonthA] = useState(-1); // -1 = año completo
+  var [plantaB, setPlantaB] = useState('Arenas');
+  var [prodB, setProdB] = useState('A36');
+  var [yearB, setYearB] = useState(function () {
+    return new Date().getFullYear();
+  });
+  var [monthB, setMonthB] = useState(-1);
+  var cmpRef = useRef(null);
+  var cmpInst = useRef(null);
+  var MN2 = ['Año completo', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  useEffect(function () {
+    load();
+  }, []);
+  async function load() {
+    setLoading(true);
+    var cloud = [];
+    try {
+      cloud = await loadEnsayos();
+    } catch (e) {
+      console.error(e);
+    }
+    var pa = getPending(),
+      pc = getPendingCuarzo();
+    var ids = new Set(cloud.map(function (r) {
+      return r.ID;
+    }));
+    var merged = cloud.concat(pa.filter(function (r) {
+      return !ids.has(r.id);
+    })).concat(pc.filter(function (r) {
+      return !ids.has(r.id);
+    }));
+    merged.sort(function (a, b) {
+      return (a.FechaMuestreo || a.fecha || '').localeCompare(b.FechaMuestreo || b.fecha || '');
+    });
+    setRecords(merged);
+    setLoading(false);
+  }
+  function recsFor(pk, year, month) {
+    return records.filter(function (r) {
+      if ((r.ProductoKey || r.producto || '') !== pk) return false;
+      var f = r.FechaMuestreo || r.fecha || '';
+      if (f.slice(0, 4) !== String(year)) return false;
+      if (month >= 0 && parseInt(f.slice(5, 7), 10) - 1 !== month) return false;
+      return true;
+    });
+  }
+  var comparador = useMemo(function () {
+    return {
+      A: ladoStats(prodA, recsFor(prodA, yearA, monthA)),
+      B: ladoStats(prodB, recsFor(prodB, yearB, monthB))
+    };
+  }, [records, prodA, yearA, monthA, prodB, yearB, monthB]);
+  useEffect(function () {
+    if (!window.Chart || !cmpRef.current) return;
+    if (cmpInst.current) {
+      cmpInst.current.destroy();
+      cmpInst.current = null;
+    }
+    var A = comparador.A,
+      B = comparador.B;
+    /* Union de mallas de ambos lados ordenada por apertura (mm) descendente:
+       si un lado no tiene una malla, su curva simplemente la salta (null +
+       spanGaps), pero el eje mantiene el orden granulometrico real. */
+    var union = [];
+    [A, B].forEach(function (lado) {
+      lado.sieves.forEach(function (s) {
+        if (!union.some(function (u) {
+          return u.us === s.us;
+        })) union.push({
+          us: s.us,
+          mm: parseFloat(String(s.mm).replace(',', '.')) || 0
+        });
+      });
+    });
+    union.sort(function (a, b) {
+      return b.mm - a.mm;
+    });
+    var labels = union.map(function (u) {
+      return u.us;
+    });
+    function alinea(lado) {
+      return labels.map(function (us) {
+        var i = lado.sieves.findIndex(function (s) {
+          return s.us === us;
+        });
+        return i >= 0 ? lado.avgRP[i] : null;
+      });
+    }
+    cmpInst.current = new window.Chart(cmpRef.current, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'A: ' + (GRANU_TITLE[prodA] || prodA),
+          data: alinea(A),
+          borderColor: '#1a5276',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: .3,
+          spanGaps: true
+        }, {
+          label: 'B: ' + (GRANU_TITLE[prodB] || prodB),
+          data: alinea(B),
+          borderColor: '#c0392b',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: .3,
+          spanGaps: true,
+          borderDash: [5, 3]
+        }]
+      },
+      options: {
+        animation: {
+          duration: 0
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              font: {
+                size: 10
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              font: {
+                size: 8
+              }
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Retenido parcial (%)'
+            },
+            ticks: {
+              font: {
+                size: 8
+              }
+            }
+          }
+        }
+      }
+    });
+    return function () {
+      if (cmpInst.current) {
+        cmpInst.current.destroy();
+        cmpInst.current = null;
+      }
+    };
+  }, [comparador, prodA, prodB]);
+  async function exportarComparar() {
+    var el = document.getElementById('export-comparar');
+    if (!el) return;
+    try {
+      var c = await window.html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 1100
+      });
+      var a = document.createElement('a');
+      a.download = 'Comparador_' + (GRANU_TITLE[prodA] || prodA) + '_vs_' + (GRANU_TITLE[prodB] || prodB) + '.png';
+      a.href = c.toDataURL('image/png');
+      a.click();
+    } catch (e) {
+      console.error('Export comparador', e);
+    }
+  }
+  var A = comparador.A,
+    B = comparador.B;
+  function card(titulo, lado, subt, color) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 240,
+        background: 'var(--card)',
+        borderRadius: 'var(--radius)',
+        boxShadow: 'var(--shadow)',
+        padding: '14px 16px',
+        borderTop: '4px solid ' + color
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.9rem',
+        fontWeight: 800,
+        color: color
+      }
+    }, titulo), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.74rem',
+        color: 'var(--text-muted)',
+        marginBottom: 8
+      }
+    }, subt), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 10,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1.3rem',
+        fontWeight: 800
+      }
+    }, lado.n), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.66rem',
+        color: 'var(--text-muted)'
+      }
+    }, "Ensayos")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1.3rem',
+        fontWeight: 800,
+        color: lado.pct == null ? '#999' : lado.pct >= 95 ? 'var(--success)' : lado.pct >= 85 ? '#b7791f' : 'var(--error)'
+      }
+    }, lado.pct == null ? '—' : fmt(lado.pct, 1) + '%'), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.66rem',
+        color: 'var(--text-muted)'
+      }
+    }, "Cumplimiento"))));
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Comparador"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Compara granulometría, química y cumplimiento EETT entre dos productos/períodos")), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    style: {
+      marginLeft: 'auto'
+    },
+    onClick: exportarComparar
+  }, "⬇ Exportar")), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  })), !loading && /*#__PURE__*/React.createElement("div", {
+    id: "export-comparar"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Selección — Lado A vs Lado B"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap',
+      alignItems: 'flex-end',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Planta A"), /*#__PURE__*/React.createElement("select", {
+    value: plantaA,
+    onChange: function (e) {
+      var pl = e.target.value;
+      setPlantaA(pl);
+      var l = PLANTAS_PROD[pl] || [];
+      if (l.length) setProdA(l[0].value);
+    }
+  }, Object.keys(PLANTAS_PROD).map(function (pl) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: pl,
+      value: pl
+    }, pl);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Producto A"), /*#__PURE__*/React.createElement("select", {
+    value: prodA,
+    onChange: function (e) {
+      setProdA(e.target.value);
+    }
+  }, (PLANTAS_PROD[plantaA] || []).map(function (p) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: p.value,
+      value: p.value
+    }, p.label);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Año A"), /*#__PURE__*/React.createElement("select", {
+    value: yearA,
+    onChange: function (e) {
+      setYearA(parseInt(e.target.value));
+    }
+  }, [2024, 2025, 2026, 2027].map(function (y) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: y,
+      value: y
+    }, y);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Mes A"), /*#__PURE__*/React.createElement("select", {
+    value: monthA,
+    onChange: function (e) {
+      setMonthA(parseInt(e.target.value));
+    }
+  }, MN2.map(function (m, i) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: i,
+      value: i - 1
+    }, m);
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap',
+      alignItems: 'flex-end',
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Planta B"), /*#__PURE__*/React.createElement("select", {
+    value: plantaB,
+    onChange: function (e) {
+      var pl = e.target.value;
+      setPlantaB(pl);
+      var l = PLANTAS_PROD[pl] || [];
+      if (l.length) setProdB(l[0].value);
+    }
+  }, Object.keys(PLANTAS_PROD).map(function (pl) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: pl,
+      value: pl
+    }, pl);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Producto B"), /*#__PURE__*/React.createElement("select", {
+    value: prodB,
+    onChange: function (e) {
+      setProdB(e.target.value);
+    }
+  }, (PLANTAS_PROD[plantaB] || []).map(function (p) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: p.value,
+      value: p.value
+    }, p.label);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Año B"), /*#__PURE__*/React.createElement("select", {
+    value: yearB,
+    onChange: function (e) {
+      setYearB(parseInt(e.target.value));
+    }
+  }, [2024, 2025, 2026, 2027].map(function (y) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: y,
+      value: y
+    }, y);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Mes B"), /*#__PURE__*/React.createElement("select", {
+    value: monthB,
+    onChange: function (e) {
+      setMonthB(parseInt(e.target.value));
+    }
+  }, MN2.map(function (m, i) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: i,
+      value: i - 1
+    }, m);
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 14,
+      flexWrap: 'wrap'
+    }
+  }, card('A — ' + (GRANU_TITLE[prodA] || prodA), A, (monthA >= 0 ? MN2[monthA + 1] + ' ' : '') + yearA, '#1a5276'), card('B — ' + (GRANU_TITLE[prodB] || prodB), B, (monthB >= 0 ? MN2[monthB + 1] + ' ' : '') + yearB, '#c0392b')))), /*#__PURE__*/React.createElement("div", {
+    className: "dash-chart-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dash-chart-title"
+  }, "Curva granulométrica promedio — A vs B (retenido parcial %)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      minHeight: 300
+    }
+  }, /*#__PURE__*/React.createElement("canvas", {
+    ref: cmpRef
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Química promedio — A vs B"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 14px',
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '.82rem'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#f0f4f8'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'left',
+      color: '#555'
+    }
+  }, "Óxido"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#1a5276'
+    }
+  }, "A"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#c0392b'
+    }
+  }, "B"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#555'
+    }
+  }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, A.quim.map(function (qa, i) {
+    var qb = B.quim[i];
+    var d = qa.avg != null && qb.avg != null ? +(qb.avg - qa.avg).toFixed(3) : null;
+    if (qa.avg == null && qb.avg == null) return null;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: i,
+      style: {
+        borderBottom: '1px solid #f0f0f0'
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        fontWeight: 600
+      }
+    }, qa.label), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        textAlign: 'center'
+      }
+    }, qa.avg != null ? fmt(qa.avg, 3) : '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        textAlign: 'center'
+      }
+    }, qb.avg != null ? fmt(qb.avg, 3) : '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        textAlign: 'center',
+        fontWeight: 700,
+        color: d == null ? '#999' : d > 0 ? '#c0392b' : d < 0 ? '#1e7e44' : '#555'
+      }
+    }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 3)));
+  }))))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Granulometría — pasante acumulado y cortes (P80 / P50 / P20) — A vs B"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 14px',
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '.82rem',
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#f0f4f8'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'left',
+      color: '#555'
+    }
+  }, "Tamaño de corte"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#1a5276'
+    }
+  }, "A (mm)"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#c0392b'
+    }
+  }, "B (mm)"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#555'
+    }
+  }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, [['P80 — 80% pasa', 'p80'], ['P50 — mediana', 'p50'], ['P20 — 20% pasa', 'p20']].map(function (row) {
+    var a = A[row[1]],
+      b = B[row[1]];
+    var d = a != null && b != null ? +(b - a).toFixed(3) : null;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: row[1],
+      style: {
+        borderBottom: '1px solid #f0f0f0'
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        fontWeight: 600
+      }
+    }, row[0]), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        textAlign: 'center'
+      }
+    }, a != null ? fmt(a, 3) : '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        textAlign: 'center'
+      }
+    }, b != null ? fmt(b, 3) : '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '4px 10px',
+        textAlign: 'center',
+        fontWeight: 700,
+        color: '#555'
+      }
+    }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 3)));
+  }))), /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '.8rem'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: '#f0f4f8'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'left',
+      color: '#555'
+    }
+  }, "Malla"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#1a5276'
+    }
+  }, "% Pasante A"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#c0392b'
+    }
+  }, "% Pasante B"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '5px 10px',
+      textAlign: 'center',
+      color: '#555'
+    }
+  }, "Δ (B−A)"))), /*#__PURE__*/React.createElement("tbody", null, function () {
+    var labels = A.sieves.map(function (s) {
+      return s.us;
+    });
+    B.sieves.forEach(function (s) {
+      if (labels.indexOf(s.us) < 0) labels.push(s.us);
+    });
+    function pasDe(lado, us) {
+      var i = lado.sieves.findIndex(function (s) {
+        return s.us === us;
+      });
+      return i >= 0 ? lado.pas[i] : null;
+    }
+    return labels.map(function (us, i) {
+      var pa = pasDe(A, us),
+        pb = pasDe(B, us);
+      var d = pa != null && pb != null ? +(pb - pa).toFixed(2) : null;
+      return /*#__PURE__*/React.createElement("tr", {
+        key: i,
+        style: {
+          borderBottom: '1px solid #f0f0f0'
+        }
+      }, /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          fontWeight: 600
+        }
+      }, us), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          textAlign: 'center'
+        }
+      }, pa != null ? fmt(pa, 2) : '—'), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          textAlign: 'center'
+        }
+      }, pb != null ? fmt(pb, 2) : '—'), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: '4px 10px',
+          textAlign: 'center',
+          fontWeight: 700,
+          color: d == null ? '#999' : d > 0 ? '#c0392b' : d < 0 ? '#1e7e44' : '#555'
+        }
+      }, d == null ? '—' : (d > 0 ? '+' : '') + fmt(d, 2)));
+    });
+  }())))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Comentario — diferencias A vs B"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 16px',
+      fontSize: '.86rem',
+      lineHeight: 1.6
+    }
+  }, function () {
+    var nA = GRANU_TITLE[prodA] || prodA,
+      nB = GRANU_TITLE[prodB] || prodB,
+      f = [];
+    function ox(lado, lbl) {
+      var o = lado.quim.find(function (x) {
+        return x.label === lbl;
+      });
+      return o ? o.avg : null;
+    }
+    if (A.p80 != null && B.p80 != null) {
+      var d = +(B.p80 - A.p80).toFixed(3);
+      if (Math.abs(d) < 0.005) f.push('Granulometría muy similar (P80 ' + fmt(A.p80, 3) + ' vs ' + fmt(B.p80, 3) + ' mm).');else f.push((A.p80 < B.p80 ? nA : nB) + ' es más fino (P80 ' + fmt(Math.min(A.p80, B.p80), 3) + ' vs ' + fmt(Math.max(A.p80, B.p80), 3) + ' mm).');
+    }
+    var siA = ox(A, 'SiO₂'),
+      siB = ox(B, 'SiO₂');
+    if (siA != null && siB != null && Math.abs(siB - siA) >= 0.1) f.push('SiO₂ más alto en ' + (siB > siA ? nB : nA) + ' (' + fmt(Math.max(siA, siB), 2) + '% vs ' + fmt(Math.min(siA, siB), 2) + '%).');
+    var feA = ox(A, 'Fe₂O₃'),
+      feB = ox(B, 'Fe₂O₃');
+    if (feA != null && feB != null && Math.abs(feB - feA) >= 0.02) f.push('Fe₂O₃ (hierro) más bajo en ' + (feB < feA ? nB : nA) + ' (' + fmt(Math.min(feA, feB), 3) + '% vs ' + fmt(Math.max(feA, feB), 3) + '%).');
+    if (A.pct != null && B.pct != null && Math.abs(A.pct - B.pct) >= 1) f.push('Mejor cumplimiento EETT en ' + (A.pct > B.pct ? nA : nB) + ' (' + fmt(Math.max(A.pct, B.pct), 1) + '% vs ' + fmt(Math.min(A.pct, B.pct), 1) + '%).');
+    if (!f.length) f.push('No se observan diferencias relevantes entre A y B en el período comparado.');
+    return /*#__PURE__*/React.createElement("ul", {
+      style: {
+        margin: 0,
+        paddingLeft: 18
+      }
+    }, f.map(function (t, i) {
+      return /*#__PURE__*/React.createElement("li", {
+        key: i,
+        style: {
+          marginBottom: 4
+        }
+      }, t);
+    }));
+  }()))));
+}
+
 /* ── HOME SCREEN ── */
 const MODULES = [{
   id: 'arenas',
@@ -20846,8 +21367,8 @@ const MODULES = [{
   id: 'secado-turco',
   label: 'Secado Turco',
   icon: '♨️',
-  desc: 'Control de secado',
-  active: false
+  desc: 'Arena Iman: alimentacion y produccion',
+  active: true
 }, {
   id: 'lavado-turco',
   label: 'Lavado Turco',
@@ -20942,6 +21463,48 @@ function HomeScreen({
   }, "Historial"), /*#__PURE__*/React.createElement("div", {
     className: "nc-desc"
   }, "Busca ensayos por folio, producto o fecha y reimprime informes")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      onNav('estadisticas');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('estadisticas');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#6c3483,#9b59b6)'
+    }
+  }, "📉"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "Estadísticas"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Control estadístico por columna, cartas I-mR, capacidad y distribución")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      onNav('comparador');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('comparador');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#1a5276,#c0392b)'
+    }
+  }, "⚖️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "Comparador"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Compara granulometría, química y cumplimiento entre dos productos/períodos")), /*#__PURE__*/React.createElement("div", {
     className: "nc-arrow"
   }, "›")))));
 }
@@ -21807,7 +22370,7 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "lbl"
-  }, "Historial "), "📊"), isAdmin && /*#__PURE__*/React.createElement("button", {
+  }, "Historial "), "📊"), /*#__PURE__*/React.createElement("button", {
     className: "btn-hdr",
     onClick: function () {
       setScreen('estadisticas');
@@ -21879,7 +22442,7 @@ function App() {
     },
     onSelect: function (id) {
       if (isViewer) return;
-      if (id === 'arenas') setScreen('arenas');else if (id === 'cuarzo') setScreen('cuarzo');else if (id === 'lavado-turco') setScreen('lavado-turco');
+      if (id === 'arenas') setScreen('arenas');else if (id === 'cuarzo') setScreen('cuarzo');else if (id === 'lavado-turco') setScreen('lavado-turco');else if (id === 'secado-turco') setScreen('secado-turco');
     }
   }), !isViewer && screen === 'arenas' && /*#__PURE__*/React.createElement(ArenasForm, {
     account: account,
@@ -21899,6 +22462,12 @@ function App() {
       setScreen('home');
     },
     onSuccess: handleSuccess
+  }), !isViewer && screen === 'secado-turco' && /*#__PURE__*/React.createElement(SecadoTurcoScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    },
+    onSuccess: handleSuccess
   }), screen === 'dashboard' && /*#__PURE__*/React.createElement(DashboardScreen, {
     account: account,
     onBack: function () {
@@ -21909,7 +22478,12 @@ function App() {
     onBack: function () {
       setScreen('home');
     }
-  }), isAdmin && screen === 'estadisticas' && /*#__PURE__*/React.createElement(EstadisticasScreen, {
+  }), screen === 'estadisticas' && /*#__PURE__*/React.createElement(EstadisticasScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    }
+  }), screen === 'comparador' && /*#__PURE__*/React.createElement(ComparadorScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
