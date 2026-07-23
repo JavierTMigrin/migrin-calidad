@@ -21823,16 +21823,17 @@ function ComparadorScreen({
   }()))));
 }
 
-/* ── SIMIN — Promedio mensual de química, por zona y producto ──
-   A36 (Las Piedras) tiene historico externo fijo jun-dic 2025 (no existe
-   en 'ensayos' porque el registro de A36 en la app recien parte en enero
-   2026); el resto de productos (Yacimiento Cuarzo, Arenas Minas y
-   Produccion TLH de Zona Centro) no tiene historico previo entregado por
-   el usuario, por lo que se calcula 100% en vivo desde su primer registro
-   real. Formula: promedio simple SiO2/Al2O3/Fe2O3 por mes calendario,
-   validada contra la planilla historica de A36 (marzo/abril/mayo calzan
-   al digito exacto). Peral (Zona Centro) queda pendiente: aun no se
-   construye ese modulo en la app. */
+/* ── SIMIN — Promedio mensual de química, filtrado por planta ──
+   A36 (Arenas) tiene historico externo fijo jun-dic 2025 (no existe en
+   'ensayos' porque el registro de A36 en la app recien parte en enero
+   2026); el resto de productos no tiene historico previo entregado por
+   el usuario, por lo que se calcula 100% en vivo desde su primer
+   registro real. Formula: promedio simple SiO2/Al2O3/Fe2O3 por mes
+   calendario, validada contra la planilla historica de A36
+   (marzo/abril/mayo calzan al digito exacto).
+   Se filtra por UNA planta a la vez (no todas juntas); cada planta
+   muestra su par Alimentación + Producción. Peral queda pendiente: aun
+   no se construye ese modulo en la app. */
 const SIMIN_PIEDRAS_HIST = [{
   mes: 'Junio',
   sio2: 99.748,
@@ -21870,26 +21871,42 @@ const SIMIN_PIEDRAS_HIST = [{
   fe2o3: 0.101
 }];
 const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const SIMIN_SECCIONES = [{
-  zona: 'Las Piedras',
-  prod: 'A36',
-  titulo: 'CALIDAD PLANTA LAS PIEDRAS — ARENA A36',
-  hist: SIMIN_PIEDRAS_HIST
+const SIMIN_PLANTAS = [{
+  planta: 'Arenas',
+  alim: {
+    prod: 'ALIM',
+    titulo: 'ALIMENTACIÓN A PLANTA — ARENAS (LAS PIEDRAS)',
+    hist: null
+  },
+  prod: {
+    prod: 'A36',
+    titulo: 'PRODUCCIÓN ARENA A36 — ARENAS (LAS PIEDRAS)',
+    hist: SIMIN_PIEDRAS_HIST
+  }
 }, {
-  zona: 'Las Piedras',
-  prod: 'YACIMIENTO',
-  titulo: 'CALIDAD YACIMIENTO CUARZO — LAS PIEDRAS',
-  hist: null
+  planta: 'Cuarzo',
+  alim: {
+    prod: 'YACIMIENTO',
+    titulo: 'YACIMIENTO — CUARZO (LAS PIEDRAS)',
+    hist: null
+  },
+  prod: {
+    prod: 'CTLH',
+    titulo: 'PRODUCCIÓN TLH — CUARZO (LAS PIEDRAS)',
+    hist: null
+  }
 }, {
-  zona: 'Zona Centro',
-  prod: 'TT_AMINAS',
-  titulo: 'CALIDAD ZONA CENTRO — ARENAS MINAS (TURCO)',
-  hist: null
-}, {
-  zona: 'Zona Centro',
-  prod: 'TT_TLH',
-  titulo: 'CALIDAD ZONA CENTRO — PRODUCCIÓN TLH (TURCO)',
-  hist: null
+  planta: 'Turco',
+  alim: {
+    prod: 'TT_AMINAS',
+    titulo: 'ARENAS MINAS — TURCO (ZONA CENTRO)',
+    hist: null
+  },
+  prod: {
+    prod: 'TT_TLH',
+    titulo: 'PRODUCCIÓN TLH — TURCO (ZONA CENTRO)',
+    hist: null
+  }
 }];
 function siminFilas(records, prodKey, hist) {
   var porMes = {};
@@ -21948,12 +21965,15 @@ function siminFilas(records, prodKey, hist) {
   }
   return out;
 }
+const SIMIN_ETAPAS = ['Ambas', 'Alimentación', 'Producción'];
 function SiminPiedrasScreen({
   account,
   onBack
 }) {
   var [records, setRecords] = useState([]);
   var [loading, setLoading] = useState(true);
+  var [planta, setPlanta] = useState('Arenas');
+  var [etapaSel, setEtapaSel] = useState('Ambas');
   useEffect(function () {
     load();
   }, []);
@@ -21978,8 +21998,19 @@ function SiminPiedrasScreen({
     setRecords(merged);
     setLoading(false);
   }
+  var plantaObj = SIMIN_PLANTAS.find(function (p) {
+    return p.planta === planta;
+  }) || SIMIN_PLANTAS[0];
   var secciones = useMemo(function () {
-    return SIMIN_SECCIONES.map(function (s) {
+    var todas = [Object.assign({
+      etapa: 'Alimentación'
+    }, plantaObj.alim), Object.assign({
+      etapa: 'Producción'
+    }, plantaObj.prod)];
+    if (etapaSel !== 'Ambas') todas = todas.filter(function (s) {
+      return s.etapa === etapaSel;
+    });
+    return todas.map(function (s) {
       var filas = siminFilas(records, s.prod, s.hist);
       var anios = [];
       filas.forEach(function (f) {
@@ -21990,23 +22021,16 @@ function SiminPiedrasScreen({
         anios: anios
       });
     });
-  }, [records]);
-  var zonas = useMemo(function () {
-    var z = [];
-    secciones.forEach(function (s) {
-      if (z.indexOf(s.zona) === -1) z.push(s.zona);
-    });
-    return z;
-  }, [secciones]);
+  }, [records, planta, etapaSel]);
   function exportarExcel() {
-    var hdr = ['Zona', 'Producto', 'Año', 'Mes', 'SiO2 (%)', 'Al2O3 (%)', 'Fe2O3 (%)', 'N° ensayos'];
+    var hdr = ['Planta', 'Etapa', 'Año', 'Mes', 'SiO2 (%)', 'Al2O3 (%)', 'Fe2O3 (%)', 'N° ensayos'];
     var rows = [];
     secciones.forEach(function (s) {
       s.filas.forEach(function (f) {
-        rows.push([s.zona, GRANU_TITLE[s.prod] || s.prod, f.anio, f.mes, f.sio2 != null ? fmt(f.sio2, 3) : '', f.al2o3 != null ? fmt(f.al2o3, 3) : '', f.fe2o3 != null ? fmt(f.fe2o3, 3) : '', f.n == null ? '—' : f.n]);
+        rows.push([planta, s.etapa, f.anio, f.mes, f.sio2 != null ? fmt(f.sio2, 3) : '', f.al2o3 != null ? fmt(f.al2o3, 3) : '', f.fe2o3 != null ? fmt(f.fe2o3, 3) : '', f.n == null ? '—' : f.n]);
       });
     });
-    descargarExcel('SIMIN_MIGRIN', hdr, rows, 'Promedio mensual');
+    descargarExcel('SIMIN_' + planta, hdr, rows, 'Promedio mensual');
   }
   async function exportarPDF() {
     var el = document.getElementById('simin-cert-all');
@@ -22049,7 +22073,7 @@ function SiminPiedrasScreen({
         pdf.addImage(slc.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, sliceH / pxPerMm);
         y += sliceH;
       }
-      pdf.save('SIMIN_MIGRIN.pdf');
+      pdf.save('SIMIN_' + planta + '.pdf');
     } catch (e) {
       console.error('Export SIMIN PDF', e);
     }
@@ -22099,12 +22123,12 @@ function SiminPiedrasScreen({
   }, /*#__PURE__*/React.createElement("button", {
     className: "back-btn",
     onClick: onBack
-  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "SIMIN"), /*#__PURE__*/React.createElement("div", {
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "SIMIN — Planta ", planta), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '.82rem',
       color: 'var(--text-secondary)'
     }
-  }, "Promedio mensual de química (SiO₂, Al₂O₃, Fe₂O₃) por zona y producto — histórico Las Piedras (A36) + cálculo en vivo")), /*#__PURE__*/React.createElement("span", {
+  }, "Promedio mensual de química (SiO₂, Al₂O₃, Fe₂O₃): Alimentación y Producción de la planta seleccionada")), /*#__PURE__*/React.createElement("span", {
     style: {
       marginLeft: 'auto',
       display: 'flex',
@@ -22117,7 +22141,38 @@ function SiminPiedrasScreen({
   }, "⬇ Excel"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: exportarPDF
-  }, "⬇ Certificado (PDF)"))), loading && /*#__PURE__*/React.createElement("div", {
+  }, "⬇ Certificado (PDF)"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 10,
+      flexWrap: 'wrap'
+    }
+  }, SIMIN_PLANTAS.map(function (p) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: p.planta,
+      className: 'btn ' + (planta === p.planta ? 'btn-primary' : 'btn-secondary'),
+      onClick: function () {
+        setPlanta(p.planta);
+      }
+    }, p.planta);
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "dff",
+    style: {
+      marginBottom: 16,
+      maxWidth: 220
+    }
+  }, /*#__PURE__*/React.createElement("label", null, "Mostrar"), /*#__PURE__*/React.createElement("select", {
+    value: etapaSel,
+    onChange: function (e) {
+      setEtapaSel(e.target.value);
+    }
+  }, SIMIN_ETAPAS.map(function (e) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: e,
+      value: e
+    }, e);
+  }))), loading && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'center',
@@ -22131,99 +22186,92 @@ function SiminPiedrasScreen({
       background: '#fff',
       padding: 14
     }
-  }, zonas.map(function (zona) {
-    var secs = secciones.filter(function (s) {
-      return s.zona === zona;
-    });
+  }, secciones.map(function (s) {
     return /*#__PURE__*/React.createElement("div", {
-      key: zona,
+      key: s.prod,
       style: {
-        marginBottom: 26
+        marginBottom: 22
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: 'Arial,Helvetica,sans-serif',
-        fontWeight: 800,
-        fontSize: '.85rem',
+        fontFamily: '-apple-system,Segoe UI,sans-serif',
+        fontWeight: 700,
+        fontSize: '.72rem',
+        letterSpacing: '.04em',
+        textTransform: 'uppercase',
         color: '#154360',
-        borderBottom: '2px solid #154360',
-        paddingBottom: 4,
-        marginBottom: 14
+        marginBottom: 6
       }
-    }, "ZONA ", zona.toUpperCase()), secs.map(function (s) {
-      return /*#__PURE__*/React.createElement("div", {
-        key: s.prod,
-        style: {
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: 18
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          width: 700,
-          maxWidth: '100%',
-          fontFamily: 'Arial,Helvetica,sans-serif'
-        }
-      }, /*#__PURE__*/React.createElement("table", {
-        style: {
-          width: '100%',
-          borderCollapse: 'collapse'
-        }
-      }, /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-        colSpan: 5,
-        style: {
-          background: '#d6e4f0',
-          border: '1px solid #9db2c8',
-          color: '#1a5276',
-          fontWeight: 800,
-          fontSize: '.9rem',
-          textAlign: 'center',
-          padding: '10px 0'
-        }
-      }, s.titulo)), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-        style: thBlue,
-        rowSpan: 2
-      }, "PROMEDIO"), /*#__PURE__*/React.createElement("th", {
-        style: thBlue,
-        rowSpan: 2
-      }, "MES"), /*#__PURE__*/React.createElement("th", {
-        style: thBlue,
-        colSpan: 3
-      }, "ANÁLISIS QUÍMICO")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-        style: thSub
-      }, "SiO₂"), /*#__PURE__*/React.createElement("th", {
-        style: thSub
-      }, "Al₂O₃"), /*#__PURE__*/React.createElement("th", {
-        style: thSub
-      }, "Fe₂O₃")), s.anios.map(function (anio) {
-        var filasAnio = s.filas.filter(function (f) {
-          return f.anio === anio;
-        });
-        return filasAnio.map(function (f, i) {
-          return /*#__PURE__*/React.createElement("tr", {
-            key: anio + '-' + f.mes
-          }, i === 0 && /*#__PURE__*/React.createElement("td", {
-            style: tdYear,
-            rowSpan: filasAnio.length
-          }, "Promedio", /*#__PURE__*/React.createElement("br", null), "mes año", /*#__PURE__*/React.createElement("br", null), anio), /*#__PURE__*/React.createElement("td", {
-            style: tdMes
-          }, f.mes), /*#__PURE__*/React.createElement("td", {
-            style: tdVal
-          }, f.sio2 != null ? fmt(f.sio2, 3) : ''), /*#__PURE__*/React.createElement("td", {
-            style: tdVal
-          }, f.al2o3 != null ? fmt(f.al2o3, 3) : ''), /*#__PURE__*/React.createElement("td", {
-            style: tdVal
-          }, f.fe2o3 != null ? fmt(f.fe2o3, 3) : ''));
-        });
-      })))));
-    }));
+    }, s.etapa), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 700,
+        maxWidth: '100%',
+        fontFamily: 'Arial,Helvetica,sans-serif'
+      }
+    }, /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: '100%',
+        borderCollapse: 'collapse'
+      }
+    }, /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+      colSpan: 5,
+      style: {
+        background: '#d6e4f0',
+        border: '1px solid #9db2c8',
+        color: '#1a5276',
+        fontWeight: 800,
+        fontSize: '.9rem',
+        textAlign: 'center',
+        padding: '10px 0'
+      }
+    }, s.titulo)), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+      style: thBlue,
+      rowSpan: 2
+    }, "PROMEDIO"), /*#__PURE__*/React.createElement("th", {
+      style: thBlue,
+      rowSpan: 2
+    }, "MES"), /*#__PURE__*/React.createElement("th", {
+      style: thBlue,
+      colSpan: 3
+    }, "ANÁLISIS QUÍMICO")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+      style: thSub
+    }, "SiO₂"), /*#__PURE__*/React.createElement("th", {
+      style: thSub
+    }, "Al₂O₃"), /*#__PURE__*/React.createElement("th", {
+      style: thSub
+    }, "Fe₂O₃")), s.anios.map(function (anio) {
+      var filasAnio = s.filas.filter(function (f) {
+        return f.anio === anio;
+      });
+      return filasAnio.map(function (f, i) {
+        return /*#__PURE__*/React.createElement("tr", {
+          key: anio + '-' + f.mes
+        }, i === 0 && /*#__PURE__*/React.createElement("td", {
+          style: tdYear,
+          rowSpan: filasAnio.length
+        }, "Promedio", /*#__PURE__*/React.createElement("br", null), "mes año", /*#__PURE__*/React.createElement("br", null), anio), /*#__PURE__*/React.createElement("td", {
+          style: tdMes
+        }, f.mes), /*#__PURE__*/React.createElement("td", {
+          style: tdVal
+        }, f.sio2 != null ? fmt(f.sio2, 3) : ''), /*#__PURE__*/React.createElement("td", {
+          style: tdVal
+        }, f.al2o3 != null ? fmt(f.al2o3, 3) : ''), /*#__PURE__*/React.createElement("td", {
+          style: tdVal
+        }, f.fe2o3 != null ? fmt(f.fe2o3, 3) : ''));
+      });
+    }))))));
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       color: '#888',
       textAlign: 'right'
     }
-  }, "Las Piedras — Arena A36: jun–dic 2025 histórico, desde 2026 en vivo. Resto de productos: 100% en vivo desde su primer registro en la app. Peral (Zona Centro) pendiente.")));
+  }, "Arenas — Producción A36: jun–dic 2025 histórico, desde 2026 en vivo. Resto: 100% en vivo desde su primer registro en la app. Peral pendiente.")));
 }
 
 /* ── DESPACHOS SUR — reporte: tendencia de %Humedad con filtros ──
