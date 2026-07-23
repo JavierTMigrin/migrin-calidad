@@ -9441,6 +9441,196 @@ function ArcillasForm({
   }, sending ? 'Enviando...' : 'Registrar Arcillas')));
 }
 
+/* ── DESPACHOS SUR: %Humedad Acopios Cancha ──
+   Formulario simple (sin granulometria ni quimica): Fecha, Hora, Destino,
+   Acopio y % Humedad. Se guarda con producto_key='DESPSUR'; Destino va en
+   extra.destino (JSONB) y Hora en hora_salida (columna ya existente).
+   Sin envio de correo automatico, igual que Arcillas/Floculante/Cilindro.
+   EETT: maximo 5% de humedad (confirmado por el usuario). Se avisa si se
+   supera pero NO se bloquea el envio — igual que el resto de la app, los
+   datos fuera de norma se guardan visibles para forzar la correccion en
+   terreno, no se ocultan ni se impide su registro. */
+const DESTINOS_SUR = ['Lirquen', 'Padre Hurtado', 'Llay-Llay'];
+const DESPSUR_HUM_MAX = 5;
+function DespachosSurForm({
+  account,
+  onBack,
+  onSuccess
+}) {
+  var [fecha, setFecha] = useState(today());
+  var [hora, setHora] = useState(nowTime());
+  var [destino, setDestino] = useState('');
+  var [acopio, setAcopio] = useState('');
+  var [pctHumedad, setPctHumedad] = useState('');
+  var [errors, setErrors] = useState({});
+  var [sending, setSending] = useState(false);
+  var humN = parseDecimal(pctHumedad);
+  var fueraNorma = !isNaN(humN) && humN > DESPSUR_HUM_MAX;
+  function validate() {
+    var e = {};
+    if (!fecha) e.fecha = 'Fecha requerida';
+    if (!hora) e.hora = 'Hora requerida';
+    if (!destino) e.destino = 'Destino requerido';
+    if (!acopio) e.acopio = 'Acopio requerido';
+    if (!pctHumedad) e.pctHumedad = '% Humedad requerido';
+    return e;
+  }
+  async function handleSend() {
+    var e = validate();
+    if (Object.keys(e).length) {
+      setErrors(e);
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      return;
+    }
+    setErrors({});
+    setSending(true);
+    var now = new Date();
+    var data = {
+      id: uid(),
+      fecha: fecha,
+      fechaEnvio: now.toISOString(),
+      horaEnvio: now.toLocaleTimeString('es-CL'),
+      turno: '',
+      analista: account ? account.email : '',
+      producto: 'DESPSUR',
+      productoLabel: 'Despachos Sur — %Humedad Acopios Cancha',
+      tipoMuestra: '',
+      numAcopio: acopio,
+      pesoInicial: '',
+      pesoFinal: '',
+      granu: [],
+      pesoFondo: null,
+      pctHumedad: pctHumedad,
+      quimica: {},
+      observaciones: '',
+      extra: {
+        destino: destino
+      },
+      horaSalida: hora
+    };
+    addPending(data);
+    try {
+      await sendTurcoToSupabase(data, account);
+      delPending(data.id);
+      setSending(false);
+      onSuccess('Registro de humedad (Despachos Sur) guardado exitosamente.');
+    } catch (err) {
+      console.error(err);
+      setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Despachos Sur"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "%Humedad Acopios Cancha"))), /*#__PURE__*/React.createElement(TurcoErrBox, {
+    errors: errors
+  }), /*#__PURE__*/React.createElement(SecCard, {
+    title: "%Humedad Acopios Cancha",
+    icon: "💧"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "fechaDS",
+    label: "Fecha",
+    type: "date",
+    required: true,
+    value: fecha,
+    onChange: function (e) {
+      setFecha(e.target.value);
+    },
+    error: errors.fecha
+  }), /*#__PURE__*/React.createElement(Field, {
+    name: "horaDS",
+    label: "Hora",
+    type: "time",
+    required: true,
+    value: hora,
+    onChange: function (e) {
+      setHora(e.target.value);
+    },
+    error: errors.hora
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Destino", errors.destino ? ' — ' + errors.destino : ''), /*#__PURE__*/React.createElement("select", {
+    value: destino,
+    onChange: function (e) {
+      setDestino(e.target.value);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Selecciona…"), DESTINOS_SUR.map(function (d) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: d,
+      value: d
+    }, d);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Acopio", errors.acopio ? ' — ' + errors.acopio : ''), /*#__PURE__*/React.createElement("select", {
+    value: acopio,
+    onChange: function (e) {
+      setAcopio(e.target.value);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Selecciona…"), ACOPIO_OPTS.map(function (a) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: a,
+      value: a
+    }, a);
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "humDS",
+    label: "% Humedad (máx. 5%)",
+    type: "decimal",
+    required: true,
+    value: pctHumedad,
+    onChange: function (e) {
+      setPctHumedad(e.target.value);
+    },
+    error: errors.pctHumedad,
+    placeholder: "0,00"
+  }), /*#__PURE__*/React.createElement("div", null)), fueraNorma && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10,
+      padding: '8px 12px',
+      borderRadius: 8,
+      background: '#fde0e0',
+      color: '#922b21',
+      fontSize: '.82rem',
+      fontWeight: 600
+    }
+  }, "⚠ ", fmt(humN, 2), "% supera el máximo aceptado (5%). El registro se guardará igual, marcado como fuera de norma.")), /*#__PURE__*/React.createElement("div", {
+    className: "form-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: onBack
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    disabled: sending,
+    onClick: handleSend
+  }, sending ? 'Enviando...' : 'Registrar Humedad')));
+}
+
 /* ── LODOS PROCESO: masa #120 y PAN; calcula +#120 y PAN en % ── */
 function LodosCuarzoForm({
   account,
@@ -21633,6 +21823,796 @@ function ComparadorScreen({
   }()))));
 }
 
+/* ── SIMIN — Promedio mensual A36, Planta Las Piedras ──
+   2025 (jun-dic) es historico fijo: no existe en 'ensayos' porque el
+   registro de A36 en la app recien parte en enero 2026. 2026 en adelante
+   se calcula en vivo (promedio simple SiO2/Al2O3/Fe2O3 por mes),
+   validado contra la planilla historica: marzo/abril/mayo calzan al
+   digito exacto, por lo que el metodo de calculo es el mismo. */
+const SIMIN_PIEDRAS_HIST = [{
+  mes: 'Junio',
+  sio2: 99.748,
+  al2o3: 0.155,
+  fe2o3: 0.097
+}, {
+  mes: 'Julio',
+  sio2: 99.751,
+  al2o3: 0.154,
+  fe2o3: 0.095
+}, {
+  mes: 'Agosto',
+  sio2: 99.757,
+  al2o3: 0.154,
+  fe2o3: 0.089
+}, {
+  mes: 'Septiembre',
+  sio2: 99.722,
+  al2o3: 0.189,
+  fe2o3: 0.089
+}, {
+  mes: 'Octubre',
+  sio2: 99.543,
+  al2o3: 0.220,
+  fe2o3: 0.097
+}, {
+  mes: 'Noviembre',
+  sio2: 99.498,
+  al2o3: 0.148,
+  fe2o3: 0.098
+}, {
+  mes: 'Diciembre',
+  sio2: 99.509,
+  al2o3: 0.111,
+  fe2o3: 0.101
+}];
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+function SiminPiedrasScreen({
+  account,
+  onBack
+}) {
+  var [records, setRecords] = useState([]);
+  var [loading, setLoading] = useState(true);
+  useEffect(function () {
+    load();
+  }, []);
+  async function load() {
+    setLoading(true);
+    var cloud = [];
+    try {
+      cloud = await loadEnsayos();
+    } catch (e) {
+      console.error(e);
+    }
+    var pa = getPending(),
+      pc = getPendingCuarzo();
+    var ids = new Set(cloud.map(function (r) {
+      return r.ID;
+    }));
+    var merged = cloud.concat(pa.filter(function (r) {
+      return !ids.has(r.id);
+    })).concat(pc.filter(function (r) {
+      return !ids.has(r.id);
+    }));
+    setRecords(merged);
+    setLoading(false);
+  }
+  var filas = useMemo(function () {
+    var porMes = {};
+    records.forEach(function (r) {
+      if (r.ProductoKey !== 'A36' || !r.FechaMuestreo) return;
+      if (isNaN(r.SiO2)) return;
+      var ym = r.FechaMuestreo.slice(0, 7);
+      if (!porMes[ym]) porMes[ym] = {
+        n: 0,
+        sio2: 0,
+        al2o3: 0,
+        fe2o3: 0
+      };
+      var b = porMes[ym];
+      b.n++;
+      b.sio2 += r.SiO2;
+      b.al2o3 += isNaN(r.Al2O3) ? 0 : r.Al2O3;
+      b.fe2o3 += isNaN(r.Fe2O3) ? 0 : r.Fe2O3;
+    });
+    var hoy = new Date();
+    var anioActual = hoy.getFullYear();
+    var out = [];
+    SIMIN_PIEDRAS_HIST.forEach(function (h) {
+      out.push({
+        anio: 2025,
+        mes: h.mes,
+        sio2: h.sio2,
+        al2o3: h.al2o3,
+        fe2o3: h.fe2o3,
+        n: null
+      });
+    });
+    for (var y = 2026; y <= Math.max(2026, anioActual); y++) {
+      var maxMes = y === anioActual ? hoy.getMonth() + 1 : 12;
+      for (var m = 1; m <= maxMes; m++) {
+        var ym = y + '-' + String(m).padStart(2, '0');
+        var b = porMes[ym];
+        out.push({
+          anio: y,
+          mes: MESES_ES[m - 1],
+          sio2: b && b.n ? b.sio2 / b.n : null,
+          al2o3: b && b.n ? b.al2o3 / b.n : null,
+          fe2o3: b && b.n ? b.fe2o3 / b.n : null,
+          n: b ? b.n : 0
+        });
+      }
+    }
+    return out;
+  }, [records]);
+  var anios = useMemo(function () {
+    var s = [];
+    filas.forEach(function (f) {
+      if (s.indexOf(f.anio) === -1) s.push(f.anio);
+    });
+    return s;
+  }, [filas]);
+  function exportarExcel() {
+    var hdr = ['Año', 'Mes', 'SiO2 (%)', 'Al2O3 (%)', 'Fe2O3 (%)', 'N° ensayos'];
+    var rows = filas.map(function (f) {
+      return [f.anio, f.mes, f.sio2 != null ? fmt(f.sio2, 3) : '', f.al2o3 != null ? fmt(f.al2o3, 3) : '', f.fe2o3 != null ? fmt(f.fe2o3, 3) : '', f.n == null ? '—' : f.n];
+    });
+    descargarExcel('SIMIN_A36_LasPiedras', hdr, rows, 'Promedio mensual');
+  }
+  async function exportarImagen() {
+    var el = document.getElementById('simin-piedras-cert');
+    if (!el || !window.html2canvas) return;
+    try {
+      var c = await window.html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 820
+      });
+      var a = document.createElement('a');
+      a.download = 'SIMIN_A36_LasPiedras.png';
+      a.href = c.toDataURL('image/png');
+      a.click();
+    } catch (e) {
+      console.error('Export SIMIN', e);
+    }
+  }
+  var thBlue = {
+    border: '1px solid #9db2c8',
+    background: '#1a5276',
+    color: '#fff',
+    padding: '6px 10px',
+    fontWeight: 700,
+    fontSize: '.78rem',
+    textAlign: 'center'
+  };
+  var thSub = {
+    border: '1px solid #9db2c8',
+    background: '#d6e4f0',
+    color: '#1a5276',
+    padding: '5px 8px',
+    fontWeight: 700,
+    fontSize: '.74rem',
+    textAlign: 'center'
+  };
+  var tdYear = {
+    border: '1px solid #c3d0dd',
+    background: '#d6e4f0',
+    color: '#1a5276',
+    padding: '6px 8px',
+    fontWeight: 700,
+    fontSize: '.76rem',
+    textAlign: 'center',
+    verticalAlign: 'middle'
+  };
+  var tdMes = {
+    border: '1px solid #c3d0dd',
+    padding: '5px 10px',
+    fontSize: '.8rem',
+    fontWeight: 600
+  };
+  var tdVal = {
+    border: '1px solid #c3d0dd',
+    padding: '5px 10px',
+    fontSize: '.8rem',
+    textAlign: 'center'
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "SIMIN — Planta Las Piedras"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Promedio mensual de química A36 (SiO₂, Al₂O₃, Fe₂O₃) — histórico 2025 + cálculo automático desde 2026")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 'auto',
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: exportarExcel
+  }, "⬇ Excel"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    onClick: exportarImagen
+  }, "⬇ Certificado (imagen)"))), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  })), !loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    id: "simin-piedras-cert",
+    style: {
+      width: 700,
+      maxWidth: '100%',
+      background: '#fff',
+      fontFamily: 'Arial,Helvetica,sans-serif',
+      padding: 14
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 5,
+    style: {
+      background: '#d6e4f0',
+      border: '1px solid #9db2c8',
+      color: '#1a5276',
+      fontWeight: 800,
+      fontSize: '.95rem',
+      textAlign: 'center',
+      padding: '12px 0'
+    }
+  }, "CALIDAD PLANTA LAS PIEDRAS")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    style: thBlue,
+    rowSpan: 2
+  }, "PROMEDIO"), /*#__PURE__*/React.createElement("th", {
+    style: thBlue,
+    rowSpan: 2
+  }, "MES"), /*#__PURE__*/React.createElement("th", {
+    style: thBlue,
+    colSpan: 3
+  }, "ANÁLISIS QUÍMICO")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    style: thSub
+  }, "SiO₂"), /*#__PURE__*/React.createElement("th", {
+    style: thSub
+  }, "Al₂O₃"), /*#__PURE__*/React.createElement("th", {
+    style: thSub
+  }, "Fe₂O₃")), anios.map(function (anio) {
+    var filasAnio = filas.filter(function (f) {
+      return f.anio === anio;
+    });
+    return filasAnio.map(function (f, i) {
+      return /*#__PURE__*/React.createElement("tr", {
+        key: anio + '-' + f.mes
+      }, i === 0 && /*#__PURE__*/React.createElement("td", {
+        style: tdYear,
+        rowSpan: filasAnio.length
+      }, "Promedio", /*#__PURE__*/React.createElement("br", null), "mes año", /*#__PURE__*/React.createElement("br", null), anio), /*#__PURE__*/React.createElement("td", {
+        style: tdMes
+      }, f.mes), /*#__PURE__*/React.createElement("td", {
+        style: tdVal
+      }, f.sio2 != null ? fmt(f.sio2, 3) : ''), /*#__PURE__*/React.createElement("td", {
+        style: tdVal
+      }, f.al2o3 != null ? fmt(f.al2o3, 3) : ''), /*#__PURE__*/React.createElement("td", {
+        style: tdVal
+      }, f.fe2o3 != null ? fmt(f.fe2o3, 3) : ''));
+    });
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: '#888',
+      marginTop: 8,
+      textAlign: 'right'
+    }
+  }, "Jun–dic 2025: histórico. Desde 2026: calculado en vivo sobre los ensayos A36 registrados."))));
+}
+
+/* ── DESPACHOS SUR — reporte: tendencia de %Humedad con filtros ──
+   Sin EETT (solo registro/tendencia): pendiente que el usuario confirme
+   si existe un rango aceptable a evaluar mas adelante. */
+function dsFields(r) {
+  var extra = r.Extra || r.extra || {};
+  return {
+    id: r.ID || r.id,
+    fecha: r.FechaMuestreo || r.fecha,
+    hora: r.HoraSalida || r.horaSalida,
+    destino: extra.destino,
+    acopio: r.NumAcopio || r.numAcopio,
+    hum: parseDecimal(r.PctHumedad !== undefined && r.PctHumedad !== null ? r.PctHumedad : r.pctHumedad)
+  };
+}
+function DespachosSurScreen({
+  account,
+  onBack
+}) {
+  var [records, setRecords] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [desde, setDesde] = useState('');
+  var [hasta, setHasta] = useState('');
+  var [destino, setDestino] = useState('');
+  var [acopio, setAcopio] = useState('');
+  var chartRef = useRef(null);
+  var chartInst = useRef(null);
+  useEffect(function () {
+    load();
+  }, []);
+  async function load() {
+    setLoading(true);
+    var cloud = [];
+    try {
+      cloud = await loadEnsayos();
+    } catch (e) {
+      console.error(e);
+    }
+    var pa = getPending();
+    var ids = new Set(cloud.map(function (r) {
+      return r.ID;
+    }));
+    var merged = cloud.concat(pa.filter(function (r) {
+      return !ids.has(r.id);
+    }));
+    setRecords(merged.filter(function (r) {
+      return (r.ProductoKey || r.producto) === 'DESPSUR';
+    }).map(dsFields));
+    setLoading(false);
+  }
+  var destinos = useMemo(function () {
+    var s = [];
+    records.forEach(function (r) {
+      if (r.destino && s.indexOf(r.destino) === -1) s.push(r.destino);
+    });
+    return s.sort();
+  }, [records]);
+  var acopios = useMemo(function () {
+    var s = [];
+    records.forEach(function (r) {
+      if (r.acopio && s.indexOf(r.acopio) === -1) s.push(r.acopio);
+    });
+    return s.sort();
+  }, [records]);
+  var filtered = useMemo(function () {
+    return records.filter(function (r) {
+      if (desde && (r.fecha || '') < desde) return false;
+      if (hasta && (r.fecha || '') > hasta) return false;
+      if (destino && r.destino !== destino) return false;
+      if (acopio && r.acopio !== acopio) return false;
+      return true;
+    }).sort(function (a, b) {
+      return (a.fecha || '').localeCompare(b.fecha || '') || (a.hora || '').localeCompare(b.hora || '');
+    });
+  }, [records, desde, hasta, destino, acopio]);
+  var stats = useMemo(function () {
+    var vals = filtered.map(function (r) {
+      return r.hum;
+    }).filter(function (v) {
+      return !isNaN(v);
+    });
+    if (!vals.length) return {
+      n: 0,
+      prom: null,
+      max: null,
+      min: null,
+      pctOk: null
+    };
+    var sum = vals.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    var ok = vals.filter(function (v) {
+      return v <= DESPSUR_HUM_MAX;
+    }).length;
+    return {
+      n: vals.length,
+      prom: sum / vals.length,
+      max: Math.max.apply(null, vals),
+      min: Math.min.apply(null, vals),
+      pctOk: ok / vals.length * 100
+    };
+  }, [filtered]);
+  useEffect(function () {
+    if (!chartRef.current) return;
+    if (chartInst.current) {
+      chartInst.current.destroy();
+      chartInst.current = null;
+    }
+    var labels = filtered.map(function (r) {
+      return (r.fecha || '') + (r.hora ? ' ' + r.hora : '');
+    });
+    var data = filtered.map(function (r) {
+      return isNaN(r.hum) ? null : r.hum;
+    });
+    var lim = filtered.map(function () {
+      return DESPSUR_HUM_MAX;
+    });
+    chartInst.current = new window.Chart(chartRef.current, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '% Humedad',
+          data: data,
+          borderColor: '#154360',
+          backgroundColor: 'rgba(21,67,96,.08)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: .25,
+          fill: true,
+          spanGaps: true
+        }, {
+          label: 'Límite EETT (5%)',
+          data: lim,
+          borderColor: '#c53030',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          pointRadius: 0,
+          borderDash: [6, 3],
+          spanGaps: true
+        }]
+      },
+      options: {
+        animation: {
+          duration: 0
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              font: {
+                size: 9
+              },
+              boxWidth: 14
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              font: {
+                size: 8
+              },
+              maxRotation: 60,
+              minRotation: 60
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: '% Humedad'
+            },
+            ticks: {
+              font: {
+                size: 9
+              }
+            }
+          }
+        }
+      }
+    });
+    return function () {
+      if (chartInst.current) {
+        chartInst.current.destroy();
+        chartInst.current = null;
+      }
+    };
+  }, [filtered]);
+  function exportarExcel() {
+    var hdr = ['Fecha', 'Hora', 'Destino', 'Acopio', '% Humedad', 'Estado'];
+    var rows = filtered.map(function (r) {
+      var estado = isNaN(r.hum) ? '' : r.hum <= DESPSUR_HUM_MAX ? 'Cumple' : 'Fuera de norma';
+      return [r.fecha || '', r.hora || '', r.destino || '', r.acopio || '', isNaN(r.hum) ? '' : fmt(r.hum, 2), estado];
+    });
+    descargarExcel('DespachosSur_Humedad', hdr, rows, 'Humedad Cancha');
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Despachos Sur — %Humedad Acopios Cancha"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Tendencia de humedad por acopio y destino")), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    style: {
+      marginLeft: 'auto'
+    },
+    onClick: exportarExcel
+  }, "⬇ Excel")), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Filtros"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap',
+      alignItems: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Desde"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: desde,
+    onChange: function (e) {
+      setDesde(e.target.value);
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Hasta"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: hasta,
+    onChange: function (e) {
+      setHasta(e.target.value);
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Destino"), /*#__PURE__*/React.createElement("select", {
+    value: destino,
+    onChange: function (e) {
+      setDestino(e.target.value);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Todos"), destinos.map(function (d) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: d,
+      value: d
+    }, d);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Acopio"), /*#__PURE__*/React.createElement("select", {
+    value: acopio,
+    onChange: function (e) {
+      setAcopio(e.target.value);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Todos"), acopios.map(function (a) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: a,
+      value: a
+    }, a);
+  }))), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: function () {
+      setDesde('');
+      setHasta('');
+      setDestino('');
+      setAcopio('');
+    }
+  }, "Limpiar"))), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  })), !loading && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 12,
+      flexWrap: 'wrap',
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      flex: 1,
+      minWidth: 140,
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.7rem',
+      color: 'var(--text-muted)'
+    }
+  }, "Registros"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '1.3rem',
+      fontWeight: 800
+    }
+  }, stats.n)), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      flex: 1,
+      minWidth: 140,
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.7rem',
+      color: 'var(--text-muted)'
+    }
+  }, "Promedio"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '1.3rem',
+      fontWeight: 800
+    }
+  }, stats.prom != null ? fmt(stats.prom, 2) + '%' : '—')), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      flex: 1,
+      minWidth: 140,
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.7rem',
+      color: 'var(--text-muted)'
+    }
+  }, "Máximo"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '1.3rem',
+      fontWeight: 800
+    }
+  }, stats.max != null ? fmt(stats.max, 2) + '%' : '—')), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      flex: 1,
+      minWidth: 140,
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.7rem',
+      color: 'var(--text-muted)'
+    }
+  }, "Mínimo"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '1.3rem',
+      fontWeight: 800
+    }
+  }, stats.min != null ? fmt(stats.min, 2) + '%' : '—')), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      flex: 1,
+      minWidth: 140,
+      padding: '14px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.7rem',
+      color: 'var(--text-muted)'
+    }
+  }, "Cumplimiento (≤5%)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '1.3rem',
+      fontWeight: 800,
+      color: stats.pctOk == null ? 'inherit' : stats.pctOk >= 95 ? '#276749' : stats.pctOk >= 85 ? '#b7791f' : '#c53030'
+    }
+  }, stats.pctOk != null ? fmt(stats.pctOk, 1) + '%' : '—'))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Tendencia % Humedad"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      height: 280
+    }
+  }, /*#__PURE__*/React.createElement("canvas", {
+    ref: chartRef
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Detalle (", filtered.length, ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '.82rem'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: 'var(--surface-2,#f3f3f3)'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'left'
+    }
+  }, "Fecha"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'left'
+    }
+  }, "Hora"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'left'
+    }
+  }, "Destino"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'left'
+    }
+  }, "Acopio"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'right'
+    }
+  }, "% Humedad"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'center'
+    }
+  }, "Estado"))), /*#__PURE__*/React.createElement("tbody", null, filtered.map(function (r, i) {
+    var sem = isNaN(r.hum) ? 'info' : calcSemaforo(r.hum, null, DESPSUR_HUM_MAX);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: r.id || i
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px'
+      }
+    }, r.fecha || '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px'
+      }
+    }, r.hora || '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px'
+      }
+    }, r.destino || '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px'
+      }
+    }, r.acopio || '—'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'right',
+        fontWeight: sem === 'error' ? 800 : 400,
+        color: sem === 'error' ? SEM_COLOR.error : 'inherit'
+      }
+    }, isNaN(r.hum) ? '—' : fmt(r.hum, 2) + '%'), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px',
+        textAlign: 'center',
+        color: SEM_COLOR[sem],
+        fontWeight: 700
+      }
+    }, SEM_ICON[sem], " ", SEM_LABEL[sem]));
+  })))))));
+}
+
 /* ── HOME SCREEN ── */
 const MODULES = [{
   id: 'arenas',
@@ -21669,6 +22649,12 @@ const MODULES = [{
   label: 'Lavado Turco',
   icon: '💧',
   desc: 'TLH, minas, cilindro, floculante y mas',
+  active: true
+}, {
+  id: 'despachos-sur',
+  label: 'Despachos Sur',
+  icon: '🚛',
+  desc: '%Humedad Acopios Cancha',
   active: true
 }];
 function HomeScreen({
@@ -21800,6 +22786,48 @@ function HomeScreen({
   }, "Comparador"), /*#__PURE__*/React.createElement("div", {
     className: "nc-desc"
   }, "Compara granulometría, química y cumplimiento entre dos productos/períodos")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      onNav('simin-piedras');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('simin-piedras');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#154360,#2874a6)'
+    }
+  }, "🧾"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "SIMIN — Las Piedras"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Promedio mensual de química A36 (SiO₂, Al₂O₃, Fe₂O₃) en formato certificado")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      onNav('despachos-sur-reporte');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('despachos-sur-reporte');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#0e6251,#48c9b0)'
+    }
+  }, "🚛"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "Despachos Sur"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Tendencia de %Humedad Acopios Cancha, con filtros por destino y acopio")), /*#__PURE__*/React.createElement("div", {
     className: "nc-arrow"
   }, "›")))));
 }
@@ -22737,7 +23765,7 @@ function App() {
     },
     onSelect: function (id) {
       if (isViewer) return;
-      if (id === 'arenas') setScreen('arenas');else if (id === 'cuarzo') setScreen('cuarzo');else if (id === 'lavado-turco') setScreen('lavado-turco');else if (id === 'secado-turco') setScreen('secado-turco');
+      if (id === 'arenas') setScreen('arenas');else if (id === 'cuarzo') setScreen('cuarzo');else if (id === 'lavado-turco') setScreen('lavado-turco');else if (id === 'secado-turco') setScreen('secado-turco');else if (id === 'despachos-sur') setScreen('despachos-sur');
     }
   }), !isViewer && screen === 'arenas' && /*#__PURE__*/React.createElement(ArenasForm, {
     account: account,
@@ -22763,6 +23791,12 @@ function App() {
       setScreen('home');
     },
     onSuccess: handleSuccess
+  }), !isViewer && screen === 'despachos-sur' && /*#__PURE__*/React.createElement(DespachosSurForm, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    },
+    onSuccess: handleSuccess
   }), screen === 'dashboard' && /*#__PURE__*/React.createElement(DashboardScreen, {
     account: account,
     onBack: function () {
@@ -22779,6 +23813,16 @@ function App() {
       setScreen('home');
     }
   }), screen === 'comparador' && /*#__PURE__*/React.createElement(ComparadorScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    }
+  }), screen === 'simin-piedras' && /*#__PURE__*/React.createElement(SiminPiedrasScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    }
+  }), screen === 'despachos-sur-reporte' && /*#__PURE__*/React.createElement(DespachosSurScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
