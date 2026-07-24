@@ -22764,6 +22764,843 @@ function DespachosSurScreen({
   })))))));
 }
 
+/* ── HABILITADOR DE ACOPIOS (TLH Turco) — vista curada para clientes ──
+   Herramienta interna (staff, no "visita"): se elige el estado de cada uno
+   de los 8 acopios (Produccion/Despacho/Espera Humedad/Oculto), un rango
+   de fechas curado y los quimicos a mostrar. La visualizacion resultante
+   agrupa por dia (nunca el detalle crudo) y muestra tendencia + desviacion
+   vs EETT por quimico y acopio visible.
+   Pendiente (fase 2, aun no se construye): acceso propio tipo "Cliente"
+   para que esto se vea al iniciar sesion sin pasar por el resto de la app. */
+const ACOPIO_ESTADOS = ['Oculto', 'Producción', 'Despacho', 'Espera Humedad'];
+const ACOPIO_ESTADO_COLOR = {
+  'Producción': '#1a5276',
+  'Despacho': '#276749',
+  'Espera Humedad': '#b7791f',
+  'Oculto': '#999'
+};
+const HAB_QUIMICOS = [{
+  key: 'sio2',
+  label: 'SiO₂',
+  spec: 'SiO2'
+}, {
+  key: 'al2o3',
+  label: 'Al₂O₃',
+  spec: 'Al2O3'
+}, {
+  key: 'fe2o3',
+  label: 'Fe₂O₃',
+  spec: 'Fe2O3'
+}, {
+  key: 'cao',
+  label: 'CaO',
+  spec: 'CaO'
+}, {
+  key: 'mgo',
+  label: 'MgO',
+  spec: 'MgO'
+}, {
+  key: 'k2o',
+  label: 'K₂O',
+  spec: 'K2O'
+}, {
+  key: 'na2o',
+  label: 'Na₂O',
+  spec: 'Na2O'
+}, {
+  key: 'tio2',
+  label: 'TiO₂',
+  spec: 'TiO2'
+}];
+const HAB_COLORS = ['#1a5276', '#c53030', '#276749', '#b7791f', '#8e44ad', '#e67e22', '#2e86c1', '#117864'];
+/* ACOPIOS_TURCO es un array de {value,label} (ver linea ~1197), no de
+   strings — se convierte una vez a nombres planos para usar como llaves. */
+const ACOPIOS_TURCO_LIST = ACOPIOS_TURCO.map(function (o) {
+  return o.value;
+});
+const HAB_TABS = ['Producción', 'Despacho', 'Espera Humedad'];
+function HabilitadorAcopiosScreen({
+  account,
+  onBack
+}) {
+  var [records, setRecords] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [estados, setEstados] = useState(function () {
+    var o = {};
+    ACOPIOS_TURCO_LIST.forEach(function (a) {
+      o[a] = 'Oculto';
+    });
+    return o;
+  });
+  var hoy = today();
+  var hace30 = function () {
+    var d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  }();
+  var [desde, setDesde] = useState(hace30);
+  var [hasta, setHasta] = useState(hoy);
+  var [quimSel, setQuimSel] = useState(['sio2', 'al2o3', 'fe2o3']);
+  var [showS1, setShowS1] = useState(false);
+  var [showS2, setShowS2] = useState(false);
+  var [showS3, setShowS3] = useState(false);
+  var [tabEstado, setTabEstado] = useState('Producción');
+  var chartRefs = useRef({});
+  var chartInsts = useRef({});
+  useEffect(function () {
+    load();
+  }, []);
+  async function load() {
+    setLoading(true);
+    var cloud = [];
+    try {
+      cloud = await loadEnsayos();
+    } catch (e) {
+      console.error(e);
+    }
+    var pa = getPending();
+    var ids = new Set(cloud.map(function (r) {
+      return r.ID;
+    }));
+    var merged = cloud.concat(pa.filter(function (r) {
+      return !ids.has(r.id);
+    }));
+    setRecords(merged.filter(function (r) {
+      return r.ProductoKey === 'TT_TLH';
+    }));
+    setLoading(false);
+  }
+  function setEstado(ac, v) {
+    setEstados(function (p) {
+      var n = Object.assign({}, p);
+      n[ac] = v;
+      return n;
+    });
+  }
+  function toggleQuim(k) {
+    setQuimSel(function (p) {
+      return p.indexOf(k) >= 0 ? p.filter(function (x) {
+        return x !== k;
+      }) : p.concat([k]);
+    });
+  }
+  var acopiosVisibles = useMemo(function () {
+    return ACOPIOS_TURCO_LIST.filter(function (a) {
+      return estados[a] === tabEstado;
+    });
+  }, [estados, tabEstado]);
+  var filtrados = useMemo(function () {
+    return records.filter(function (r) {
+      var ac = r.NumAcopio || r.numAcopio;
+      if (!ac || acopiosVisibles.indexOf(ac) < 0) return false;
+      if (desde && (r.FechaMuestreo || '') < desde) return false;
+      if (hasta && (r.FechaMuestreo || '') > hasta) return false;
+      return true;
+    });
+  }, [records, acopiosVisibles, desde, hasta]);
+  var porDiaAcopio = useMemo(function () {
+    var m = {};
+    filtrados.forEach(function (r) {
+      var f = r.FechaMuestreo,
+        ac = r.NumAcopio || r.numAcopio;
+      if (!f || !ac) return;
+      if (!m[f]) m[f] = {};
+      if (!m[f][ac]) m[f][ac] = {};
+      var b = m[f][ac];
+      HAB_QUIMICOS.forEach(function (q) {
+        var v = parseDecimal((r.quimica || {})[q.key]);
+        if (isNaN(v)) return;
+        if (!b[q.key]) b[q.key] = {
+          sum: 0,
+          n: 0
+        };
+        b[q.key].sum += v;
+        b[q.key].n++;
+      });
+    });
+    return m;
+  }, [filtrados]);
+  var fechas = useMemo(function () {
+    return Object.keys(porDiaAcopio).sort();
+  }, [porDiaAcopio]);
+  var resumen = useMemo(function () {
+    var out = {};
+    acopiosVisibles.forEach(function (ac) {
+      out[ac] = {};
+      HAB_QUIMICOS.forEach(function (q) {
+        var sum = 0,
+          n = 0;
+        fechas.forEach(function (f) {
+          var b = (porDiaAcopio[f] || {})[ac] && porDiaAcopio[f][ac][q.key];
+          if (b) {
+            sum += b.sum;
+            n += b.n;
+          }
+        });
+        out[ac][q.key] = n ? sum / n : null;
+      });
+    });
+    return out;
+  }, [acopiosVisibles, fechas, porDiaAcopio]);
+
+  /* Media y desviacion estandar por quimico, sobre los datos crudos (no el
+     promedio diario) de todos los acopios visibles en el periodo — misma
+     convencion que la carta I-mR de Estadisticas: sigma se calcula sobre
+     el dato individual, no sobre el bucket, para no subestimar la dispersion. */
+  var statsPorQuim = useMemo(function () {
+    var out = {};
+    HAB_QUIMICOS.forEach(function (q) {
+      var vals = filtrados.map(function (r) {
+        return parseDecimal((r.quimica || {})[q.key]);
+      }).filter(function (v) {
+        return !isNaN(v);
+      });
+      if (vals.length < 2) {
+        out[q.key] = null;
+        return;
+      }
+      var mean = vals.reduce(function (a, b) {
+        return a + b;
+      }, 0) / vals.length;
+      var variance = vals.reduce(function (a, v) {
+        return a + (v - mean) * (v - mean);
+      }, 0) / (vals.length - 1);
+      out[q.key] = {
+        mean: mean,
+        sd: Math.sqrt(variance),
+        n: vals.length
+      };
+    });
+    return out;
+  }, [filtrados]);
+  useEffect(function () {
+    var specTLH = (getSpecs('TT_TLH') || {}).quimica || {};
+    quimSel.forEach(function (qkey) {
+      var canvas = chartRefs.current[qkey];
+      if (!canvas) return;
+      if (chartInsts.current[qkey]) {
+        chartInsts.current[qkey].destroy();
+      }
+      var ds = acopiosVisibles.map(function (ac, i) {
+        var data = fechas.map(function (f) {
+          var b = (porDiaAcopio[f] || {})[ac] && porDiaAcopio[f][ac][qkey];
+          return b ? b.sum / b.n : null;
+        });
+        return {
+          label: ac + ' — ' + estados[ac],
+          data: data,
+          borderColor: HAB_COLORS[i % HAB_COLORS.length],
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: .25,
+          spanGaps: true
+        };
+      });
+      var st = statsPorQuim[qkey];
+      if (st && (showS1 || showS2 || showS3)) {
+        var m = st.mean,
+          sd = st.sd;
+        function band(v) {
+          return fechas.map(function () {
+            return v;
+          });
+        }
+        ds.push({
+          label: 'Media',
+          data: band(m),
+          borderColor: '#555',
+          borderWidth: 1.3,
+          pointRadius: 0,
+          borderDash: [2, 2]
+        });
+        if (showS1) {
+          ds.push({
+            label: '+1σ',
+            data: band(m + sd),
+            borderColor: '#2e7d32',
+            borderWidth: 1,
+            pointRadius: 0,
+            borderDash: [3, 3]
+          });
+          ds.push({
+            label: '-1σ',
+            data: band(m - sd),
+            borderColor: '#2e7d32',
+            borderWidth: 1,
+            pointRadius: 0,
+            borderDash: [3, 3]
+          });
+        }
+        if (showS2) {
+          ds.push({
+            label: '+2σ',
+            data: band(m + 2 * sd),
+            borderColor: '#f9a825',
+            borderWidth: 1,
+            pointRadius: 0,
+            borderDash: [4, 3]
+          });
+          ds.push({
+            label: '-2σ',
+            data: band(m - 2 * sd),
+            borderColor: '#f9a825',
+            borderWidth: 1,
+            pointRadius: 0,
+            borderDash: [4, 3]
+          });
+        }
+        if (showS3) {
+          ds.push({
+            label: 'LCS (+3σ)',
+            data: band(m + 3 * sd),
+            borderColor: '#c62828',
+            borderWidth: 1.4,
+            pointRadius: 0,
+            borderDash: [5, 3]
+          });
+          ds.push({
+            label: 'LCI (-3σ)',
+            data: band(m - 3 * sd),
+            borderColor: '#c62828',
+            borderWidth: 1.4,
+            pointRadius: 0,
+            borderDash: [5, 3]
+          });
+        }
+      }
+      chartInsts.current[qkey] = new window.Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: fechas,
+          datasets: ds
+        },
+        options: {
+          animation: {
+            duration: 0
+          },
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                font: {
+                  size: 9
+                },
+                boxWidth: 12
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  var v = ctx.parsed.y;
+                  return v == null ? ctx.dataset.label + ': —' : ctx.dataset.label + ': ' + fmt(v, 3) + '%';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                font: {
+                  size: 8
+                },
+                maxRotation: 60,
+                minRotation: 60
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: HAB_QUIMICOS.find(function (q) {
+                  return q.key === qkey;
+                }).label + ' (%)'
+              },
+              ticks: {
+                font: {
+                  size: 9
+                }
+              }
+            }
+          }
+        }
+      });
+    });
+    return function () {
+      Object.keys(chartInsts.current).forEach(function (k) {
+        if (chartInsts.current[k]) {
+          chartInsts.current[k].destroy();
+          delete chartInsts.current[k];
+        }
+      });
+    };
+  }, [quimSel, acopiosVisibles, fechas, porDiaAcopio, statsPorQuim, showS1, showS2, showS3]);
+  var specTLH = (getSpecs('TT_TLH') || {}).quimica || {};
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Habilitador de Acopios — TLH Turco"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Vista curada para preparar lo que se mostrará a clientes (agrupado por día, sin acceso al detalle crudo)"))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "1. Estado de cada acopio"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))',
+      gap: 10
+    }
+  }, ACOPIOS_TURCO_LIST.map(function (ac) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: ac,
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, ac), /*#__PURE__*/React.createElement("select", {
+      value: estados[ac],
+      onChange: function (e) {
+        setEstado(ac, e.target.value);
+      },
+      style: {
+        borderLeft: '4px solid ' + ACOPIO_ESTADO_COLOR[estados[ac]]
+      }
+    }, ACOPIO_ESTADOS.map(function (e) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: e,
+        value: e
+      }, e);
+    })));
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "2. Rango de fechas a mostrar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Desde"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: desde,
+    onChange: function (e) {
+      setDesde(e.target.value);
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Hasta"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: hasta,
+    onChange: function (e) {
+      setHasta(e.target.value);
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "3. Químicos a mostrar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'flex',
+      gap: 14,
+      flexWrap: 'wrap'
+    }
+  }, HAB_QUIMICOS.map(function (q) {
+    return /*#__PURE__*/React.createElement("label", {
+      key: q.key,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: '.85rem',
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: quimSel.indexOf(q.key) >= 0,
+      onChange: function () {
+        toggleQuim(q.key);
+      }
+    }), q.label);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "4. Bandas de control (desviación estándar)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'flex',
+      gap: 16,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 5,
+      fontSize: '.85rem',
+      color: '#2e7d32',
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showS1,
+    onChange: function (e) {
+      setShowS1(e.target.checked);
+    }
+  }), "±1σ"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 5,
+      fontSize: '.85rem',
+      color: '#b7791f',
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showS2,
+    onChange: function (e) {
+      setShowS2(e.target.checked);
+    }
+  }), "±2σ"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 5,
+      fontSize: '.85rem',
+      color: '#c62828',
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showS3,
+    onChange: function (e) {
+      setShowS3(e.target.checked);
+    }
+  }), "±3σ (six sigma)")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '0 16px 12px',
+      fontSize: '.76rem',
+      color: 'var(--text-muted)'
+    }
+  }, "Calculadas sobre el dato individual de todos los acopios visibles en el período (no sobre el promedio diario).")), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  })), !loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 16,
+      flexWrap: 'wrap'
+    }
+  }, HAB_TABS.map(function (t) {
+    var n = ACOPIOS_TURCO_LIST.filter(function (a) {
+      return estados[a] === t;
+    }).length;
+    return /*#__PURE__*/React.createElement("button", {
+      key: t,
+      className: 'btn ' + (tabEstado === t ? 'btn-primary' : 'btn-secondary'),
+      style: tabEstado === t ? {
+        borderBottom: '3px solid ' + ACOPIO_ESTADO_COLOR[t]
+      } : {},
+      onClick: function () {
+        setTabEstado(t);
+      }
+    }, t, " (", n, ")");
+  })), !loading && !acopiosVisibles.length && /*#__PURE__*/React.createElement("div", {
+    className: "sec-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 20,
+      textAlign: 'center',
+      color: 'var(--text-muted)'
+    }
+  }, "No hay acopios asignados a \"", tabEstado, "\" — vuelve al paso 1 y asígnales este estado.")), !loading && !!acopiosVisibles.length && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Vista previa — ", tabEstado), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 16px',
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap'
+    }
+  }, acopiosVisibles.map(function (ac) {
+    return /*#__PURE__*/React.createElement("span", {
+      key: ac,
+      style: {
+        padding: '4px 10px',
+        borderRadius: 20,
+        fontSize: '.76rem',
+        fontWeight: 700,
+        color: '#fff',
+        background: ACOPIO_ESTADO_COLOR[estados[ac]]
+      }
+    }, ac, " · ", estados[ac]);
+  }))), quimSel.map(function (qkey) {
+    var q = HAB_QUIMICOS.find(function (x) {
+      return x.key === qkey;
+    });
+    var st = statsPorQuim[qkey];
+    var cv = st && st.mean ? st.sd / st.mean * 100 : null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: qkey,
+      className: "sec-card",
+      style: {
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "sec-card-hdr",
+      style: {
+        fontSize: '.8rem'
+      }
+    }, "Tendencia diaria — ", q.label), st && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        flexWrap: 'wrap',
+        padding: '10px 16px 0'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: 'var(--surface-2,#f3f3f3)',
+        minWidth: 90
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: 'var(--text-muted)'
+      }
+    }, "Media"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1rem',
+        fontWeight: 800
+      }
+    }, fmt(st.mean, 3), "%")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: 'var(--surface-2,#f3f3f3)',
+        minWidth: 90
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: 'var(--text-muted)'
+      }
+    }, "σ"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1rem',
+        fontWeight: 800
+      }
+    }, fmt(st.sd, 3), "%")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: 'var(--surface-2,#f3f3f3)',
+        minWidth: 90
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: 'var(--text-muted)'
+      }
+    }, "CV%"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '1rem',
+        fontWeight: 800
+      }
+    }, cv != null ? fmt(cv, 1) : '—', "%")), showS1 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: '#e8f5e9',
+        minWidth: 150
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: '#2e7d32',
+        fontWeight: 700
+      }
+    }, "±1σ"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.92rem',
+        fontWeight: 700,
+        color: '#2e7d32'
+      }
+    }, fmt(st.mean - st.sd, 3), "% – ", fmt(st.mean + st.sd, 3), "%")), showS2 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: '#fff8e1',
+        minWidth: 150
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: '#b7791f',
+        fontWeight: 700
+      }
+    }, "±2σ"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.92rem',
+        fontWeight: 700,
+        color: '#b7791f'
+      }
+    }, fmt(st.mean - 2 * st.sd, 3), "% – ", fmt(st.mean + 2 * st.sd, 3), "%")), showS3 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: '#fdecea',
+        minWidth: 170
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.68rem',
+        color: '#c62828',
+        fontWeight: 700
+      }
+    }, "±3σ (LCI–LCS) six sigma"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.92rem',
+        fontWeight: 700,
+        color: '#c62828'
+      }
+    }, fmt(st.mean - 3 * st.sd, 3), "% – ", fmt(st.mean + 3 * st.sd, 3), "%"))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '12px 16px',
+        height: 260
+      }
+    }, /*#__PURE__*/React.createElement("canvas", {
+      ref: function (el) {
+        chartRefs.current[qkey] = el;
+      }
+    })));
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "Desviación por químico y acopio (promedio del período)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto',
+      padding: '8px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '.82rem'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: 'var(--surface-2,#f3f3f3)'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '6px 10px',
+      textAlign: 'left'
+    }
+  }, "Químico"), acopiosVisibles.map(function (ac) {
+    return /*#__PURE__*/React.createElement("th", {
+      key: ac,
+      style: {
+        padding: '6px 10px',
+        textAlign: 'center',
+        color: ACOPIO_ESTADO_COLOR[estados[ac]]
+      }
+    }, ac);
+  }))), /*#__PURE__*/React.createElement("tbody", null, quimSel.map(function (qkey) {
+    var q = HAB_QUIMICOS.find(function (x) {
+      return x.key === qkey;
+    });
+    var sp = specTLH[q.spec];
+    return /*#__PURE__*/React.createElement("tr", {
+      key: qkey
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: '5px 10px',
+        fontWeight: 600
+      }
+    }, q.label, sp && (sp.min != null || sp.max != null) ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '.7rem',
+        color: 'var(--text-muted)'
+      }
+    }, " (", sp.min != null ? fmt(sp.min, 2) : '—', "–", sp.max != null ? fmt(sp.max, 2) : '—', ")") : null), acopiosVisibles.map(function (ac) {
+      var v = resumen[ac] && resumen[ac][qkey];
+      var sem = sp && v != null ? calcSemaforo(v, sp.min, sp.max) : 'info';
+      return /*#__PURE__*/React.createElement("td", {
+        key: ac,
+        style: {
+          padding: '5px 10px',
+          textAlign: 'center',
+          fontWeight: sem === 'error' ? 800 : 500,
+          color: SEM_COLOR[sem]
+        }
+      }, v != null ? fmt(v, 2) + '%' : '—');
+    }));
+  })))))));
+}
+
 /* ── HOME SCREEN ── */
 const MODULES = [{
   id: 'arenas',
@@ -22979,6 +23816,27 @@ function HomeScreen({
   }, "Despachos Sur"), /*#__PURE__*/React.createElement("div", {
     className: "nc-desc"
   }, "Tendencia de %Humedad Acopios Cancha, con filtros por destino y acopio")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), !isViewer && /*#__PURE__*/React.createElement("div", {
+    className: "nav-card",
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      onNav('habilitador-acopios');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('habilitador-acopios');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#6c3483,#1a5276)'
+    }
+  }, "👁️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "Habilitador de Acopios"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Prepara la vista curada de TLH Turco (por acopio, fecha y químico) para clientes")), /*#__PURE__*/React.createElement("div", {
     className: "nc-arrow"
   }, "›")))));
 }
@@ -23974,6 +24832,11 @@ function App() {
       setScreen('home');
     }
   }), screen === 'despachos-sur-reporte' && /*#__PURE__*/React.createElement(DespachosSurScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    }
+  }), !isViewer && screen === 'habilitador-acopios' && /*#__PURE__*/React.createElement(HabilitadorAcopiosScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
