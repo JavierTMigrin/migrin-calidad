@@ -20412,6 +20412,30 @@ function EettEditor({
     }
   }, "Los cambios afectan alertas, informes y graficos de control. Deja un campo vacio para quitar el limite.")));
 }
+
+/* Roles de usuario: admin/viewer/cliente son flags booleanas en
+   user_metadata (is_admin/is_viewer/is_cliente); "asistente" es el
+   default implicito (sin ninguna flag en true). Gestionados via la
+   Edge Function gestionar-usuarios (solo invocable por un admin). */
+const ROL_LABEL = {
+  admin: 'administrador',
+  viewer: 'visita',
+  cliente: 'cliente',
+  asistente: 'asistente de calidad'
+};
+const ROL_OPTIONS = [{
+  value: 'asistente',
+  label: 'Asistente de Calidad'
+}, {
+  value: 'viewer',
+  label: 'Visita'
+}, {
+  value: 'cliente',
+  label: 'Cliente'
+}, {
+  value: 'admin',
+  label: 'Administrador'
+}];
 function SettingsScreen({
   account,
   onBack,
@@ -20435,6 +20459,10 @@ function SettingsScreen({
   var [uRol, setURol] = useState('viewer');
   var [uMsg, setUMsg] = useState(null);
   var [uLoading, setULoading] = useState(false);
+  // Listado y cambio de rol de usuarios existentes
+  var [usuarios, setUsuarios] = useState([]);
+  var [loadingUsuarios, setLoadingUsuarios] = useState(false);
+  var [rolUpdating, setRolUpdating] = useState(null);
   function refresh() {
     setPendA(getPending());
     setPendC(getPendingCuarzo());
@@ -20462,8 +20490,61 @@ function SettingsScreen({
     if (isAdmin) {
       fetchAnalistas();
       fetchAudit();
+      fetchUsuarios();
     }
   }, [isAdmin]);
+  async function fetchUsuarios() {
+    setLoadingUsuarios(true);
+    try {
+      var res = await supabase.functions.invoke('gestionar-usuarios', {
+        body: {
+          action: 'list'
+        }
+      });
+      if (res.error) throw res.error;
+      if (res.data && res.data.error) throw new Error(res.data.error);
+      setUsuarios(res.data && res.data.users || []);
+    } catch (e) {
+      console.error(e);
+      setToast({
+        msg: 'No se pudo cargar usuarios: ' + (e.message || e),
+        type: 'error'
+      });
+    }
+    setLoadingUsuarios(false);
+  }
+  async function cambiarRol(userId, nuevoRol) {
+    setRolUpdating(userId);
+    try {
+      var res = await supabase.functions.invoke('gestionar-usuarios', {
+        body: {
+          action: 'update_rol',
+          user_id: userId,
+          rol: nuevoRol
+        }
+      });
+      if (res.error) throw res.error;
+      if (res.data && res.data.error) throw new Error(res.data.error);
+      setUsuarios(function (prev) {
+        return prev.map(function (u) {
+          return u.id === userId ? Object.assign({}, u, {
+            rol: nuevoRol
+          }) : u;
+        });
+      });
+      setToast({
+        msg: 'Rol actualizado',
+        type: 'success'
+      });
+    } catch (e) {
+      console.error(e);
+      setToast({
+        msg: 'Error al cambiar rol: ' + (e.message || e),
+        type: 'error'
+      });
+    }
+    setRolUpdating(null);
+  }
   async function delAnalista(id) {
     if (!confirm('Eliminar este analista de la lista?')) return;
     var res = await supabase.from('analistas').delete().eq('id', id);
@@ -20497,8 +20578,9 @@ function SettingsScreen({
     setULoading(true);
     setUMsg(null);
     try {
-      var res = await supabase.functions.invoke('crear-usuario', {
+      var res = await supabase.functions.invoke('gestionar-usuarios', {
         body: {
+          action: 'create',
           email: em,
           password: uPass,
           rol: uRol
@@ -20508,14 +20590,15 @@ function SettingsScreen({
       if (res.data && res.data.error) throw new Error(res.data.error);
       setUMsg({
         t: 'ok',
-        m: 'Usuario ' + em + ' creado como ' + (uRol === 'admin' ? 'administrador' : 'visualizador') + '.'
+        m: 'Usuario ' + em + ' creado como ' + ROL_LABEL[uRol] + '.'
       });
       setUEmail('');
       setUPass('');
+      fetchUsuarios();
     } catch (e) {
       setUMsg({
         t: 'error',
-        m: 'No se pudo crear: ' + (e.message || e) + '. ¿Desplegaste la función crear-usuario?'
+        m: 'No se pudo crear: ' + (e.message || e)
       });
     }
     setULoading(false);
@@ -20805,11 +20888,87 @@ function SettingsScreen({
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontWeight: 700,
-      fontSize: '.9rem',
-      marginBottom: 10
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+      flexWrap: 'wrap',
+      gap: 8
     }
-  }, "Usuarios y accesos"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: '.9rem'
+    }
+  }, "Usuarios y accesos"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    style: {
+      padding: '5px 12px',
+      fontSize: '.78rem'
+    },
+    onClick: fetchUsuarios
+  }, "↻ Actualizar")), loadingUsuarios ? /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  }) : usuarios.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: 'var(--text-muted)',
+      fontSize: '.85rem',
+      marginBottom: 14
+    }
+  }, "Sin usuarios cargados.") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto',
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "htbl"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Correo"), /*#__PURE__*/React.createElement("th", null, "Rol"), /*#__PURE__*/React.createElement("th", null, "Creado"), /*#__PURE__*/React.createElement("th", null, "Último acceso"))), /*#__PURE__*/React.createElement("tbody", null, usuarios.map(function (u) {
+    var esYo = account && u.email === account.email;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: u.id
+    }, /*#__PURE__*/React.createElement("td", null, u.email, esYo && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--text-muted)'
+      }
+    }, " (tú)")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("select", {
+      value: u.rol,
+      disabled: rolUpdating === u.id || esYo,
+      onChange: function (e) {
+        cambiarRol(u.id, e.target.value);
+      },
+      style: {
+        padding: '5px 8px',
+        borderRadius: 6,
+        border: '1px solid var(--border)',
+        fontFamily: 'Inter,sans-serif',
+        fontWeight: u.rol === 'admin' ? 700 : 400,
+        color: u.rol === 'admin' ? '#b7791f' : 'inherit'
+      }
+    }, ROL_OPTIONS.map(function (o) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: o.value,
+        value: o.value
+      }, o.label);
+    }))), /*#__PURE__*/React.createElement("td", {
+      style: {
+        fontSize: '.78rem',
+        color: 'var(--text-muted)',
+        whiteSpace: 'nowrap'
+      }
+    }, (u.created_at || '').slice(0, 10)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        fontSize: '.78rem',
+        color: 'var(--text-muted)',
+        whiteSpace: 'nowrap'
+      }
+    }, u.last_sign_in_at ? u.last_sign_in_at.slice(0, 10) : '—'));
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: '.85rem',
+      marginBottom: 8
+    }
+  }, "Crear nuevo usuario"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr',
@@ -20860,11 +21019,12 @@ function SettingsScreen({
       border: '1px solid var(--border)',
       fontFamily: 'Inter,sans-serif'
     }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "viewer"
-  }, "Visualizador"), /*#__PURE__*/React.createElement("option", {
-    value: "admin"
-  }, "Administrador"))), /*#__PURE__*/React.createElement("button", {
+  }, ROL_OPTIONS.map(function (o) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: o.value,
+      value: o.value
+    }, o.label);
+  }))), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: crearUsuario,
     disabled: uLoading
@@ -20880,7 +21040,7 @@ function SettingsScreen({
       color: 'var(--text-muted)',
       marginBottom: 4
     }
-  }, "Requiere desplegar la función ", /*#__PURE__*/React.createElement("strong", null, "crear-usuario"), " en Supabase (ver supabase-edge-function-usuarios.ts). El visualizador solo ve Reportes e Historial. Para cambiar contraseñas o borrar usuarios, usa Supabase → Authentication."), /*#__PURE__*/React.createElement("div", {
+  }, "Asistente de Calidad: ingresa ensayos y ve todo excepto Ajustes. Visita: solo lectura. Cliente: solo ve \"Calidad TLH Turco\", nada más. Para cambiar contraseñas o borrar usuarios, usa Supabase → Authentication."), /*#__PURE__*/React.createElement("div", {
     style: {
       height: 1,
       background: 'var(--border)',
@@ -23683,7 +23843,8 @@ function HabilitadorAcopiosScreen({
    configuracion — nada de fechas, quimicos ni estados editables aqui. */
 function AcopiosVistaScreen({
   account,
-  onBack
+  onBack,
+  hideBack
 }) {
   var [records, setRecords] = useState([]);
   var [cfg, setCfg] = useState(null);
@@ -23719,7 +23880,7 @@ function AcopiosVistaScreen({
   }
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-hdr"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, !hideBack && /*#__PURE__*/React.createElement("button", {
     className: "back-btn",
     onClick: onBack
   }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Calidad TLH Turco"), /*#__PURE__*/React.createElement("div", {
@@ -24785,6 +24946,7 @@ function App() {
   }, []);
   var isViewer = account && account.user_metadata && account.user_metadata.is_viewer === true && account.user_metadata.is_admin !== true;
   var isAdmin = account && account.user_metadata && account.user_metadata.is_admin === true;
+  var isCliente = account && account.user_metadata && account.user_metadata.is_cliente === true && !isAdmin && !isViewer;
   useEffect(function () {
     // Cargar overrides de EETT desde Supabase
     loadEETT();
@@ -24928,6 +25090,53 @@ function App() {
       className: "main"
     }, /*#__PURE__*/React.createElement(AuthScreen, {
       onLogin: login
+    })));
+  }
+
+  /* Rol Cliente: acceso completamente cerrado — ni Inicio ni el menu de
+     navegacion normal, solo la vista curada de TLH Turco y "Salir". */
+  if (isCliente) {
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("header", {
+      className: "app-header"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "hdr-brand"
+    }, /*#__PURE__*/React.createElement("img", {
+      src: "logo.png",
+      alt: "MIGRIN",
+      style: {
+        height: 46,
+        width: 46,
+        objectFit: 'contain',
+        background: '#fff',
+        borderRadius: 10,
+        padding: 3
+      },
+      onError: function (e) {
+        e.target.style.display = 'none';
+      }
+    }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "hdr-title"
+    }, "Control de Calidad"), /*#__PURE__*/React.createElement("div", {
+      className: "hdr-sub"
+    }, "MIGRIN S.A."))), /*#__PURE__*/React.createElement("div", {
+      className: "hdr-actions"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn-hdr",
+      onClick: logout,
+      title: "Cerrar sesión"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "lbl"
+    }, "Salir "), "🚪"))), bannerVersion, /*#__PURE__*/React.createElement("div", {
+      className: "main"
+    }, toast && /*#__PURE__*/React.createElement(Toast, {
+      msg: toast.msg,
+      type: toast.type,
+      onClose: function () {
+        setToast(null);
+      }
+    }), /*#__PURE__*/React.createElement(AcopiosVistaScreen, {
+      account: account,
+      hideBack: true
     })));
   }
   return /*#__PURE__*/React.createElement(React.Fragment, null, header, bannerVersion, /*#__PURE__*/React.createElement("div", {

@@ -9662,6 +9662,18 @@ function EettEditor({account}){
   );
 }
 
+/* Roles de usuario: admin/viewer/cliente son flags booleanas en
+   user_metadata (is_admin/is_viewer/is_cliente); "asistente" es el
+   default implicito (sin ninguna flag en true). Gestionados via la
+   Edge Function gestionar-usuarios (solo invocable por un admin). */
+const ROL_LABEL={admin:'administrador',viewer:'visita',cliente:'cliente',asistente:'asistente de calidad'};
+const ROL_OPTIONS=[
+  {value:'asistente',label:'Asistente de Calidad'},
+  {value:'viewer',label:'Visita'},
+  {value:'cliente',label:'Cliente'},
+  {value:'admin',label:'Administrador'},
+];
+
 function SettingsScreen({account,onBack,onLogout}){
   var[isAdmin,setIsAdmin]=useState(false);
   var[showPass,setShowPass]=useState(false);
@@ -9681,6 +9693,10 @@ function SettingsScreen({account,onBack,onLogout}){
   var[uRol,setURol]=useState('viewer');
   var[uMsg,setUMsg]=useState(null);
   var[uLoading,setULoading]=useState(false);
+  // Listado y cambio de rol de usuarios existentes
+  var[usuarios,setUsuarios]=useState([]);
+  var[loadingUsuarios,setLoadingUsuarios]=useState(false);
+  var[rolUpdating,setRolUpdating]=useState(null);
 
   function refresh(){setPendA(getPending());setPendC(getPendingCuarzo());}
 
@@ -9696,7 +9712,36 @@ function SettingsScreen({account,onBack,onLogout}){
         else setToast({msg:'No se pudo cargar auditoría: '+res.error.message,type:'error'});});
   }
 
-  useEffect(function(){if(isAdmin){fetchAnalistas();fetchAudit();}},[isAdmin]);
+  useEffect(function(){if(isAdmin){fetchAnalistas();fetchAudit();fetchUsuarios();}},[isAdmin]);
+
+  async function fetchUsuarios(){
+    setLoadingUsuarios(true);
+    try{
+      var res=await supabase.functions.invoke('gestionar-usuarios',{body:{action:'list'}});
+      if(res.error)throw res.error;
+      if(res.data&&res.data.error)throw new Error(res.data.error);
+      setUsuarios((res.data&&res.data.users)||[]);
+    }catch(e){
+      console.error(e);
+      setToast({msg:'No se pudo cargar usuarios: '+(e.message||e),type:'error'});
+    }
+    setLoadingUsuarios(false);
+  }
+
+  async function cambiarRol(userId,nuevoRol){
+    setRolUpdating(userId);
+    try{
+      var res=await supabase.functions.invoke('gestionar-usuarios',{body:{action:'update_rol',user_id:userId,rol:nuevoRol}});
+      if(res.error)throw res.error;
+      if(res.data&&res.data.error)throw new Error(res.data.error);
+      setUsuarios(function(prev){return prev.map(function(u){return u.id===userId?Object.assign({},u,{rol:nuevoRol}):u;});});
+      setToast({msg:'Rol actualizado',type:'success'});
+    }catch(e){
+      console.error(e);
+      setToast({msg:'Error al cambiar rol: '+(e.message||e),type:'error'});
+    }
+    setRolUpdating(null);
+  }
 
   async function delAnalista(id){
     if(!confirm('Eliminar este analista de la lista?'))return;
@@ -9710,13 +9755,14 @@ function SettingsScreen({account,onBack,onLogout}){
     if(uPass.length<6){setUMsg({t:'error',m:'La contraseña debe tener al menos 6 caracteres.'});return;}
     setULoading(true);setUMsg(null);
     try{
-      var res=await supabase.functions.invoke('crear-usuario',{body:{email:em,password:uPass,rol:uRol}});
+      var res=await supabase.functions.invoke('gestionar-usuarios',{body:{action:'create',email:em,password:uPass,rol:uRol}});
       if(res.error)throw res.error;
       if(res.data&&res.data.error)throw new Error(res.data.error);
-      setUMsg({t:'ok',m:'Usuario '+em+' creado como '+(uRol==='admin'?'administrador':'visualizador')+'.'});
+      setUMsg({t:'ok',m:'Usuario '+em+' creado como '+ROL_LABEL[uRol]+'.'});
       setUEmail('');setUPass('');
+      fetchUsuarios();
     }catch(e){
-      setUMsg({t:'error',m:'No se pudo crear: '+(e.message||e)+'. ¿Desplegaste la función crear-usuario?'});
+      setUMsg({t:'error',m:'No se pudo crear: '+(e.message||e)});
     }
     setULoading(false);
   }
@@ -9855,7 +9901,38 @@ function SettingsScreen({account,onBack,onLogout}){
             )}
             {/* ── Usuarios y accesos ── */}
             <div style={{height:1,background:'var(--border)',margin:'18px 0'}}/>
-            <div style={{fontWeight:700,fontSize:'.9rem',marginBottom:10}}>Usuarios y accesos</div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:8}}>
+              <div style={{fontWeight:700,fontSize:'.9rem'}}>Usuarios y accesos</div>
+              <button className="btn btn-secondary" style={{padding:'5px 12px',fontSize:'.78rem'}} onClick={fetchUsuarios}>↻ Actualizar</button>
+            </div>
+            {loadingUsuarios?<div className="spinner"/>:(
+              usuarios.length===0
+                ?<p style={{color:'var(--text-muted)',fontSize:'.85rem',marginBottom:14}}>Sin usuarios cargados.</p>
+                :<div style={{overflowX:'auto',marginBottom:16}}>
+                  <table className="htbl">
+                    <thead><tr><th>Correo</th><th>Rol</th><th>Creado</th><th>Último acceso</th></tr></thead>
+                    <tbody>{usuarios.map(function(u){
+                      var esYo=account&&u.email===account.email;
+                      return(
+                        <tr key={u.id}>
+                          <td>{u.email}{esYo&&<span style={{color:'var(--text-muted)'}}> (tú)</span>}</td>
+                          <td>
+                            <select value={u.rol} disabled={rolUpdating===u.id||esYo}
+                              onChange={function(e){cambiarRol(u.id,e.target.value);}}
+                              style={{padding:'5px 8px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif',
+                                fontWeight:u.rol==='admin'?700:400,color:u.rol==='admin'?'#b7791f':'inherit'}}>
+                              {ROL_OPTIONS.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}
+                            </select>
+                          </td>
+                          <td style={{fontSize:'.78rem',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{(u.created_at||'').slice(0,10)}</td>
+                          <td style={{fontSize:'.78rem',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{u.last_sign_in_at?u.last_sign_in_at.slice(0,10):'—'}</td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+            )}
+            <div style={{fontWeight:700,fontSize:'.85rem',marginBottom:8}}>Crear nuevo usuario</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr',gap:8,maxWidth:420,marginBottom:8}}>
               <input type="email" value={uEmail} placeholder="correo@migrin.cl"
                 onChange={function(e){setUEmail(e.target.value);}}
@@ -9866,8 +9943,7 @@ function SettingsScreen({account,onBack,onLogout}){
                   style={{flex:1,padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}/>
                 <select value={uRol} onChange={function(e){setURol(e.target.value);}}
                   style={{padding:'8px 10px',borderRadius:6,border:'1px solid var(--border)',fontFamily:'Inter,sans-serif'}}>
-                  <option value="viewer">Visualizador</option>
-                  <option value="admin">Administrador</option>
+                  {ROL_OPTIONS.map(function(o){return <option key={o.value} value={o.value}>{o.label}</option>;})}
                 </select>
               </div>
               <button className="btn btn-primary" onClick={crearUsuario} disabled={uLoading}>
@@ -9877,8 +9953,8 @@ function SettingsScreen({account,onBack,onLogout}){
                 color:uMsg.t==='ok'?'var(--success)':'var(--error)'}}>{uMsg.m}</div>}
             </div>
             <div style={{fontSize:'.74rem',color:'var(--text-muted)',marginBottom:4}}>
-              Requiere desplegar la función <strong>crear-usuario</strong> en Supabase (ver supabase-edge-function-usuarios.ts).
-              El visualizador solo ve Reportes e Historial. Para cambiar contraseñas o borrar usuarios, usa Supabase → Authentication.
+              Asistente de Calidad: ingresa ensayos y ve todo excepto Ajustes. Visita: solo lectura.
+              Cliente: solo ve "Calidad TLH Turco", nada más. Para cambiar contraseñas o borrar usuarios, usa Supabase → Authentication.
             </div>
 
             {/* ── Registro de auditoría ── */}
@@ -11048,7 +11124,7 @@ function HabilitadorAcopiosScreen({account,onBack}){
 /* ── Pantalla PUBLICA (sin gating de rol): carga la config guardada por
    el admin y muestra solo la visualizacion, sin ningun control de
    configuracion — nada de fechas, quimicos ni estados editables aqui. */
-function AcopiosVistaScreen({account,onBack}){
+function AcopiosVistaScreen({account,onBack,hideBack}){
   var[records,setRecords]=useState([]);
   var[cfg,setCfg]=useState(null);
   var[loading,setLoading]=useState(true);
@@ -11071,7 +11147,7 @@ function AcopiosVistaScreen({account,onBack}){
   return(
     <div>
       <div className="page-hdr">
-        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        {!hideBack&&<button className="back-btn" onClick={onBack}>&#8592;</button>}
         <div><h2>Calidad TLH Turco</h2>
           <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Tendencia química por acopio, agrupada por día</div>
         </div>
@@ -11564,6 +11640,7 @@ function App(){
 
   var isViewer=account&&account.user_metadata&&account.user_metadata.is_viewer===true&&account.user_metadata.is_admin!==true;
   var isAdmin=account&&account.user_metadata&&account.user_metadata.is_admin===true;
+  var isCliente=account&&account.user_metadata&&account.user_metadata.is_cliente===true&&!isAdmin&&!isViewer;
 
   useEffect(function(){
     // Cargar overrides de EETT desde Supabase
@@ -11654,6 +11731,35 @@ function App(){
         {header}
         {bannerVersion}
         <div className="main"><AuthScreen onLogin={login}/></div>
+      </>
+    );
+  }
+
+  /* Rol Cliente: acceso completamente cerrado — ni Inicio ni el menu de
+     navegacion normal, solo la vista curada de TLH Turco y "Salir". */
+  if(isCliente){
+    return(
+      <>
+        <header className="app-header">
+          <div className="hdr-brand">
+            <img src="logo.png" alt="MIGRIN" style={{height:46,width:46,objectFit:'contain',background:'#fff',borderRadius:10,padding:3}}
+              onError={function(e){e.target.style.display='none';}}/>
+            <div>
+              <div className="hdr-title">Control de Calidad</div>
+              <div className="hdr-sub">MIGRIN S.A.</div>
+            </div>
+          </div>
+          <div className="hdr-actions">
+            <button className="btn-hdr" onClick={logout} title="Cerrar sesión">
+              <span className="lbl">Salir </span>&#128682;
+            </button>
+          </div>
+        </header>
+        {bannerVersion}
+        <div className="main">
+          {toast&&<Toast msg={toast.msg} type={toast.type} onClose={function(){setToast(null);}}/>}
+          <AcopiosVistaScreen account={account} hideBack={true}/>
+        </div>
       </>
     );
   }
