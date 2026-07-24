@@ -10666,38 +10666,16 @@ const HAB_COLORS=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#e67e22','#
 const ACOPIOS_TURCO_LIST=ACOPIOS_TURCO.map(function(o){return o.value;});
 const HAB_TABS=['Producción','Despacho','Espera Humedad'];
 
-function HabilitadorAcopiosScreen({account,onBack}){
-  var[records,setRecords]=useState([]);
-  var[loading,setLoading]=useState(true);
-  var[estados,setEstados]=useState(function(){
-    var o={};ACOPIOS_TURCO_LIST.forEach(function(a){o[a]='Oculto';});return o;
-  });
-  var hoy=today();
-  var hace30=(function(){var d=new Date();d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
-  var[desde,setDesde]=useState(hace30);
-  var[hasta,setHasta]=useState(hoy);
-  var[quimSel,setQuimSel]=useState(['sio2','al2o3','fe2o3']);
+/* Vista compartida: tabs por estado + KPI + graficos + tabla de desviacion.
+   La usan tanto el admin (con la config en edicion, en vivo) como la vista
+   de solo lectura (con la config ya guardada) — misma pieza, sin duplicar
+   la logica de calculo ni el dibujo de los graficos. */
+function HabilitadorVisualizacion({records,estados,desde,hasta,quimSel}){
   var[showS1,setShowS1]=useState(false);
   var[showS2,setShowS2]=useState(false);
   var[showS3,setShowS3]=useState(false);
   var[tabEstado,setTabEstado]=useState('Producción');
   var chartRefs=useRef({});var chartInsts=useRef({});
-
-  useEffect(function(){load();},[]);
-  async function load(){
-    setLoading(true);
-    var cloud=[];try{cloud=await loadEnsayos();}catch(e){console.error(e);}
-    var pa=getPending();
-    var ids=new Set(cloud.map(function(r){return r.ID;}));
-    var merged=cloud.concat(pa.filter(function(r){return !ids.has(r.id);}));
-    setRecords(merged.filter(function(r){return r.ProductoKey==='TT_TLH';}));
-    setLoading(false);
-  }
-
-  function setEstado(ac,v){setEstados(function(p){var n=Object.assign({},p);n[ac]=v;return n;});}
-  function toggleQuim(k){
-    setQuimSel(function(p){return p.indexOf(k)>=0?p.filter(function(x){return x!==k;}):p.concat([k]);});
-  }
 
   var acopiosVisibles=useMemo(function(){
     return ACOPIOS_TURCO_LIST.filter(function(a){return estados[a]===tabEstado;});
@@ -10818,54 +10796,19 @@ function HabilitadorAcopiosScreen({account,onBack}){
 
   return(
     <div>
-      <div className="page-hdr">
-        <button className="back-btn" onClick={onBack}>&#8592;</button>
-        <div><h2>Habilitador de Acopios — TLH Turco</h2>
-          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Vista curada para preparar lo que se mostrará a clientes (agrupado por día, sin acceso al detalle crudo)</div>
-        </div>
+      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+        {HAB_TABS.map(function(t){
+          var n=ACOPIOS_TURCO_LIST.filter(function(a){return estados[a]===t;}).length;
+          return(
+            <button key={t} className={'btn '+(tabEstado===t?'btn-primary':'btn-secondary')}
+              style={tabEstado===t?{borderBottom:'3px solid '+ACOPIO_ESTADO_COLOR[t]}:{}}
+              onClick={function(){setTabEstado(t);}}>{t} ({n})</button>
+          );
+        })}
       </div>
 
       <div className="sec-card" style={{marginBottom:16}}>
-        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>1. Estado de cada acopio</div>
-        <div style={{padding:'12px 16px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:10}}>
-          {ACOPIOS_TURCO_LIST.map(function(ac){
-            return(
-              <div key={ac} className="dff">
-                <label>{ac}</label>
-                <select value={estados[ac]} onChange={function(e){setEstado(ac,e.target.value);}}
-                  style={{borderLeft:'4px solid '+ACOPIO_ESTADO_COLOR[estados[ac]]}}>
-                  {ACOPIO_ESTADOS.map(function(e){return <option key={e} value={e}>{e}</option>;})}
-                </select>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="sec-card" style={{marginBottom:16}}>
-        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>2. Rango de fechas a mostrar</div>
-        <div style={{padding:'12px 16px',display:'flex',gap:10,flexWrap:'wrap'}}>
-          <div className="dff"><label>Desde</label><input type="date" value={desde} onChange={function(e){setDesde(e.target.value);}}/></div>
-          <div className="dff"><label>Hasta</label><input type="date" value={hasta} onChange={function(e){setHasta(e.target.value);}}/></div>
-        </div>
-      </div>
-
-      <div className="sec-card" style={{marginBottom:16}}>
-        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>3. Químicos a mostrar</div>
-        <div style={{padding:'12px 16px',display:'flex',gap:14,flexWrap:'wrap'}}>
-          {HAB_QUIMICOS.map(function(q){
-            return(
-              <label key={q.key} style={{display:'flex',alignItems:'center',gap:6,fontSize:'.85rem',cursor:'pointer'}}>
-                <input type="checkbox" checked={quimSel.indexOf(q.key)>=0} onChange={function(){toggleQuim(q.key);}}/>
-                {q.label}
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="sec-card" style={{marginBottom:16}}>
-        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>4. Bandas de control (desviación estándar)</div>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Bandas de control (desviación estándar)</div>
         <div style={{padding:'12px 16px',display:'flex',gap:16,flexWrap:'wrap'}}>
           <label style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:'.85rem',color:'#2e7d32',fontWeight:600,cursor:'pointer'}}>
             <input type="checkbox" checked={showS1} onChange={function(e){setShowS1(e.target.checked);}}/>±1σ
@@ -10877,28 +10820,12 @@ function HabilitadorAcopiosScreen({account,onBack}){
             <input type="checkbox" checked={showS3} onChange={function(e){setShowS3(e.target.checked);}}/>±3σ (six sigma)
           </label>
         </div>
-        <div style={{padding:'0 16px 12px',fontSize:'.76rem',color:'var(--text-muted)'}}>
-          Calculadas sobre el dato individual de todos los acopios visibles en el período (no sobre el promedio diario).
-        </div>
       </div>
 
-      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
-      {!loading&&(
-        <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-          {HAB_TABS.map(function(t){
-            var n=ACOPIOS_TURCO_LIST.filter(function(a){return estados[a]===t;}).length;
-            return(
-              <button key={t} className={'btn '+(tabEstado===t?'btn-primary':'btn-secondary')}
-                style={tabEstado===t?{borderBottom:'3px solid '+ACOPIO_ESTADO_COLOR[t]}:{}}
-                onClick={function(){setTabEstado(t);}}>{t} ({n})</button>
-            );
-          })}
-        </div>
+      {!acopiosVisibles.length&&(
+        <div className="sec-card"><div style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>No hay acopios asignados a "{tabEstado}".</div></div>
       )}
-      {!loading&&!acopiosVisibles.length&&(
-        <div className="sec-card"><div style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>No hay acopios asignados a "{tabEstado}" — vuelve al paso 1 y asígnales este estado.</div></div>
-      )}
-      {!loading&&!!acopiosVisibles.length&&(
+      {!!acopiosVisibles.length&&(
         <div>
           <div className="sec-card" style={{marginBottom:16}}>
             <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Vista previa — {tabEstado}</div>
@@ -10914,6 +10841,7 @@ function HabilitadorAcopiosScreen({account,onBack}){
 
           {quimSel.map(function(qkey){
             var q=HAB_QUIMICOS.find(function(x){return x.key===qkey;});
+            if(!q)return null;
             var st=statsPorQuim[qkey];
             var cv=(st&&st.mean)?(st.sd/st.mean*100):null;
             return(
@@ -10973,6 +10901,7 @@ function HabilitadorAcopiosScreen({account,onBack}){
                 <tbody>
                   {quimSel.map(function(qkey){
                     var q=HAB_QUIMICOS.find(function(x){return x.key===qkey;});
+                    if(!q)return null;
                     var sp=specTLH[q.spec];
                     return(
                       <tr key={qkey}>
@@ -10994,6 +10923,165 @@ function HabilitadorAcopiosScreen({account,onBack}){
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Pantalla ADMIN: configura estado por acopio, fechas y quimicos, y
+   guarda esa configuracion en Supabase (habilitador_config) para que la
+   vista de solo lectura (AcopiosVistaScreen, sin gating) la use. Solo
+   administradores pueden entrar aqui y guardar. */
+function HabilitadorAcopiosScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[loading,setLoading]=useState(true);
+  var[estados,setEstados]=useState(function(){
+    var o={};ACOPIOS_TURCO_LIST.forEach(function(a){o[a]='Oculto';});return o;
+  });
+  var hoy=today();
+  var hace30=(function(){var d=new Date();d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
+  var[desde,setDesde]=useState(hace30);
+  var[hasta,setHasta]=useState(hoy);
+  var[quimSel,setQuimSel]=useState(['sio2','al2o3','fe2o3']);
+  var[guardando,setGuardando]=useState(false);
+  var[guardMsg,setGuardMsg]=useState('');
+
+  useEffect(function(){load();},[]);
+  async function load(){
+    setLoading(true);
+    var cloud=[];try{cloud=await loadEnsayos();}catch(e){console.error(e);}
+    var pa=getPending();
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pa.filter(function(r){return !ids.has(r.id);}));
+    setRecords(merged.filter(function(r){return r.ProductoKey==='TT_TLH';}));
+    try{
+      var res=await supabase.from('habilitador_config').select('*').eq('producto_key','TT_TLH').maybeSingle();
+      if(res.data&&res.data.config){
+        var cfg=res.data.config;
+        if(cfg.estados)setEstados(function(p){return Object.assign({},p,cfg.estados);});
+        if(cfg.desde)setDesde(cfg.desde);
+        if(cfg.hasta)setHasta(cfg.hasta);
+        if(cfg.quimicos)setQuimSel(cfg.quimicos);
+      }
+    }catch(e){console.error('Error cargando config Habilitador:',e);}
+    setLoading(false);
+  }
+
+  function setEstado(ac,v){setEstados(function(p){var n=Object.assign({},p);n[ac]=v;return n;});}
+  function toggleQuim(k){
+    setQuimSel(function(p){return p.indexOf(k)>=0?p.filter(function(x){return x!==k;}):p.concat([k]);});
+  }
+
+  async function guardarConfig(){
+    setGuardando(true);setGuardMsg('');
+    var cfg={estados:estados,desde:desde,hasta:hasta,quimicos:quimSel};
+    try{
+      var res=await supabase.from('habilitador_config').upsert([{
+        producto_key:'TT_TLH',config:cfg,
+        updated_by:account?account.email:'',
+        updated_at:new Date().toISOString(),
+      }]);
+      if(res.error)throw res.error;
+      setGuardMsg('Configuración guardada — ya está disponible en la vista para todos.');
+    }catch(e){console.error(e);setGuardMsg('Error al guardar: '+(e.message||e));}
+    setGuardando(false);
+  }
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div><h2>Habilitador de Acopios — TLH Turco</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Configura lo que se mostrará en la vista pública (agrupado por día, sin acceso al detalle crudo)</div>
+        </div>
+        <span style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
+          {guardMsg&&<span style={{fontSize:'.8rem',color:guardMsg.indexOf('Error')===0?'var(--error)':'var(--success)'}}>{guardMsg}</span>}
+          <button className="btn btn-primary" disabled={guardando} onClick={guardarConfig}>{guardando?'Guardando…':'Guardar configuración'}</button>
+        </span>
+      </div>
+
+      <div className="sec-card" style={{marginBottom:16}}>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>1. Estado de cada acopio</div>
+        <div style={{padding:'12px 16px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:10}}>
+          {ACOPIOS_TURCO_LIST.map(function(ac){
+            return(
+              <div key={ac} className="dff">
+                <label>{ac}</label>
+                <select value={estados[ac]} onChange={function(e){setEstado(ac,e.target.value);}}
+                  style={{borderLeft:'4px solid '+ACOPIO_ESTADO_COLOR[estados[ac]]}}>
+                  {ACOPIO_ESTADOS.map(function(e){return <option key={e} value={e}>{e}</option>;})}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="sec-card" style={{marginBottom:16}}>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>2. Rango de fechas a mostrar</div>
+        <div style={{padding:'12px 16px',display:'flex',gap:10,flexWrap:'wrap'}}>
+          <div className="dff"><label>Desde</label><input type="date" value={desde} onChange={function(e){setDesde(e.target.value);}}/></div>
+          <div className="dff"><label>Hasta</label><input type="date" value={hasta} onChange={function(e){setHasta(e.target.value);}}/></div>
+        </div>
+      </div>
+
+      <div className="sec-card" style={{marginBottom:16}}>
+        <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>3. Químicos a mostrar</div>
+        <div style={{padding:'12px 16px',display:'flex',gap:14,flexWrap:'wrap'}}>
+          {HAB_QUIMICOS.map(function(q){
+            return(
+              <label key={q.key} style={{display:'flex',alignItems:'center',gap:6,fontSize:'.85rem',cursor:'pointer'}}>
+                <input type="checkbox" checked={quimSel.indexOf(q.key)>=0} onChange={function(){toggleQuim(q.key);}}/>
+                {q.label}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+      {!loading&&<HabilitadorVisualizacion records={records} estados={estados} desde={desde} hasta={hasta} quimSel={quimSel}/>}
+    </div>
+  );
+}
+
+/* ── Pantalla PUBLICA (sin gating de rol): carga la config guardada por
+   el admin y muestra solo la visualizacion, sin ningun control de
+   configuracion — nada de fechas, quimicos ni estados editables aqui. */
+function AcopiosVistaScreen({account,onBack}){
+  var[records,setRecords]=useState([]);
+  var[cfg,setCfg]=useState(null);
+  var[loading,setLoading]=useState(true);
+
+  useEffect(function(){load();},[]);
+  async function load(){
+    setLoading(true);
+    var cloud=[];try{cloud=await loadEnsayos();}catch(e){console.error(e);}
+    var pa=getPending();
+    var ids=new Set(cloud.map(function(r){return r.ID;}));
+    var merged=cloud.concat(pa.filter(function(r){return !ids.has(r.id);}));
+    setRecords(merged.filter(function(r){return r.ProductoKey==='TT_TLH';}));
+    try{
+      var res=await supabase.from('habilitador_config').select('*').eq('producto_key','TT_TLH').maybeSingle();
+      if(res.data&&res.data.config)setCfg(res.data.config);
+    }catch(e){console.error('Error cargando config Habilitador:',e);}
+    setLoading(false);
+  }
+
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={onBack}>&#8592;</button>
+        <div><h2>Calidad TLH Turco</h2>
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Tendencia química por acopio, agrupada por día</div>
+        </div>
+      </div>
+      {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
+      {!loading&&!cfg&&(
+        <div className="sec-card"><div style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>Aún no hay una vista configurada por el administrador.</div></div>
+      )}
+      {!loading&&cfg&&(
+        <HabilitadorVisualizacion records={records} estados={cfg.estados||{}} desde={cfg.desde||''} hasta={cfg.hasta||''} quimSel={cfg.quimicos||[]}/>
       )}
     </div>
   );
@@ -11106,14 +11194,24 @@ function HomeScreen({onSelect,onNav,isViewer,account}){
             </div>
             <div className="nc-arrow">›</div>
           </div>
-          {!isViewer&&(
+          <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
+            onClick={function(){onNav('acopios-vista');}}
+            onKeyDown={function(e){if(e.key==='Enter')onNav('acopios-vista');}}>
+            <div className="nc-ico" style={{background:'linear-gradient(135deg,#6c3483,#2874a6)'}}>📈</div>
+            <div>
+              <div className="nc-tit">Calidad TLH Turco</div>
+              <div className="nc-desc">Tendencia química por acopio, curada para consulta rápida</div>
+            </div>
+            <div className="nc-arrow">›</div>
+          </div>
+          {account&&account.user_metadata&&account.user_metadata.is_admin===true&&(
             <div className="nav-card" role="button" tabIndex={0}
               onClick={function(){onNav('habilitador-acopios');}}
               onKeyDown={function(e){if(e.key==='Enter')onNav('habilitador-acopios');}}>
               <div className="nc-ico" style={{background:'linear-gradient(135deg,#6c3483,#1a5276)'}}>👁️</div>
               <div>
-                <div className="nc-tit">Habilitador de Acopios</div>
-                <div className="nc-desc">Prepara la vista curada de TLH Turco (por acopio, fecha y químico) para clientes</div>
+                <div className="nc-tit">Habilitador de Acopios (Admin)</div>
+                <div className="nc-desc">Configura qué acopios, fechas y químicos ve todo el mundo en "Calidad TLH Turco"</div>
               </div>
               <div className="nc-arrow">›</div>
             </div>
@@ -11588,7 +11686,8 @@ function App(){
         {screen==='comparador'&&<ComparadorScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='simin-piedras'&&<SiminPiedrasScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='despachos-sur-reporte'&&<DespachosSurScreen account={account} onBack={function(){setScreen('home');}}/>}
-        {!isViewer&&screen==='habilitador-acopios'&&<HabilitadorAcopiosScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {isAdmin&&screen==='habilitador-acopios'&&<HabilitadorAcopiosScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='acopios-vista'&&<AcopiosVistaScreen account={account} onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
       {isAdmin&&<AsistenteIA/>}

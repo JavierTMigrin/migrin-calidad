@@ -22819,71 +22819,24 @@ const ACOPIOS_TURCO_LIST = ACOPIOS_TURCO.map(function (o) {
   return o.value;
 });
 const HAB_TABS = ['Producción', 'Despacho', 'Espera Humedad'];
-function HabilitadorAcopiosScreen({
-  account,
-  onBack
+
+/* Vista compartida: tabs por estado + KPI + graficos + tabla de desviacion.
+   La usan tanto el admin (con la config en edicion, en vivo) como la vista
+   de solo lectura (con la config ya guardada) — misma pieza, sin duplicar
+   la logica de calculo ni el dibujo de los graficos. */
+function HabilitadorVisualizacion({
+  records,
+  estados,
+  desde,
+  hasta,
+  quimSel
 }) {
-  var [records, setRecords] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [estados, setEstados] = useState(function () {
-    var o = {};
-    ACOPIOS_TURCO_LIST.forEach(function (a) {
-      o[a] = 'Oculto';
-    });
-    return o;
-  });
-  var hoy = today();
-  var hace30 = function () {
-    var d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  }();
-  var [desde, setDesde] = useState(hace30);
-  var [hasta, setHasta] = useState(hoy);
-  var [quimSel, setQuimSel] = useState(['sio2', 'al2o3', 'fe2o3']);
   var [showS1, setShowS1] = useState(false);
   var [showS2, setShowS2] = useState(false);
   var [showS3, setShowS3] = useState(false);
   var [tabEstado, setTabEstado] = useState('Producción');
   var chartRefs = useRef({});
   var chartInsts = useRef({});
-  useEffect(function () {
-    load();
-  }, []);
-  async function load() {
-    setLoading(true);
-    var cloud = [];
-    try {
-      cloud = await loadEnsayos();
-    } catch (e) {
-      console.error(e);
-    }
-    var pa = getPending();
-    var ids = new Set(cloud.map(function (r) {
-      return r.ID;
-    }));
-    var merged = cloud.concat(pa.filter(function (r) {
-      return !ids.has(r.id);
-    }));
-    setRecords(merged.filter(function (r) {
-      return r.ProductoKey === 'TT_TLH';
-    }));
-    setLoading(false);
-  }
-  function setEstado(ac, v) {
-    setEstados(function (p) {
-      var n = Object.assign({}, p);
-      n[ac] = v;
-      return n;
-    });
-  }
-  function toggleQuim(k) {
-    setQuimSel(function (p) {
-      return p.indexOf(k) >= 0 ? p.filter(function (x) {
-        return x !== k;
-      }) : p.concat([k]);
-    });
-  }
   var acopiosVisibles = useMemo(function () {
     return ACOPIOS_TURCO_LIST.filter(function (a) {
       return estados[a] === tabEstado;
@@ -23142,84 +23095,27 @@ function HabilitadorAcopiosScreen({
   }, [quimSel, acopiosVisibles, fechas, porDiaAcopio, statsPorQuim, showS1, showS2, showS3]);
   var specTLH = (getSpecs('TT_TLH') || {}).quimica || {};
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "page-hdr"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "back-btn",
-    onClick: onBack
-  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Habilitador de Acopios — TLH Turco"), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '.82rem',
-      color: 'var(--text-secondary)'
-    }
-  }, "Vista curada para preparar lo que se mostrará a clientes (agrupado por día, sin acceso al detalle crudo)"))), /*#__PURE__*/React.createElement("div", {
-    className: "sec-card",
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "sec-card-hdr",
-    style: {
-      fontSize: '.8rem'
-    }
-  }, "1. Estado de cada acopio"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '12px 16px',
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))',
-      gap: 10
-    }
-  }, ACOPIOS_TURCO_LIST.map(function (ac) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: ac,
-      className: "dff"
-    }, /*#__PURE__*/React.createElement("label", null, ac), /*#__PURE__*/React.createElement("select", {
-      value: estados[ac],
-      onChange: function (e) {
-        setEstado(ac, e.target.value);
-      },
-      style: {
-        borderLeft: '4px solid ' + ACOPIO_ESTADO_COLOR[estados[ac]]
-      }
-    }, ACOPIO_ESTADOS.map(function (e) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: e,
-        value: e
-      }, e);
-    })));
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "sec-card",
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "sec-card-hdr",
-    style: {
-      fontSize: '.8rem'
-    }
-  }, "2. Rango de fechas a mostrar"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '12px 16px',
       display: 'flex',
-      gap: 10,
+      gap: 8,
+      marginBottom: 16,
       flexWrap: 'wrap'
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Desde"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: desde,
-    onChange: function (e) {
-      setDesde(e.target.value);
-    }
+  }, HAB_TABS.map(function (t) {
+    var n = ACOPIOS_TURCO_LIST.filter(function (a) {
+      return estados[a] === t;
+    }).length;
+    return /*#__PURE__*/React.createElement("button", {
+      key: t,
+      className: 'btn ' + (tabEstado === t ? 'btn-primary' : 'btn-secondary'),
+      style: tabEstado === t ? {
+        borderBottom: '3px solid ' + ACOPIO_ESTADO_COLOR[t]
+      } : {},
+      onClick: function () {
+        setTabEstado(t);
+      }
+    }, t, " (", n, ")");
   })), /*#__PURE__*/React.createElement("div", {
-    className: "dff"
-  }, /*#__PURE__*/React.createElement("label", null, "Hasta"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: hasta,
-    onChange: function (e) {
-      setHasta(e.target.value);
-    }
-  })))), /*#__PURE__*/React.createElement("div", {
     className: "sec-card",
     style: {
       marginBottom: 16
@@ -23229,41 +23125,7 @@ function HabilitadorAcopiosScreen({
     style: {
       fontSize: '.8rem'
     }
-  }, "3. Químicos a mostrar"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '12px 16px',
-      display: 'flex',
-      gap: 14,
-      flexWrap: 'wrap'
-    }
-  }, HAB_QUIMICOS.map(function (q) {
-    return /*#__PURE__*/React.createElement("label", {
-      key: q.key,
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        fontSize: '.85rem',
-        cursor: 'pointer'
-      }
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "checkbox",
-      checked: quimSel.indexOf(q.key) >= 0,
-      onChange: function () {
-        toggleQuim(q.key);
-      }
-    }), q.label);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "sec-card",
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "sec-card-hdr",
-    style: {
-      fontSize: '.8rem'
-    }
-  }, "4. Bandas de control (desviación estándar)"), /*#__PURE__*/React.createElement("div", {
+  }, "Bandas de control (desviación estándar)"), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '12px 16px',
       display: 'flex',
@@ -23318,42 +23180,7 @@ function HabilitadorAcopiosScreen({
     onChange: function (e) {
       setShowS3(e.target.checked);
     }
-  }), "±3σ (six sigma)")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '0 16px 12px',
-      fontSize: '.76rem',
-      color: 'var(--text-muted)'
-    }
-  }, "Calculadas sobre el dato individual de todos los acopios visibles en el período (no sobre el promedio diario).")), loading && /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'center',
-      padding: 40
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "spinner"
-  })), !loading && /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 8,
-      marginBottom: 16,
-      flexWrap: 'wrap'
-    }
-  }, HAB_TABS.map(function (t) {
-    var n = ACOPIOS_TURCO_LIST.filter(function (a) {
-      return estados[a] === t;
-    }).length;
-    return /*#__PURE__*/React.createElement("button", {
-      key: t,
-      className: 'btn ' + (tabEstado === t ? 'btn-primary' : 'btn-secondary'),
-      style: tabEstado === t ? {
-        borderBottom: '3px solid ' + ACOPIO_ESTADO_COLOR[t]
-      } : {},
-      onClick: function () {
-        setTabEstado(t);
-      }
-    }, t, " (", n, ")");
-  })), !loading && !acopiosVisibles.length && /*#__PURE__*/React.createElement("div", {
+  }), "±3σ (six sigma)"))), !acopiosVisibles.length && /*#__PURE__*/React.createElement("div", {
     className: "sec-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -23361,7 +23188,7 @@ function HabilitadorAcopiosScreen({
       textAlign: 'center',
       color: 'var(--text-muted)'
     }
-  }, "No hay acopios asignados a \"", tabEstado, "\" — vuelve al paso 1 y asígnales este estado.")), !loading && !!acopiosVisibles.length && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "No hay acopios asignados a \"", tabEstado, "\".")), !!acopiosVisibles.length && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "sec-card",
     style: {
       marginBottom: 16
@@ -23394,6 +23221,7 @@ function HabilitadorAcopiosScreen({
     var q = HAB_QUIMICOS.find(function (x) {
       return x.key === qkey;
     });
+    if (!q) return null;
     var st = statsPorQuim[qkey];
     var cv = st && st.mean ? st.sd / st.mean * 100 : null;
     return /*#__PURE__*/React.createElement("div", {
@@ -23572,6 +23400,7 @@ function HabilitadorAcopiosScreen({
     var q = HAB_QUIMICOS.find(function (x) {
       return x.key === qkey;
     });
+    if (!q) return null;
     var sp = specTLH[q.spec];
     return /*#__PURE__*/React.createElement("tr", {
       key: qkey
@@ -23599,6 +23428,328 @@ function HabilitadorAcopiosScreen({
       }, v != null ? fmt(v, 2) + '%' : '—');
     }));
   })))))));
+}
+
+/* ── Pantalla ADMIN: configura estado por acopio, fechas y quimicos, y
+   guarda esa configuracion en Supabase (habilitador_config) para que la
+   vista de solo lectura (AcopiosVistaScreen, sin gating) la use. Solo
+   administradores pueden entrar aqui y guardar. */
+function HabilitadorAcopiosScreen({
+  account,
+  onBack
+}) {
+  var [records, setRecords] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [estados, setEstados] = useState(function () {
+    var o = {};
+    ACOPIOS_TURCO_LIST.forEach(function (a) {
+      o[a] = 'Oculto';
+    });
+    return o;
+  });
+  var hoy = today();
+  var hace30 = function () {
+    var d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  }();
+  var [desde, setDesde] = useState(hace30);
+  var [hasta, setHasta] = useState(hoy);
+  var [quimSel, setQuimSel] = useState(['sio2', 'al2o3', 'fe2o3']);
+  var [guardando, setGuardando] = useState(false);
+  var [guardMsg, setGuardMsg] = useState('');
+  useEffect(function () {
+    load();
+  }, []);
+  async function load() {
+    setLoading(true);
+    var cloud = [];
+    try {
+      cloud = await loadEnsayos();
+    } catch (e) {
+      console.error(e);
+    }
+    var pa = getPending();
+    var ids = new Set(cloud.map(function (r) {
+      return r.ID;
+    }));
+    var merged = cloud.concat(pa.filter(function (r) {
+      return !ids.has(r.id);
+    }));
+    setRecords(merged.filter(function (r) {
+      return r.ProductoKey === 'TT_TLH';
+    }));
+    try {
+      var res = await supabase.from('habilitador_config').select('*').eq('producto_key', 'TT_TLH').maybeSingle();
+      if (res.data && res.data.config) {
+        var cfg = res.data.config;
+        if (cfg.estados) setEstados(function (p) {
+          return Object.assign({}, p, cfg.estados);
+        });
+        if (cfg.desde) setDesde(cfg.desde);
+        if (cfg.hasta) setHasta(cfg.hasta);
+        if (cfg.quimicos) setQuimSel(cfg.quimicos);
+      }
+    } catch (e) {
+      console.error('Error cargando config Habilitador:', e);
+    }
+    setLoading(false);
+  }
+  function setEstado(ac, v) {
+    setEstados(function (p) {
+      var n = Object.assign({}, p);
+      n[ac] = v;
+      return n;
+    });
+  }
+  function toggleQuim(k) {
+    setQuimSel(function (p) {
+      return p.indexOf(k) >= 0 ? p.filter(function (x) {
+        return x !== k;
+      }) : p.concat([k]);
+    });
+  }
+  async function guardarConfig() {
+    setGuardando(true);
+    setGuardMsg('');
+    var cfg = {
+      estados: estados,
+      desde: desde,
+      hasta: hasta,
+      quimicos: quimSel
+    };
+    try {
+      var res = await supabase.from('habilitador_config').upsert([{
+        producto_key: 'TT_TLH',
+        config: cfg,
+        updated_by: account ? account.email : '',
+        updated_at: new Date().toISOString()
+      }]);
+      if (res.error) throw res.error;
+      setGuardMsg('Configuración guardada — ya está disponible en la vista para todos.');
+    } catch (e) {
+      console.error(e);
+      setGuardMsg('Error al guardar: ' + (e.message || e));
+    }
+    setGuardando(false);
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Habilitador de Acopios — TLH Turco"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Configura lo que se mostrará en la vista pública (agrupado por día, sin acceso al detalle crudo)")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 'auto',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10
+    }
+  }, guardMsg && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '.8rem',
+      color: guardMsg.indexOf('Error') === 0 ? 'var(--error)' : 'var(--success)'
+    }
+  }, guardMsg), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    disabled: guardando,
+    onClick: guardarConfig
+  }, guardando ? 'Guardando…' : 'Guardar configuración'))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "1. Estado de cada acopio"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))',
+      gap: 10
+    }
+  }, ACOPIOS_TURCO_LIST.map(function (ac) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: ac,
+      className: "dff"
+    }, /*#__PURE__*/React.createElement("label", null, ac), /*#__PURE__*/React.createElement("select", {
+      value: estados[ac],
+      onChange: function (e) {
+        setEstado(ac, e.target.value);
+      },
+      style: {
+        borderLeft: '4px solid ' + ACOPIO_ESTADO_COLOR[estados[ac]]
+      }
+    }, ACOPIO_ESTADOS.map(function (e) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: e,
+        value: e
+      }, e);
+    })));
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "2. Rango de fechas a mostrar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Desde"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: desde,
+    onChange: function (e) {
+      setDesde(e.target.value);
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "dff"
+  }, /*#__PURE__*/React.createElement("label", null, "Hasta"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: hasta,
+    onChange: function (e) {
+      setHasta(e.target.value);
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "sec-card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sec-card-hdr",
+    style: {
+      fontSize: '.8rem'
+    }
+  }, "3. Químicos a mostrar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      display: 'flex',
+      gap: 14,
+      flexWrap: 'wrap'
+    }
+  }, HAB_QUIMICOS.map(function (q) {
+    return /*#__PURE__*/React.createElement("label", {
+      key: q.key,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: '.85rem',
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: quimSel.indexOf(q.key) >= 0,
+      onChange: function () {
+        toggleQuim(q.key);
+      }
+    }), q.label);
+  }))), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  })), !loading && /*#__PURE__*/React.createElement(HabilitadorVisualizacion, {
+    records: records,
+    estados: estados,
+    desde: desde,
+    hasta: hasta,
+    quimSel: quimSel
+  }));
+}
+
+/* ── Pantalla PUBLICA (sin gating de rol): carga la config guardada por
+   el admin y muestra solo la visualizacion, sin ningun control de
+   configuracion — nada de fechas, quimicos ni estados editables aqui. */
+function AcopiosVistaScreen({
+  account,
+  onBack
+}) {
+  var [records, setRecords] = useState([]);
+  var [cfg, setCfg] = useState(null);
+  var [loading, setLoading] = useState(true);
+  useEffect(function () {
+    load();
+  }, []);
+  async function load() {
+    setLoading(true);
+    var cloud = [];
+    try {
+      cloud = await loadEnsayos();
+    } catch (e) {
+      console.error(e);
+    }
+    var pa = getPending();
+    var ids = new Set(cloud.map(function (r) {
+      return r.ID;
+    }));
+    var merged = cloud.concat(pa.filter(function (r) {
+      return !ids.has(r.id);
+    }));
+    setRecords(merged.filter(function (r) {
+      return r.ProductoKey === 'TT_TLH';
+    }));
+    try {
+      var res = await supabase.from('habilitador_config').select('*').eq('producto_key', 'TT_TLH').maybeSingle();
+      if (res.data && res.data.config) setCfg(res.data.config);
+    } catch (e) {
+      console.error('Error cargando config Habilitador:', e);
+    }
+    setLoading(false);
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Calidad TLH Turco"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Tendencia química por acopio, agrupada por día"))), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  })), !loading && !cfg && /*#__PURE__*/React.createElement("div", {
+    className: "sec-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 20,
+      textAlign: 'center',
+      color: 'var(--text-muted)'
+    }
+  }, "Aún no hay una vista configurada por el administrador.")), !loading && cfg && /*#__PURE__*/React.createElement(HabilitadorVisualizacion, {
+    records: records,
+    estados: cfg.estados || {},
+    desde: cfg.desde || '',
+    hasta: cfg.hasta || '',
+    quimSel: cfg.quimicos || []
+  }));
 }
 
 /* ── HOME SCREEN ── */
@@ -23817,7 +23968,28 @@ function HomeScreen({
     className: "nc-desc"
   }, "Tendencia de %Humedad Acopios Cancha, con filtros por destino y acopio")), /*#__PURE__*/React.createElement("div", {
     className: "nc-arrow"
-  }, "›")), !isViewer && /*#__PURE__*/React.createElement("div", {
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      onNav('acopios-vista');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('acopios-vista');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#6c3483,#2874a6)'
+    }
+  }, "📈"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "Calidad TLH Turco"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Tendencia química por acopio, curada para consulta rápida")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), account && account.user_metadata && account.user_metadata.is_admin === true && /*#__PURE__*/React.createElement("div", {
     className: "nav-card",
     role: "button",
     tabIndex: 0,
@@ -23834,9 +24006,9 @@ function HomeScreen({
     }
   }, "👁️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "nc-tit"
-  }, "Habilitador de Acopios"), /*#__PURE__*/React.createElement("div", {
+  }, "Habilitador de Acopios (Admin)"), /*#__PURE__*/React.createElement("div", {
     className: "nc-desc"
-  }, "Prepara la vista curada de TLH Turco (por acopio, fecha y químico) para clientes")), /*#__PURE__*/React.createElement("div", {
+  }, "Configura qué acopios, fechas y químicos ve todo el mundo en \"Calidad TLH Turco\"")), /*#__PURE__*/React.createElement("div", {
     className: "nc-arrow"
   }, "›")))));
 }
@@ -24836,7 +25008,12 @@ function App() {
     onBack: function () {
       setScreen('home');
     }
-  }), !isViewer && screen === 'habilitador-acopios' && /*#__PURE__*/React.createElement(HabilitadorAcopiosScreen, {
+  }), isAdmin && screen === 'habilitador-acopios' && /*#__PURE__*/React.createElement(HabilitadorAcopiosScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    }
+  }), screen === 'acopios-vista' && /*#__PURE__*/React.createElement(AcopiosVistaScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
