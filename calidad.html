@@ -2964,6 +2964,27 @@ const SECADO_PRODUCTS = [{
   value: 'TT_IMAN_PROD',
   label: 'Produccion Arena Iman'
 }];
+
+/* Remitente de los correos automaticos (Resend, dominio avisosmigrin.com)
+   segun la faena/planta del producto — no segun quien esta logueado.
+   Arenas y Cuarzo comparten faena ("Las Piedras"); Turco tiene su propio
+   correo; Peral queda listo para cuando exista ese modulo. */
+const REMITENTE_LAS_PIEDRAS = 'Calidad Las Piedras <calidadlaspiedras@avisosmigrin.com>';
+const REMITENTE_TURCO = 'Calidad Turco <calidadturco@avisosmigrin.com>';
+const REMITENTE_PERAL = 'Calidad Peral <calidadperal@avisosmigrin.com>';
+const PRODUCTO_REMITENTE = function () {
+  var m = {};
+  ARENA_PRODUCTS.concat(CUARZO_PRODUCTS).concat(CUARZO_PROC_KEYS).concat(DESPACHO_PRODUCTS).concat(OTROS_PRODUCTS).forEach(function (p) {
+    m[p.value] = REMITENTE_LAS_PIEDRAS;
+  });
+  LAVTURCO_PRODUCTS.concat(SECADO_PRODUCTS).forEach(function (p) {
+    m[p.value] = REMITENTE_TURCO;
+  });
+  return m;
+}();
+function remitenteParaProducto(producto) {
+  return PRODUCTO_REMITENTE[producto] || REMITENTE_LAS_PIEDRAS;
+}
 const TURNOS_ABC = [{
   value: 'A',
   label: 'Turno A'
@@ -3746,12 +3767,14 @@ async function enviarReporteRegistro(data, gc, user) {
     var filename = 'Reporte_' + String(prodLbl).replace(/\s/g, '_') + '_' + (data.fecha || '') + '.pdf';
     // Sin 'destinatarios': usa la lista por defecto de la Edge Function
     // enviar-reporte (unico lugar donde se mantiene la lista de correos).
+    // 'remitente' si varia segun la faena/planta del producto (Resend).
     var res = await supabase.functions.invoke('enviar-reporte', {
       body: {
         asunto: asunto,
         cuerpo_html: cuerpo,
         pdf_base64: pdfB64,
-        filename: filename
+        filename: filename,
+        remitente: remitenteParaProducto(data.producto)
       }
     });
     if (res.error) throw res.error;
