@@ -92,6 +92,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .nav-card-lg .nc-tit{font-size:1.25rem}
 .nav-card-lg .nc-desc{font-size:.82rem}
 .nav-card-lg .nc-arrow{display:none}
+/* Menu lateral "Consultar y analizar" en Inicio (reemplaza la grilla de tarjetas) */
+.side-nav{background:#151b26;border-radius:16px;padding:10px;box-shadow:0 4px 16px rgba(15,25,40,.18)}
+.side-nav-item{display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:11px;
+  cursor:pointer;color:#c3cad6;transition:background .15s,color .15s}
+.side-nav-item:hover{background:#232c3d;color:#fff}
+.side-nav-item .sn-ico{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:17px;background:#232c3d}
+.side-nav-item:hover .sn-ico{background:#2d3a50}
+.side-nav-item .sn-txt{min-width:0}
+.side-nav-item .sn-tit{font-weight:700;font-size:.88rem;color:#fff;line-height:1.25}
+.side-nav-item .sn-desc{font-size:.72rem;color:#8b95a5;line-height:1.3;margin-top:1px}
+.side-nav-sep{height:1px;background:#232c3d;margin:6px 10px}
 .prod-mosaic{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px}
 @media(min-width:580px){.prod-mosaic{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:900px){.prod-mosaic{grid-template-columns:repeat(4,1fr)}}
@@ -24939,6 +24951,62 @@ const MODULES = [{
   desc: '%Humedad Acopios Cancha',
   active: true
 }];
+const CONSULTAR_ITEMS = [{
+  id: 'dashboard',
+  icon: '📈',
+  bg: 'linear-gradient(135deg,#1a5276,#2980b9)',
+  tit: 'Reportes',
+  desc: 'Tendencias, cumplimiento EETT, cartas de control y resumen ejecutivo'
+}, {
+  id: 'history',
+  icon: '📋',
+  bg: 'linear-gradient(135deg,#117864,#1abc9c)',
+  tit: 'Historial',
+  desc: 'Busca ensayos por folio, producto o fecha y reimprime informes'
+}, {
+  id: 'estadisticas',
+  icon: '📉',
+  bg: 'linear-gradient(135deg,#6c3483,#9b59b6)',
+  tit: 'Estadísticas',
+  desc: 'Control estadístico por columna, cartas I-mR, capacidad y distribución'
+}, {
+  id: 'comparador',
+  icon: '⚖️',
+  bg: 'linear-gradient(135deg,#1a5276,#c0392b)',
+  tit: 'Comparador',
+  desc: 'Compara granulometría, química y cumplimiento entre dos productos/períodos'
+}, {
+  id: 'simin-piedras',
+  icon: '🧾',
+  bg: 'linear-gradient(135deg,#154360,#2874a6)',
+  tit: 'SIMIN — Las Piedras',
+  desc: 'Promedio mensual de química A36 (SiO₂, Al₂O₃, Fe₂O₃) en formato certificado'
+}, {
+  id: 'despachos',
+  icon: '📜',
+  bg: 'linear-gradient(135deg,#154360,#48c9b0)',
+  tit: 'Despachos',
+  desc: 'Certificado de despacho — Arenas (A36) o Turco (TLH / Arena Iman)'
+}, {
+  id: 'despachos-sur-reporte',
+  icon: '🚛',
+  bg: 'linear-gradient(135deg,#0e6251,#48c9b0)',
+  tit: 'Despachos Sur',
+  desc: 'Tendencia de %Humedad Acopios Cancha, con filtros por destino y acopio'
+}, {
+  id: 'acopios-vista',
+  icon: '📈',
+  bg: 'linear-gradient(135deg,#6c3483,#2874a6)',
+  tit: 'Calidad TLH Turco',
+  desc: 'Tendencia química por acopio, curada para consulta rápida'
+}, {
+  id: 'habilitador-acopios',
+  icon: '👁️',
+  bg: 'linear-gradient(135deg,#6c3483,#1a5276)',
+  tit: 'Habilitador de Acopios (Admin)',
+  desc: 'Configura qué acopios, fechas y químicos ve todo el mundo en "Calidad TLH Turco"',
+  adminOnly: true
+}];
 function HomeScreen({
   onSelect,
   onNav,
@@ -24946,6 +25014,10 @@ function HomeScreen({
   account
 }) {
   var nombre = account && account.email ? account.email.split('@')[0] : '';
+  var isAdminHS = !!(account && account.user_metadata && account.user_metadata.is_admin === true);
+  var itemsHS = CONSULTAR_ITEMS.filter(function (it) {
+    return !it.adminOnly || isAdminHS;
+  });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "home-hero"
   }, /*#__PURE__*/React.createElement("h2", null, "Bienvenido", nombre ? ', ' + nombre : ''), /*#__PURE__*/React.createElement("p", null, isViewer ? 'Tienes acceso de solo lectura. Consulta los reportes y el historial de ensayos.' : 'Registra un nuevo ensayo o consulta los reportes e historial de calidad.')), !isViewer && /*#__PURE__*/React.createElement("div", {
@@ -24983,198 +25055,56 @@ function HomeScreen({
     className: "home-block"
   }, /*#__PURE__*/React.createElement("div", {
     className: "home-sec-title"
-  }, "📊 Consultar y analizar"), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-grid nav-grid-lg' : 'nav-grid'
-  }, /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('dashboard');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('dashboard');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#1a5276,#2980b9)'
-    }
-  }, "📈"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Reportes"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Tendencias, cumplimiento EETT, cartas de control y resumen ejecutivo")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('history');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('history');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#117864,#1abc9c)'
-    }
-  }, "📋"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Historial"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Busca ensayos por folio, producto o fecha y reimprime informes")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('estadisticas');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('estadisticas');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#6c3483,#9b59b6)'
-    }
-  }, "📉"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Estadísticas"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Control estadístico por columna, cartas I-mR, capacidad y distribución")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('comparador');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('comparador');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#1a5276,#c0392b)'
-    }
-  }, "⚖️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Comparador"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Compara granulometría, química y cumplimiento entre dos productos/períodos")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('simin-piedras');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('simin-piedras');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#154360,#2874a6)'
-    }
-  }, "🧾"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "SIMIN — Las Piedras"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Promedio mensual de química A36 (SiO₂, Al₂O₃, Fe₂O₃) en formato certificado")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('despachos');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('despachos');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#154360,#48c9b0)'
-    }
-  }, "📜"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Despachos"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Certificado de despacho — Arenas (A36) o Turco (TLH / Arena Iman)")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('despachos-sur-reporte');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('despachos-sur-reporte');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#0e6251,#48c9b0)'
-    }
-  }, "🚛"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Despachos Sur"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Tendencia de %Humedad Acopios Cancha, con filtros por destino y acopio")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), /*#__PURE__*/React.createElement("div", {
-    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('acopios-vista');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('acopios-vista');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#6c3483,#2874a6)'
-    }
-  }, "📈"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Calidad TLH Turco"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Tendencia química por acopio, curada para consulta rápida")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")), account && account.user_metadata && account.user_metadata.is_admin === true && /*#__PURE__*/React.createElement("div", {
-    className: "nav-card",
-    role: "button",
-    tabIndex: 0,
-    onClick: function () {
-      onNav('habilitador-acopios');
-    },
-    onKeyDown: function (e) {
-      if (e.key === 'Enter') onNav('habilitador-acopios');
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "nc-ico",
-    style: {
-      background: 'linear-gradient(135deg,#6c3483,#1a5276)'
-    }
-  }, "👁️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "nc-tit"
-  }, "Habilitador de Acopios (Admin)"), /*#__PURE__*/React.createElement("div", {
-    className: "nc-desc"
-  }, "Configura qué acopios, fechas y químicos ve todo el mundo en \"Calidad TLH Turco\"")), /*#__PURE__*/React.createElement("div", {
-    className: "nc-arrow"
-  }, "›")))));
+  }, "📊 Consultar y analizar"), isViewer ? /*#__PURE__*/React.createElement("div", {
+    className: "nav-grid nav-grid-lg"
+  }, itemsHS.map(function (it) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: it.id,
+      className: "nav-card nav-card-lg",
+      role: "button",
+      tabIndex: 0,
+      onClick: function () {
+        onNav(it.id);
+      },
+      onKeyDown: function (e) {
+        if (e.key === 'Enter') onNav(it.id);
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "nc-ico",
+      style: {
+        background: it.bg
+      }
+    }, it.icon), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "nc-tit"
+    }, it.tit), /*#__PURE__*/React.createElement("div", {
+      className: "nc-desc"
+    }, it.desc)), /*#__PURE__*/React.createElement("div", {
+      className: "nc-arrow"
+    }, "›"));
+  })) : /*#__PURE__*/React.createElement("div", {
+    className: "side-nav"
+  }, itemsHS.map(function (it) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: it.id,
+      className: "side-nav-item",
+      role: "button",
+      tabIndex: 0,
+      onClick: function () {
+        onNav(it.id);
+      },
+      onKeyDown: function (e) {
+        if (e.key === 'Enter') onNav(it.id);
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "sn-ico"
+    }, it.icon), /*#__PURE__*/React.createElement("div", {
+      className: "sn-txt"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "sn-tit"
+    }, it.tit), /*#__PURE__*/React.createElement("div", {
+      className: "sn-desc"
+    }, it.desc)));
+  }))));
 }
 
 /* ── AUTH SCREEN ── */
