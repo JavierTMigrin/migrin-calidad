@@ -1231,11 +1231,11 @@ const SPECS_TT_LODO={
 const SPECS_TT_TLH={
   granulometria:{},
   quimica:{
-    SiO2:{min:88.0,max:null},Al2O3:{min:2.3,max:5.0},Fe2O3:{min:0.15,max:0.85},
+    SiO2:{min:88.0,max:null},Al2O3:{min:2.3,max:5.0},Fe2O3:{min:0.15,max:0.6},
     CaO:{min:null,max:null},MgO:{min:null,max:null},K2O:{min:null,max:null},
     Na2O:{min:null,max:null},TiO2:{min:null,max:null},K2O_Na2O:{min:null,max:null},
   },
-  humedad:{max:5.0},
+  humedad:{min:18.0,max:21.0},
 };
 /* Arena Golf (A45): quimica + humedad */
 const SPECS_TT_GOLF={
@@ -1646,9 +1646,18 @@ async function enviarReporteRegistro(data,gc,user){
   try{
     var params=[];
     try{params=evalParams({producto:data.producto,quimica:data.quimica||{},pctHumedad:String(data.pctHumedad!=null?data.pctHumedad:'')},gc);}catch(e){}
+    // A36 se evalua contra Lirquen y Cristalerias en paralelo (necesario
+    // para el certificado de despacho interno), pero el correo automatico
+    // solo debe mostrar Lirquen: si cumple Lirquen, cumple Cristalerias
+    // (Lirquen es la EETT mas exigente), mostrar ambas solo confunde.
+    if(data.producto==='A36'){
+      var paramsLirquen=params.filter(function(p){return p.spec==='Vidrios Lirquen';});
+      if(paramsLirquen.length)params=paramsLirquen;
+    }
     var cumple=params.length?params.every(function(p){return p.ok;}):null;
-    // Con varias EETT (A36) el asunto dice FUERA DE NORMA solo si no
-    // cumple NINGUNA; si cumple al menos un cliente es un reporte normal.
+    // Con varias EETT el asunto dice FUERA DE NORMA solo si no cumple
+    // NINGUNA; si cumple al menos un cliente es un reporte normal.
+    // (Para A36 ya quedo un unico spec tras el filtro de arriba.)
     var specsR=[];params.forEach(function(p){if(p.spec&&specsR.indexOf(p.spec)<0)specsR.push(p.spec);});
     var fueraTotal=cumple===false;
     if(specsR.length>1){
@@ -5891,11 +5900,14 @@ function DashboardScreen({account,onBack}){
   /* Exporta a Excel las muestras marcadas en la tabla de Acopio/Despacho */
   function exportarSeleccionAcopio(){
     function r4(v){return v==null||isNaN(v)?'':+(+v).toFixed(4);}
-    var hdr=['Fecha','Folio','Tipo','Turno','Analista','RetAcum #35','RetAcum #120','RetAcum #170','SiO2','Al2O3','Fe2O3','D50 (mm)','Humedad'];
+    var sievesA36=SIEVE_CONFIG[prod]||[];
+    var hdr=['Fecha','Folio','Tipo','Turno','Analista']
+      .concat(sievesA36.map(function(s){return 'RetParc '+s.us;}))
+      .concat(['SiO2','Al2O3','Fe2O3','D50 (mm)','Humedad']);
     var rows=certSelDet.map(function(d){
-      return[d.fecha,d.folio||'',d.acopio||d.tipo||'',d.turno||'',d.analista||'',
-        r4(d.acum['#35']),r4(d.acum['#120']),r4(d.acum['#170']),
-        r4(d.quim.sio2),r4(d.quim.al2o3),r4(d.quim.fe2o3),r4(d.d50),r4(d.hum)];
+      return[d.fecha,d.folio||'',d.acopio||d.tipo||'',d.turno||'',d.analista||'']
+        .concat(sievesA36.map(function(s){return r4(d.parc[s.us]);}))
+        .concat([r4(d.quim.sio2),r4(d.quim.al2o3),r4(d.quim.fe2o3),r4(d.d50),r4(d.hum)]);
     });
     descargarExcel('Muestras_Acopio_'+getPeriodoLabel(),hdr,rows,'Muestras');
   }
@@ -7289,7 +7301,7 @@ function DashboardScreen({account,onBack}){
                     <thead><tr>
                       <th style={thV}>✔</th><th style={thV}>Fecha</th><th style={thV}>Folio</th><th style={thV}>Tipo</th>
                       <th style={thV}>Turno</th><th style={thV}>Analista</th>
-                      <th style={thV}>#35</th><th style={thV}>#120</th><th style={thV}>#170</th>
+                      {sieves.map(function(s){return <th key={s.us} style={thV}>{s.us}</th>;})}
                       <th style={thV}>SiO₂</th><th style={thV}>Fe₂O₃</th><th style={thV}>Hum.</th>
                     </tr></thead>
                     <tbody>
@@ -7304,9 +7316,10 @@ function DashboardScreen({account,onBack}){
                             <td style={tdV}>{d.acopio||d.tipo||'—'}</td>
                             <td style={tdV}>{d.turno||'—'}</td>
                             <td style={Object.assign({},tdV,{textAlign:'left',maxWidth:130,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'})}>{d.analista||'—'}</td>
-                            <td style={tdV}>{d.acum['#35']!=null?fmt(d.acum['#35'],2):'—'}</td>
-                            <td style={tdV}>{d.acum['#120']!=null?fmt(d.acum['#120'],2):'—'}</td>
-                            <td style={tdV}>{d.acum['#170']!=null?fmt(d.acum['#170'],2):'—'}</td>
+                            {sieves.map(function(s){
+                              var v=d.parc[s.us];
+                              return <td key={s.us} style={tdV}>{v!=null?fmt(v,2):'—'}</td>;
+                            })}
                             <td style={tdV}>{d.quim.sio2!=null?fmt(d.quim.sio2,2):'—'}</td>
                             <td style={tdV}>{d.quim.fe2o3!=null?fmt(d.quim.fe2o3,3):'—'}</td>
                             <td style={tdV}>{d.hum!=null?fmt(d.hum,2):'—'}</td>

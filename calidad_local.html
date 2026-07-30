@@ -3037,7 +3037,7 @@ const SPECS_TT_TLH = {
     },
     Fe2O3: {
       min: 0.15,
-      max: 0.85
+      max: 0.6
     },
     CaO: {
       min: null,
@@ -3065,7 +3065,8 @@ const SPECS_TT_TLH = {
     }
   },
   humedad: {
-    max: 5.0
+    min: 18.0,
+    max: 21.0
   }
 };
 /* Arena Golf (A45): quimica + humedad */
@@ -3691,11 +3692,22 @@ async function enviarReporteRegistro(data, gc, user) {
         pctHumedad: String(data.pctHumedad != null ? data.pctHumedad : '')
       }, gc);
     } catch (e) {}
+    // A36 se evalua contra Lirquen y Cristalerias en paralelo (necesario
+    // para el certificado de despacho interno), pero el correo automatico
+    // solo debe mostrar Lirquen: si cumple Lirquen, cumple Cristalerias
+    // (Lirquen es la EETT mas exigente), mostrar ambas solo confunde.
+    if (data.producto === 'A36') {
+      var paramsLirquen = params.filter(function (p) {
+        return p.spec === 'Vidrios Lirquen';
+      });
+      if (paramsLirquen.length) params = paramsLirquen;
+    }
     var cumple = params.length ? params.every(function (p) {
       return p.ok;
     }) : null;
-    // Con varias EETT (A36) el asunto dice FUERA DE NORMA solo si no
-    // cumple NINGUNA; si cumple al menos un cliente es un reporte normal.
+    // Con varias EETT el asunto dice FUERA DE NORMA solo si no cumple
+    // NINGUNA; si cumple al menos un cliente es un reporte normal.
+    // (Para A36 ya quedo un unico spec tras el filtro de arriba.)
     var specsR = [];
     params.forEach(function (p) {
       if (p.spec && specsR.indexOf(p.spec) < 0) specsR.push(p.spec);
@@ -11688,9 +11700,14 @@ function DashboardScreen({
     function r4(v) {
       return v == null || isNaN(v) ? '' : +(+v).toFixed(4);
     }
-    var hdr = ['Fecha', 'Folio', 'Tipo', 'Turno', 'Analista', 'RetAcum #35', 'RetAcum #120', 'RetAcum #170', 'SiO2', 'Al2O3', 'Fe2O3', 'D50 (mm)', 'Humedad'];
+    var sievesA36 = SIEVE_CONFIG[prod] || [];
+    var hdr = ['Fecha', 'Folio', 'Tipo', 'Turno', 'Analista'].concat(sievesA36.map(function (s) {
+      return 'RetParc ' + s.us;
+    })).concat(['SiO2', 'Al2O3', 'Fe2O3', 'D50 (mm)', 'Humedad']);
     var rows = certSelDet.map(function (d) {
-      return [d.fecha, d.folio || '', d.acopio || d.tipo || '', d.turno || '', d.analista || '', r4(d.acum['#35']), r4(d.acum['#120']), r4(d.acum['#170']), r4(d.quim.sio2), r4(d.quim.al2o3), r4(d.quim.fe2o3), r4(d.d50), r4(d.hum)];
+      return [d.fecha, d.folio || '', d.acopio || d.tipo || '', d.turno || '', d.analista || ''].concat(sievesA36.map(function (s) {
+        return r4(d.parc[s.us]);
+      })).concat([r4(d.quim.sio2), r4(d.quim.al2o3), r4(d.quim.fe2o3), r4(d.d50), r4(d.hum)]);
     });
     descargarExcel('Muestras_Acopio_' + getPeriodoLabel(), hdr, rows, 'Muestras');
   }
@@ -14719,13 +14736,12 @@ function DashboardScreen({
       style: thV
     }, "Turno"), /*#__PURE__*/React.createElement("th", {
       style: thV
-    }, "Analista"), /*#__PURE__*/React.createElement("th", {
-      style: thV
-    }, "#35"), /*#__PURE__*/React.createElement("th", {
-      style: thV
-    }, "#120"), /*#__PURE__*/React.createElement("th", {
-      style: thV
-    }, "#170"), /*#__PURE__*/React.createElement("th", {
+    }, "Analista"), sieves.map(function (s) {
+      return /*#__PURE__*/React.createElement("th", {
+        key: s.us,
+        style: thV
+      }, s.us);
+    }), /*#__PURE__*/React.createElement("th", {
       style: thV
     }, "SiO₂"), /*#__PURE__*/React.createElement("th", {
       style: thV
@@ -14768,13 +14784,13 @@ function DashboardScreen({
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap'
         })
-      }, d.analista || '—'), /*#__PURE__*/React.createElement("td", {
-        style: tdV
-      }, d.acum['#35'] != null ? fmt(d.acum['#35'], 2) : '—'), /*#__PURE__*/React.createElement("td", {
-        style: tdV
-      }, d.acum['#120'] != null ? fmt(d.acum['#120'], 2) : '—'), /*#__PURE__*/React.createElement("td", {
-        style: tdV
-      }, d.acum['#170'] != null ? fmt(d.acum['#170'], 2) : '—'), /*#__PURE__*/React.createElement("td", {
+      }, d.analista || '—'), sieves.map(function (s) {
+        var v = d.parc[s.us];
+        return /*#__PURE__*/React.createElement("td", {
+          key: s.us,
+          style: tdV
+        }, v != null ? fmt(v, 2) : '—');
+      }), /*#__PURE__*/React.createElement("td", {
         style: tdV
       }, d.quim.sio2 != null ? fmt(d.quim.sio2, 2) : '—'), /*#__PURE__*/React.createElement("td", {
         style: tdV
