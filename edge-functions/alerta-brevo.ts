@@ -1,21 +1,24 @@
 // ============================================================
-// Edge Function: quick-processor (Microsoft Graph)
-// Envia el correo de alerta cuando un ensayo queda fuera de norma,
-// desde el buzon jtorres@migrin.cl via Microsoft Graph.
+// Edge Function: quick-processor (Resend)
+// Envia el correo de alerta cuando un ensayo queda fuera de norma.
+// Migrada de Microsoft Graph (jtorres@migrin.cl) a Resend, con el mismo
+// patron remitente/destinatarios por faena que usa enviar-reporte:
+// la app calcula 'remitente' (ej. calidadturco@avisosmigrin.com para
+// Lavado/Secado Turco) y 'destinatarios' segun el producto, y esta
+// funcion solo cae a los valores por defecto si no llegan.
 //
 // IMPORTANTE: en el panel de Supabase esta funcion debe tener
 //   "Verify JWT" = OFF.
 //
-// MODO ESTADO: abre la URL de la funcion en el navegador (GET) y te
-//   dice si los secrets de Microsoft estan presentes (no envia nada).
-//
 // SECRETS requeridos (Project Settings -> Edge Functions -> Secrets):
-//   MS_TENANT_ID, MS_CLIENT_ID, MS_REFRESH_TOKEN
-//   (permiso delegado Mail.Send + offline_access de jtorres@migrin.cl)
+//   RESEND_API_KEY
 // ============================================================
 
-const REMITENTE     = { name: 'Alertas Calidad MIGRIN', email: 'jtorres@migrin.cl' };
-const DESTINATARIOS = ['jtorres@migrin.cl', 'sarce@migrin.cl'];
+const DESTINATARIOS_DEFECTO = [
+  'jtorres@migrin.cl', 'sarce@migrin.cl', 'scontreras@migrin.cl', 'jhernandez@migrin.cl',
+  'rbernadot@migrin.cl', 'calidadlaspiedras@migrin.cl', 'jefeturnomlp@migrin.cl', 'efernandez@migrin.cl',
+];
+const REMITENTE_DEFECTO = 'Alertas Calidad MIGRIN <calidadlaspiedras@avisosmigrin.com>';
 const ALLOWED_ORIGIN = 'https://javiertmigrin.github.io';
 
 function corsHeaders(origin: string | null) {
@@ -25,40 +28,14 @@ function corsHeaders(origin: string | null) {
   };
 }
 
-// Access token a partir del refresh token (permiso delegado de jtorres@migrin.cl).
-async function tokenGraph() {
-  const tenant = Deno.env.get('MS_TENANT_ID') ?? '';
-  const clientId = Deno.env.get('MS_CLIENT_ID') ?? '';
-  const refresh = Deno.env.get('MS_REFRESH_TOKEN') ?? '';
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+// Envia un correo via Resend. 'from' y 'to' ya vienen resueltos por la
+// app segun la faena del producto (mismo criterio que enviar-reporte).
+async function enviarCorreoResend(from: string, to: string[], asunto: string, html: string) {
+  const apiKey = Deno.env.get('RESEND_API_KEY') ?? '';
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      grant_type: 'refresh_token',
-      refresh_token: refresh,
-      scope: 'https://graph.microsoft.com/Mail.Send offline_access',
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error('Token Microsoft error: ' + JSON.stringify(data));
-  return data.access_token as string;
-}
-
-// Envia un correo via Microsoft Graph, desde el buzon jtorres@migrin.cl.
-async function enviarCorreoGraph(asunto: string, html: string, _texto?: string) {
-  const access = await tokenGraph();
-  const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: {
-        subject: asunto,
-        body: { contentType: 'HTML', content: html },
-        toRecipients: DESTINATARIOS.map((email) => ({ emailAddress: { address: email } })),
-      },
-      saveToSentItems: true,
-    }),
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to, subject: asunto, html }),
   });
   let body: unknown = null;
   if (!res.ok) { try { body = await res.json(); } catch { body = await res.text(); } }
@@ -72,18 +49,17 @@ Deno.serve(async (req) => {
 
   if (req.method === 'OPTIONS') return new Response('ok', { headers: ch });
 
-  const secretsPresentes = !!(Deno.env.get('MS_TENANT_ID') && Deno.env.get('MS_CLIENT_ID') && Deno.env.get('MS_REFRESH_TOKEN'));
+  const apiKey = Deno.env.get('RESEND_API_KEY');
 
   // ── MODO ESTADO (abrir la URL en el navegador = GET; NO envia correos) ──
   if (req.method === 'GET') {
     return new Response(JSON.stringify({
-      funcion: 'quick-processor (alertas de calidad MIGRIN)',
+      funcion: 'quick-processor (alertas de calidad MIGRIN, Resend)',
       estado: 'activa',
-      envio: 'Microsoft Graph',
-      MS_TENANT_ID: Deno.env.get('MS_TENANT_ID') ? 'presente' : 'FALTA',
-      MS_CLIENT_ID: Deno.env.get('MS_CLIENT_ID') ? 'presente' : 'FALTA',
-      MS_REFRESH_TOKEN: Deno.env.get('MS_REFRESH_TOKEN') ? 'presente' : 'FALTA',
-      destinatarios: DESTINATARIOS,
+      envio: 'Resend',
+      RESEND_API_KEY: apiKey ? 'presente' : 'FALTA',
+      remitente_defecto: REMITENTE_DEFECTO,
+      destinatarios_por_defecto: DESTINATARIOS_DEFECTO,
       nota: 'Esta vista solo informa el estado. El envio de alertas ocurre cuando la app hace POST con un ensayo fuera de norma.',
     }, null, 2), { status: 200, headers: jsonHdr });
   }
@@ -93,6 +69,7 @@ Deno.serve(async (req) => {
     const {
       producto, fecha, turno, analista, tipoMuestra, enviadoPor,
       violaciones, recomendacion, noAptoDespacho,
+      remitente, destinatarios, destinatarios_extra,
     } = await req.json();
 
     const viols: any[] = Array.isArray(violaciones) ? violaciones : [];
@@ -224,14 +201,19 @@ Deno.serve(async (req) => {
       : tipoMuestra === 'Despacho' ? 'NO DESPACHAR'
       : 'FUERA DE NORMA'} - ${producto} (${fechaFmt})`;
 
-    if (!secretsPresentes) {
-      return new Response(JSON.stringify({ error: 'Faltan secrets de Microsoft Graph (MS_TENANT_ID, MS_CLIENT_ID, MS_REFRESH_TOKEN).' }), {
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'Falta el secret RESEND_API_KEY.' }), {
         status: 500, headers: jsonHdr,
       });
     }
 
-    const r = await enviarCorreoGraph(asunto, html, texto);
-    return new Response(JSON.stringify(r.ok ? { ok: true, status: r.status } : { error_graph: r.body, graph_status: r.status }), {
+    const base = (Array.isArray(destinatarios) && destinatarios.length) ? destinatarios : DESTINATARIOS_DEFECTO;
+    const extra = Array.isArray(destinatarios_extra) ? destinatarios_extra : [];
+    const to = Array.from(new Set([...base, ...extra].map((e: string) => e.trim().toLowerCase()).filter(Boolean)));
+    const from = (typeof remitente === 'string' && remitente.trim()) ? remitente : REMITENTE_DEFECTO;
+
+    const r = await enviarCorreoResend(from, to, asunto, html);
+    return new Response(JSON.stringify(r.ok ? { ok: true, status: r.status, enviado_a: to, remitente: from } : { error_resend: r.body, resend_status: r.status }), {
       status: r.ok ? 200 : 502,
       headers: jsonHdr,
     });

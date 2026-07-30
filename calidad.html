@@ -961,6 +961,7 @@ const SIEVE_CONFIG = {
   'TT_ALIM': TURCO_SIEVES,
   'TT_CILINDRO': TURCO_SIEVES,
   'TT_AMINAS': TURCO_SIEVES,
+  'TT_MATPRIMAS': TURCO_SIEVES,
   'TT_FIERRC': TURCO_SIEVES,
   'TT_LODO': [{
     us: '#40',
@@ -1017,6 +1018,7 @@ const SIEVE_CONFIG = {
   }],
   'TT_ARCILLAS': [],
   'TT_FLOC': [],
+  'TT_ESPESADOR': [],
   'TT_AMCRIST': [],
   'TT_GOLF': GOLF_SIEVES,
   // ── SECADO TURCO ──
@@ -1229,12 +1231,22 @@ const PRODUCT_CONFIG = {
     humedad: false,
     tipoMuestra: false
   },
+  'TT_MATPRIMAS': {
+    quimica: true,
+    humedad: false,
+    tipoMuestra: false
+  },
   'TT_FIERRC': {
     quimica: true,
     humedad: false,
     tipoMuestra: false
   },
   'TT_LODO': {
+    quimica: false,
+    humedad: false,
+    tipoMuestra: false
+  },
+  'TT_ESPESADOR': {
     quimica: false,
     humedad: false,
     tipoMuestra: false
@@ -1363,8 +1375,10 @@ const GRANU_TITLE = {
   TT_ALIM: 'Alimentacion TLH',
   TT_CILINDRO: 'Cilindro',
   TT_AMINAS: 'Arenas Minas',
+  TT_MATPRIMAS: 'Materias Primas Turco',
   TT_FIERRC: 'Fierrillo Casillero',
   TT_LODO: 'Lodo',
+  TT_ESPESADOR: 'Espesador — % Solidos',
   TT_GMINA: 'Grano Mina',
   TT_GRANOS: 'Control Granos Produccion',
   TT_ARCILLAS: '% Arcillas',
@@ -1393,6 +1407,8 @@ const NO_EETT_DETALLE = {
   TT_GRANOS: 'Control de granos de producción: conteo de granos por tamiz. El reporte muestra la cantidad de granos por banda a lo largo del tiempo.',
   CGRANOS: 'Control de granos (Arenas): conteo de granos por tamiz (#14 a #20). El reporte muestra la cantidad por banda en el período.',
   TT_CILINDRO: 'Cilindro: granulometría de entrada y salida del cilindro. El reporte muestra la distribución granulométrica de la entrada; la salida queda registrada en el detalle del ensayo.',
+  TT_MATPRIMAS: 'Materias Primas Turco: identificación de la arena, granulometría, química y % de arcilla. El reporte muestra las mismas tendencias que Arenas Minas, como registro independiente.',
+  TT_ESPESADOR: 'Espesador — % Sólidos: Peso Húmedo, Peso Seco y Peso Vidrio; Masa Sólido y % Sólido se calculan solos. El reporte muestra la tendencia de % Sólido en el período.',
   MPRIMA: 'Materias primas Las Piedras: identificación de la arena y química. El reporte muestra las tendencias químicas registradas.',
   REC2001: 'Rechazo 20.01: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
   MOL1: 'Molino 1: control granulométrico sin límites EETT definidos. El reporte muestra las tendencias de retenido y pasante.',
@@ -2412,7 +2428,7 @@ function turcoIndicadores(rec) {
       unit: '',
       tipo: 'tendencia'
     });
-  } else if (prod === 'TT_ALIM' || prod === 'TT_AMINAS') {
+  } else if (prod === 'TT_ALIM' || prod === 'TT_AMINAS' || prod === 'TT_MATPRIMAS') {
     var arc = parseDecimal(extra.pctArcilla);
     out.push({
       label: '% Arcillas',
@@ -2482,6 +2498,14 @@ function turcoIndicadores(rec) {
       unit: '%',
       tipo: 'tendencia'
     });
+  } else if (prod === 'TT_ESPESADOR') {
+    var ps = parseDecimal(extra.pctSolido);
+    out.push({
+      label: '% Sólido',
+      valor: isNaN(ps) ? null : ps,
+      unit: '%',
+      tipo: 'tendencia'
+    });
   } else if (prod === 'TT_LODO') {
     out.push({
       label: '+#120 (ret.acum)',
@@ -2526,10 +2550,10 @@ function turcoIndicadores(rec) {
       lim: 15
     });
   } else if (prod === 'TT_FLOC') {
-    var fm = parseDecimal(extra.flocMadreG),
-      fd = parseDecimal(extra.flocDilG);
+    var fm = parseDecimal(extra.frasco1MadreG),
+      fd = parseDecimal(extra.frasco2DilG);
     out.push({
-      label: 'Floculante madre',
+      label: 'Floculante madre (Frasco 1)',
       valor: isNaN(fm) ? null : fm,
       unit: 'g',
       tipo: 'rango',
@@ -2537,7 +2561,7 @@ function turcoIndicadores(rec) {
       max: 0.033
     });
     out.push({
-      label: 'Floculante dilución',
+      label: 'Floculante dilución (Frasco 2)',
       valor: isNaN(fd) ? null : fd,
       unit: 'g',
       tipo: 'rango',
@@ -2936,6 +2960,9 @@ const LAVTURCO_PRODUCTS = [{
   value: 'TT_AMINAS',
   label: 'Arenas Minas'
 }, {
+  value: 'TT_MATPRIMAS',
+  label: 'Materias Primas'
+}, {
   value: 'TT_CILINDRO',
   label: 'Cilindro'
 }, {
@@ -2944,6 +2971,9 @@ const LAVTURCO_PRODUCTS = [{
 }, {
   value: 'TT_LODO',
   label: 'Lodo'
+}, {
+  value: 'TT_ESPESADOR',
+  label: 'Espesador — % Solidos'
 }, {
   value: 'TT_GMINA',
   label: 'Grano Mina'
@@ -3596,14 +3626,18 @@ async function sendToSupabase(data, user) {
   if (res.error) throw res.error;
 }
 
-/* Dispara la alerta por correo (Edge Function alerta-calidad).
-   No lanza errores: si el correo falla, el envio del ensayo no se ve afectado. */
+/* Dispara la alerta por correo (Edge Function quick-processor, Resend).
+   Mismo remitente/destinatarios por faena que enviar-reporte: Turco
+   siempre desde calidadturco@avisosmigrin.com, nunca desde el correo de
+   quien esta logueado. No lanza errores: si el correo falla, el envio
+   del ensayo no se ve afectado. */
 async function sendAlertaEmail(data, violations, user) {
   try {
     var esAcopio = data.tipoMuestra === 'Acopio';
     var humViol = violations.some(function (v) {
       return v.param === 'Humedad';
     });
+    var destinatarios = await destinatariosParaProducto(data.producto);
     await supabase.functions.invoke('quick-processor', {
       body: {
         producto: data.productoLabel || data.producto,
@@ -3614,7 +3648,9 @@ async function sendAlertaEmail(data, violations, user) {
         enviadoPor: user ? user.email : '',
         violaciones: violations,
         recomendacion: esAcopio ? 'ACOPIO FUERA DE NORMA' : data.tipoMuestra === 'Despacho' ? 'NO DESPACHAR — PRODUCTO CON POSIBILIDAD DE RECHAZO' : 'Se recomienda cambio a cono de emergencia.',
-        noAptoDespacho: humViol
+        noAptoDespacho: humViol,
+        remitente: remitenteParaProducto(data.producto),
+        destinatarios: destinatarios || undefined
       }
     });
   } catch (e) {
@@ -6477,6 +6513,12 @@ var TT_FORM_CFG = {
     tipoArena: true,
     pctArcilla: true
   },
+  TT_MATPRIMAS: {
+    granu: true,
+    quimica: true,
+    tipoArena: true,
+    pctArcilla: true
+  },
   TT_FIERRC: {
     granu: true,
     quimica: true
@@ -7599,6 +7641,11 @@ function TurcoCilindroForm({
 }
 
 /* Floculante: cumple si dilucion entre 0,004 y 0,016 g */
+/* Floculante: Frasco 1 = Madre Estanque 1, Frasco 2 = Dilucion (obligatorios);
+   Frasco 3 = Madre Estanque Preparacion, Frasco 4 = Madre Estanque 2 (opcionales).
+   Concentracion (g/lt) de cada frasco se calcula sola = frasco/Solucion*1000,
+   igual que la formula del Excel historico. Cumple/No Cumple se evalua SOLO
+   con Frasco 2 (Dilucion), igual que antes. */
 function TurcoFloculanteForm({
   account,
   onBack,
@@ -7607,21 +7654,31 @@ function TurcoFloculanteForm({
   var [fecha, setFecha] = useState(today());
   var [horario, setHorario] = useState(nowTime());
   var [solucion, setSolucion] = useState('');
-  var [flocMadre, setFlocMadre] = useState('');
-  var [flocDil, setFlocDil] = useState('');
-  var [concMadre, setConcMadre] = useState('');
-  var [concDil, setConcDil] = useState('');
+  var [frasco1, setFrasco1] = useState(''); // Madre Estanque 1 (obligatorio)
+  var [frasco2, setFrasco2] = useState(''); // Dilucion (obligatorio)
+  var [frasco3, setFrasco3] = useState(''); // Madre Estanque Preparacion (opcional)
+  var [frasco4, setFrasco4] = useState(''); // Madre Estanque 2 (opcional)
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
-  var dil = parseDecimal(flocDil);
-  var estado = isNaN(dil) || flocDil === '' ? null : dil >= 0.004 && dil <= 0.016 ? 'CUMPLE' : 'NO CUMPLE';
+  var sol = parseDecimal(solucion);
+  function conc(v) {
+    var n = parseDecimal(v);
+    if (v === '' || isNaN(n) || isNaN(sol) || !sol) return '';
+    return fmt(n / sol * 1000, 2);
+  }
+  var conc1 = conc(frasco1),
+    conc2 = conc(frasco2),
+    conc3 = conc(frasco3),
+    conc4 = conc(frasco4);
+  var dil = parseDecimal(frasco2);
+  var estado = isNaN(dil) || frasco2 === '' ? null : dil >= 0.004 && dil <= 0.016 ? 'CUMPLE' : 'NO CUMPLE';
   function validate() {
     var e = {};
     if (!fecha) e.fecha = 'Fecha requerida';
     if (!horario) e.horario = 'Horario requerido';
     if (!solucion) e.solucion = 'Solucion (mL) requerida';
-    if (!flocMadre) e.flocMadre = 'Floculante madre requerido';
-    if (!flocDil) e.flocDil = 'Floculante dilucion requerido';
+    if (!frasco1) e.frasco1 = 'Floculante madre (Estanque 1) requerido';
+    if (!frasco2) e.frasco2 = 'Floculante dilucion requerido';
     return e;
   }
   async function handleSend() {
@@ -7654,14 +7711,18 @@ function TurcoFloculanteForm({
       pesoFondo: null,
       pctHumedad: '',
       quimica: {},
-      observaciones: estado ? estado + ' — dilucion ' + flocDil + ' g' : '',
+      observaciones: estado ? estado + ' — dilucion ' + frasco2 + ' g' : '',
       extra: {
         horario: horario,
         solucionMl: solucion,
-        flocMadreG: flocMadre,
-        flocDilG: flocDil,
-        concMadreGl: concMadre,
-        concDilGl: concDil,
+        frasco1MadreG: frasco1,
+        frasco2DilG: frasco2,
+        frasco3MadreG: frasco3,
+        frasco4MadreG: frasco4,
+        conc1Gl: conc1,
+        conc2Gl: conc2,
+        conc3Gl: conc3,
+        conc4Gl: conc4,
         estado: estado
       },
       horaSalida: horario
@@ -7670,7 +7731,7 @@ function TurcoFloculanteForm({
     if (estado === 'NO CUMPLE') {
       sendAlertaEmail(data, [{
         param: 'Floculante dilucion',
-        valor: flocDil + ' g',
+        valor: frasco2 + ' g',
         limite: '0,004 – 0,016 g',
         spec: ''
       }], account);
@@ -7721,8 +7782,8 @@ function TurcoFloculanteForm({
     },
     error: errors.horario
   })), /*#__PURE__*/React.createElement("div", {
-    className: "fg fg-2",
     style: {
+      maxWidth: 240,
       marginBottom: 14
     }
   }, /*#__PURE__*/React.createElement(Field, {
@@ -7736,38 +7797,113 @@ function TurcoFloculanteForm({
     },
     error: errors.solucion,
     placeholder: "0"
-  }), /*#__PURE__*/React.createElement(Field, {
-    name: "madreFL",
-    label: "Floculante Madre (g)",
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "f1FL",
+    label: "Frasco 1 — Madre Estanque 1 (g)",
     type: "decimal",
     required: true,
-    value: flocMadre,
+    value: frasco1,
     onChange: function (e) {
-      setFlocMadre(e.target.value);
+      setFrasco1(e.target.value);
     },
-    error: errors.flocMadre,
+    error: errors.frasco1,
     placeholder: "0,000"
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "Concentracion Frasco 1 (g/lt)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: conc1
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "fg fg-2",
     style: {
       marginBottom: 14
     }
   }, /*#__PURE__*/React.createElement(Field, {
-    name: "dilFL",
-    label: "Floculante Dilucion (g)",
+    name: "f2FL",
+    label: "Frasco 2 — Dilucion (g)",
     type: "decimal",
     required: true,
-    value: flocDil,
+    value: frasco2,
     onChange: function (e) {
-      setFlocDil(e.target.value);
+      setFrasco2(e.target.value);
     },
-    error: errors.flocDil,
+    error: errors.frasco2,
     placeholder: "0,000",
     specHint: "0,004 – 0,016 g",
     specSemVal: estado === null ? 'info' : estado === 'CUMPLE' ? 'ok' : 'error'
   }), /*#__PURE__*/React.createElement("div", {
     className: "field"
-  }, /*#__PURE__*/React.createElement("label", null, "Observaciones", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("label", null, "Concentracion Frasco 2 (g/lt)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: conc2
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "f3FL",
+    label: "Frasco 3 — Madre Estanque Preparacion (g)",
+    type: "decimal",
+    required: false,
+    value: frasco3,
+    onChange: function (e) {
+      setFrasco3(e.target.value);
+    },
+    placeholder: "0,000 (opcional)"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "Concentracion Frasco 3 (g/lt)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: conc3
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "f4FL",
+    label: "Frasco 4 — Madre Estanque 2 (g)",
+    type: "decimal",
+    required: false,
+    value: frasco4,
+    onChange: function (e) {
+      setFrasco4(e.target.value);
+    },
+    placeholder: "0,000 (opcional)"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "Concentracion Frasco 4 (g/lt)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: conc4
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "Estado (Frasco 2 — Dilucion)", /*#__PURE__*/React.createElement("span", {
     className: "calc-badge"
   }, "Calculado")), /*#__PURE__*/React.createElement("input", {
     type: "text",
@@ -7780,26 +7916,6 @@ function TurcoFloculanteForm({
       color: estadoColor
     }
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "fg fg-2"
-  }, /*#__PURE__*/React.createElement(Field, {
-    name: "cmFL",
-    label: "Concentracion floculante madre (g/lt)",
-    type: "decimal",
-    value: concMadre,
-    onChange: function (e) {
-      setConcMadre(e.target.value);
-    },
-    placeholder: "0,00"
-  }), /*#__PURE__*/React.createElement(Field, {
-    name: "cdFL",
-    label: "Concentracion dilucion madre (g/lt)",
-    type: "decimal",
-    value: concDil,
-    onChange: function (e) {
-      setConcDil(e.target.value);
-    },
-    placeholder: "0,00"
-  }))), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -7809,6 +7925,202 @@ function TurcoFloculanteForm({
     disabled: sending,
     onClick: handleSend
   }, sending ? 'Enviando...' : 'Registrar Floculante')));
+}
+
+/* Espesador — % Solidos: Peso Humedo/Seco/Vidrio -> Masa Solido (Seco-Vidrio)
+   y % Solido (MasaSolido/Humedo*100) calculados solos, igual que las
+   formulas del Excel historico (verificado con fila real: 0,096 g / 0,96 %). */
+function TurcoEspesadorForm({
+  account,
+  onBack,
+  onSuccess
+}) {
+  var [fecha, setFecha] = useState(today());
+  var [horario, setHorario] = useState(nowTime());
+  var [pesoHumedo, setPesoHumedo] = useState('');
+  var [pesoSeco, setPesoSeco] = useState('');
+  var [pesoVidrio, setPesoVidrio] = useState('');
+  var [errors, setErrors] = useState({});
+  var [sending, setSending] = useState(false);
+  var ph = parseDecimal(pesoHumedo),
+    ps = parseDecimal(pesoSeco),
+    pv = parseDecimal(pesoVidrio);
+  var masaSolidoNum = pesoSeco !== '' && pesoVidrio !== '' && !isNaN(ps) && !isNaN(pv) ? ps - pv : null;
+  var masaSolido = masaSolidoNum != null ? fmt(masaSolidoNum, 3) : '';
+  var pctSolidoNum = masaSolidoNum != null && pesoHumedo !== '' && !isNaN(ph) && ph ? masaSolidoNum / ph * 100 : null;
+  var pctSolido = pctSolidoNum != null ? fmt(pctSolidoNum, 2) : '';
+  function validate() {
+    var e = {};
+    if (!fecha) e.fecha = 'Fecha requerida';
+    if (!horario) e.horario = 'Horario requerido';
+    if (!pesoHumedo) e.pesoHumedo = 'Peso humedo requerido';
+    if (!pesoSeco) e.pesoSeco = 'Peso seco requerido';
+    if (!pesoVidrio) e.pesoVidrio = 'Peso vidrio requerido';
+    return e;
+  }
+  async function handleSend() {
+    var e = validate();
+    if (Object.keys(e).length) {
+      setErrors(e);
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      return;
+    }
+    setErrors({});
+    setSending(true);
+    var now = new Date();
+    var data = {
+      id: uid(),
+      fecha: fecha,
+      fechaEnvio: now.toISOString(),
+      horaEnvio: now.toLocaleTimeString('es-CL'),
+      turno: '',
+      analista: account ? account.email : '',
+      producto: 'TT_ESPESADOR',
+      productoLabel: 'Espesador — % Solidos',
+      tipoMuestra: '',
+      numAcopio: '',
+      pesoInicial: '',
+      pesoFinal: '',
+      granu: [],
+      pesoFondo: null,
+      pctHumedad: '',
+      quimica: {},
+      observaciones: pctSolido ? '% Solido: ' + pctSolido + ' %' : '',
+      extra: {
+        horario: horario,
+        pesoHumedoG: pesoHumedo,
+        pesoSecoG: pesoSeco,
+        pesoVidrioG: pesoVidrio,
+        masaSolidoG: masaSolido,
+        pctSolido: pctSolido
+      }
+    };
+    addPending(data);
+    try {
+      await sendTurcoToSupabase(data, account);
+      delPending(data.id);
+      setSending(false);
+      onSuccess('Control de % solidos (espesador) registrado exitosamente.');
+    } catch (err) {
+      console.error(err);
+      setSending(false);
+      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+    }
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TurcoPageHdr, {
+    onBack: onBack,
+    sub: "Espesador — % Solidos"
+  }), /*#__PURE__*/React.createElement(TurcoErrBox, {
+    errors: errors
+  }), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Control % Solidos Espesador",
+    icon: "🧺"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "fechaES",
+    label: "Fecha",
+    type: "date",
+    required: true,
+    value: fecha,
+    onChange: function (e) {
+      setFecha(e.target.value);
+    },
+    error: errors.fecha
+  }), /*#__PURE__*/React.createElement(Field, {
+    name: "horaES",
+    label: "Horario",
+    type: "time",
+    required: true,
+    value: horario,
+    onChange: function (e) {
+      setHorario(e.target.value);
+    },
+    error: errors.horario
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "phES",
+    label: "Peso Humedo (g)",
+    type: "decimal",
+    required: true,
+    value: pesoHumedo,
+    onChange: function (e) {
+      setPesoHumedo(e.target.value);
+    },
+    error: errors.pesoHumedo,
+    placeholder: "0,000"
+  }), /*#__PURE__*/React.createElement(Field, {
+    name: "psES",
+    label: "Peso Seco (g)",
+    type: "decimal",
+    required: true,
+    value: pesoSeco,
+    onChange: function (e) {
+      setPesoSeco(e.target.value);
+    },
+    error: errors.pesoSeco,
+    placeholder: "0,000"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "pvES",
+    label: "Peso Vidrio (g)",
+    type: "decimal",
+    required: true,
+    value: pesoVidrio,
+    onChange: function (e) {
+      setPesoVidrio(e.target.value);
+    },
+    error: errors.pesoVidrio,
+    placeholder: "0,000"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "Masa Solido (g)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: masaSolido
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 240,
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "% Solido", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: pctSolido ? pctSolido + ' %' : '',
+    style: {
+      fontWeight: 800
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "form-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: onBack
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    disabled: sending,
+    onClick: handleSend
+  }, sending ? 'Enviando...' : 'Registrar Control')));
 }
 
 /* Lodo: granulometria en gramos + controles -#100 y +#120 (max 10%) */
@@ -8111,6 +8423,11 @@ function LavadoTurcoScreen({
     onSuccess: onSuccess
   });
   if (sel === 'TT_LODO') return /*#__PURE__*/React.createElement(TurcoLodoForm, {
+    account: account,
+    onBack: back,
+    onSuccess: onSuccess
+  });
+  if (sel === 'TT_ESPESADOR') return /*#__PURE__*/React.createElement(TurcoEspesadorForm, {
     account: account,
     onBack: back,
     onSuccess: onSuccess
