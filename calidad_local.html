@@ -2985,6 +2985,53 @@ const PRODUCTO_REMITENTE = function () {
 function remitenteParaProducto(producto) {
   return PRODUCTO_REMITENTE[producto] || REMITENTE_LAS_PIEDRAS;
 }
+/* Planta/faena de cada producto — usada para filtrar que destinatarios
+   de `notificacion_destinatarios` reciben el correo de cada ensayo. */
+const PLANTA_TAGS = ['Arenas', 'Cuarzo', 'Despachos', 'Turco'];
+const PRODUCTO_PLANTA = function () {
+  var m = {};
+  ARENA_PRODUCTS.concat(OTROS_PRODUCTS).forEach(function (p) {
+    m[p.value] = 'Arenas';
+  });
+  CUARZO_PRODUCTS.concat(CUARZO_PROC_KEYS).forEach(function (p) {
+    m[p.value] = 'Cuarzo';
+  });
+  DESPACHO_PRODUCTS.forEach(function (p) {
+    m[p.value] = 'Despachos';
+  });
+  LAVTURCO_PRODUCTS.concat(SECADO_PRODUCTS).forEach(function (p) {
+    m[p.value] = 'Turco';
+  });
+  return m;
+}();
+/* Destinatarios de los correos automaticos: tabla admin-editable
+   `notificacion_destinatarios` (email + plantas a las que esta
+   suscrito + activo/inactivo). Sin plantas marcadas = recibe de todas.
+   Se carga una vez al iniciar (loadNotifDestinatarios) y se filtra en
+   memoria al enviar cada reporte. Si la carga falla, no se envia
+   'destinatarios' y la Edge Function usa su lista por defecto
+   (fallback de seguridad, ver enviar-reporte). */
+var NOTIF_DESTINATARIOS_LIVE = [];
+var notifDestinatariosCargado = false;
+async function loadNotifDestinatarios() {
+  try {
+    var res = await supabase.from('notificacion_destinatarios').select('*');
+    if (res.error || !res.data) return;
+    NOTIF_DESTINATARIOS_LIVE = res.data;
+    notifDestinatariosCargado = true;
+  } catch (e) {
+    console.error('Error cargando destinatarios de correo:', e);
+  }
+}
+function destinatariosParaProducto(producto) {
+  if (!notifDestinatariosCargado) return null;
+  var planta = PRODUCTO_PLANTA[producto] || 'Arenas';
+  return NOTIF_DESTINATARIOS_LIVE.filter(function (d) {
+    return d.activo && (!d.plantas || !d.plantas.length || d.plantas.indexOf(planta) >= 0);
+  }).map(function (d) {
+    return d.email;
+  });
+}
 const TURNOS_ABC = [{
   value: 'A',
   label: 'Turno A'
@@ -3777,16 +3824,20 @@ async function enviarReporteRegistro(data, gc, user) {
       console.error('PDF reporte registro:', e);
     }
     var filename = 'Reporte_' + String(prodLbl).replace(/\s/g, '_') + '_' + (data.fecha || '') + '.pdf';
-    // Sin 'destinatarios': usa la lista por defecto de la Edge Function
-    // enviar-reporte (unico lugar donde se mantiene la lista de correos).
-    // 'remitente' si varia segun la faena/planta del producto (Resend).
+    // 'destinatarios' se calcula desde la tabla notificacion_destinatarios
+    // (Ajustes -> Destinatarios de correo), filtrada por la planta del
+    // producto; si aun no cargo (offline/error) se omite y la Edge
+    // Function enviar-reporte usa su lista por defecto como respaldo.
+    // 'remitente' si varia segun la faena/planta (Resend).
+    var destinatarios = destinatariosParaProducto(data.producto);
     var res = await supabase.functions.invoke('enviar-reporte', {
       body: {
         asunto: asunto,
         cuerpo_html: cuerpo,
         pdf_base64: pdfB64,
         filename: filename,
-        remitente: remitenteParaProducto(data.producto)
+        remitente: remitenteParaProducto(data.producto),
+        destinatarios: destinatarios || undefined
       }
     });
     if (res.error) throw res.error;
@@ -20502,6 +20553,11 @@ function SettingsScreen({
   var [usuarios, setUsuarios] = useState([]);
   var [loadingUsuarios, setLoadingUsuarios] = useState(false);
   var [rolUpdating, setRolUpdating] = useState(null);
+  // Destinatarios de correo (notificacion_destinatarios)
+  var [notifDest, setNotifDest] = useState([]);
+  var [loadingNotifDest, setLoadingNotifDest] = useState(false);
+  var [newNotifEmail, setNewNotifEmail] = useState('');
+  var [newNotifPlantas, setNewNotifPlantas] = useState([]);
   function refresh() {
     setPendA(getPending());
     setPendC(getPendingCuarzo());
@@ -20530,6 +20586,7 @@ function SettingsScreen({
       fetchAnalistas();
       fetchAudit();
       fetchUsuarios();
+      fetchNotifDest();
     }
   }, [isAdmin]);
   async function fetchUsuarios() {
@@ -20675,6 +20732,90 @@ function SettingsScreen({
       activo: !activo
     }).eq('id', id);
     fetchAnalistas();
+  }
+  function fetchNotifDest() {
+    setLoadingNotifDest(true);
+    supabase.from('notificacion_destinatarios').select('*').order('email').then(function (res) {
+      setLoadingNotifDest(false);
+      if (!res.error) {
+        setNotifDest(res.data || []);
+        NOTIF_DESTINATARIOS_LIVE = res.data || [];
+        notifDestinatariosCargado = true;
+      } else setToast({
+        msg: 'No se pudo cargar destinatarios: ' + res.error.message,
+        type: 'error'
+      });
+    });
+  }
+  async function toggleNotifActivo(id, activo) {
+    var res = await supabase.from('notificacion_destinatarios').update({
+      activo: !activo
+    }).eq('id', id);
+    if (res.error) setToast({
+      msg: 'Error: ' + res.error.message,
+      type: 'error'
+    });else fetchNotifDest();
+  }
+  async function toggleNotifPlanta(row, planta) {
+    var plantas = row.plantas || [];
+    var next = plantas.indexOf(planta) >= 0 ? plantas.filter(function (p) {
+      return p !== planta;
+    }) : plantas.concat([planta]);
+    var res = await supabase.from('notificacion_destinatarios').update({
+      plantas: next
+    }).eq('id', row.id);
+    if (res.error) setToast({
+      msg: 'Error: ' + res.error.message,
+      type: 'error'
+    });else fetchNotifDest();
+  }
+  async function delNotifDest(id) {
+    if (!confirm('Eliminar este destinatario? Ya no recibira ningun correo automatico.')) return;
+    var res = await supabase.from('notificacion_destinatarios').delete().eq('id', id);
+    if (res.error) setToast({
+      msg: 'Error: ' + res.error.message,
+      type: 'error'
+    });else {
+      setToast({
+        msg: 'Destinatario eliminado',
+        type: 'success'
+      });
+      fetchNotifDest();
+    }
+  }
+  function toggleNewNotifPlanta(planta) {
+    setNewNotifPlantas(function (prev) {
+      return prev.indexOf(planta) >= 0 ? prev.filter(function (p) {
+        return p !== planta;
+      }) : prev.concat([planta]);
+    });
+  }
+  async function addNotifDest() {
+    var em = newNotifEmail.trim().toLowerCase();
+    if (!em || em.indexOf('@') < 0) {
+      setToast({
+        msg: 'Ingresa un correo valido.',
+        type: 'error'
+      });
+      return;
+    }
+    var res = await supabase.from('notificacion_destinatarios').insert([{
+      email: em,
+      plantas: newNotifPlantas,
+      activo: true
+    }]);
+    if (res.error) setToast({
+      msg: 'Error: ' + res.error.message,
+      type: 'error'
+    });else {
+      setNewNotifEmail('');
+      setNewNotifPlantas([]);
+      setToast({
+        msg: 'Destinatario agregado',
+        type: 'success'
+      });
+      fetchNotifDest();
+    }
   }
   var totalPending = pendA.length + pendC.length;
   return /*#__PURE__*/React.createElement("div", null, toast && /*#__PURE__*/React.createElement(Toast, {
@@ -21080,6 +21221,173 @@ function SettingsScreen({
       marginBottom: 4
     }
   }, "Asistente de Calidad: ingresa ensayos y ve todo excepto Ajustes. Visita: solo lectura. Cliente: solo ve \"Calidad TLH Turco\", nada más. Para cambiar contraseñas o borrar usuarios, usa Supabase → Authentication."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 1,
+      background: 'var(--border)',
+      margin: '18px 0'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+      flexWrap: 'wrap',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: '.9rem'
+    }
+  }, "Destinatarios de correo"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    style: {
+      padding: '5px 12px',
+      fontSize: '.78rem'
+    },
+    onClick: fetchNotifDest
+  }, "↻ Actualizar")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '.78rem',
+      color: 'var(--text-secondary)',
+      marginBottom: 10
+    }
+  }, "Cada ensayo registrado dispara un correo automatico con su certificado. Los destinatarios ", /*#__PURE__*/React.createElement("strong", null, "activos"), " abajo son los que lo reciben. Marca la(s) planta(s) de un correo para que solo reciba esas notificaciones (un correo puede repetirse en varias plantas); si no marcas ninguna, recibe de todas. Desactiva un correo para dejar de enviarle sin borrarlo, o eliminalo del todo."), loadingNotifDest ? /*#__PURE__*/React.createElement("div", {
+    className: "spinner"
+  }) : notifDest.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: 'var(--text-muted)',
+      fontSize: '.85rem',
+      marginBottom: 14
+    }
+  }, "Sin destinatarios configurados.") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto',
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "htbl"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Correo"), /*#__PURE__*/React.createElement("th", null, "Plantas"), /*#__PURE__*/React.createElement("th", null, "Estado"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, notifDest.map(function (d) {
+    return /*#__PURE__*/React.createElement("tr", {
+      key: d.id
+    }, /*#__PURE__*/React.createElement("td", null, d.email), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 4,
+        flexWrap: 'wrap'
+      }
+    }, PLANTA_TAGS.map(function (pl) {
+      var on = (d.plantas || []).indexOf(pl) >= 0;
+      return /*#__PURE__*/React.createElement("span", {
+        key: pl,
+        onClick: function () {
+          toggleNotifPlanta(d, pl);
+        },
+        className: "badge",
+        style: {
+          cursor: 'pointer',
+          fontSize: '.72rem',
+          userSelect: 'none',
+          background: on ? 'var(--primary)' : 'transparent',
+          color: on ? '#fff' : 'var(--text-muted)',
+          border: '1px solid ' + (on ? 'var(--primary)' : 'var(--border)')
+        }
+      }, pl);
+    })), (!d.plantas || !d.plantas.length) && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '.7rem',
+        color: 'var(--text-muted)',
+        marginTop: 2
+      }
+    }, "Todas")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+      className: 'badge ' + (d.activo ? 'badge-s' : 'badge-w'),
+      style: {
+        fontSize: '.75rem'
+      }
+    }, d.activo ? 'Activo' : 'Inactivo')), /*#__PURE__*/React.createElement("td", {
+      style: {
+        display: 'flex',
+        gap: 5
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      style: {
+        padding: '3px 9px',
+        fontSize: '.78rem'
+      },
+      onClick: function () {
+        toggleNotifActivo(d.id, d.activo);
+      }
+    }, d.activo ? 'Desactivar' : 'Activar'), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-danger",
+      style: {
+        padding: '3px 9px',
+        fontSize: '.78rem'
+      },
+      onClick: function () {
+        delNotifDest(d.id);
+      }
+    }, "Eliminar")));
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "email",
+    value: newNotifEmail,
+    placeholder: "correo@migrin.cl",
+    onChange: function (e) {
+      setNewNotifEmail(e.target.value);
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') addNotifDest();
+    },
+    style: {
+      flex: 1,
+      minWidth: 200,
+      padding: '8px 10px',
+      borderRadius: 6,
+      border: '1px solid var(--border)',
+      fontFamily: 'Inter,sans-serif'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      flexWrap: 'wrap'
+    }
+  }, PLANTA_TAGS.map(function (pl) {
+    var on = newNotifPlantas.indexOf(pl) >= 0;
+    return /*#__PURE__*/React.createElement("span", {
+      key: pl,
+      onClick: function () {
+        toggleNewNotifPlanta(pl);
+      },
+      className: "badge",
+      style: {
+        cursor: 'pointer',
+        fontSize: '.72rem',
+        userSelect: 'none',
+        background: on ? 'var(--primary)' : 'transparent',
+        color: on ? '#fff' : 'var(--text-muted)',
+        border: '1px solid ' + (on ? 'var(--primary)' : 'var(--border)')
+      }
+    }, pl);
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    onClick: addNotifDest
+  }, "Agregar")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.74rem',
+      color: 'var(--text-muted)',
+      marginBottom: 4
+    }
+  }, "Sin plantas marcadas, el correo recibe notificaciones de todas."), /*#__PURE__*/React.createElement("div", {
     style: {
       height: 1,
       background: 'var(--border)',
@@ -24989,6 +25297,8 @@ function App() {
   useEffect(function () {
     // Cargar overrides de EETT desde Supabase
     loadEETT();
+    // Cargar destinatarios de correo configurados por el admin
+    loadNotifDestinatarios();
     // Recuperar sesion activa al cargar
     supabase.auth.getSession().then(function (res) {
       if (res.data && res.data.session) setAccount(res.data.session.user);
