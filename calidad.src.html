@@ -1274,6 +1274,7 @@ async function destinatariosParaProducto(producto){
 const TURNOS_ABC=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'},{value:'C',label:'Turno C'}];
 const ACOPIOS_TURCO=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8']
   .map(function(n){return{value:n,label:n};});
+const SILOS_IMAN_PROD=['Silo 3','Silo 4','Cancha'].map(function(n){return{value:n,label:n};});
 const PUNTOS_MUESTREO_TURCO=[
   {value:'Correa',label:'Correa'},
   {value:'Cortador',label:'Cortador'},
@@ -3234,7 +3235,10 @@ var TT_FORM_CFG={
   TT_AMCRIST:{quimica:true,tipoArena:true},
   TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
   TT_IMAN_ALIM:{granu:true,quimica:true,analista:true},
-  TT_IMAN_PROD:{granu:true,quimica:true,analista:true},
+  // Silo cumple para Arena Iman el mismo rol que Acopio cumple para TT_TLH:
+  // es la clave de agrupacion para promediar muestras al generar un
+  // certificado de despacho (ver flujo de Despachos Turco).
+  TT_IMAN_PROD:{granu:true,quimica:true,analista:true,acopio:true,acopioLabel:'Silo',acopioOptions:SILOS_IMAN_PROD},
 };
 
 var TT_QUIM_FIELDS=[
@@ -3340,7 +3344,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     if(!fecha)e.fecha='Fecha requerida';
     if(cfg.hora&&!hora)e.hora='Hora requerida';
     if(cfg.analista&&!analista)e.analista='Analista requerido';
-    if(cfg.acopio&&!acopio)e.acopio='Seleccione el acopio';
+    if(cfg.acopio&&!acopio)e.acopio='Seleccione '+(cfg.acopioLabel?('el '+cfg.acopioLabel.toLowerCase()):'el acopio');
     if(cfg.sector&&!sector)e.sector='Sector requerido';
     if(cfg.tipoArena&&!tipoArena)e.tipoArena='Tipo de arena requerido';
     if(cfg.granu){
@@ -3450,7 +3454,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
         )}
         <div className="fg fg-2">
           {cfg.acopio&&(
-            <Sel name="acopioTT" label="Acopio" required options={ACOPIOS_TURCO} value={acopio}
+            <Sel name="acopioTT" label={cfg.acopioLabel||'Acopio'} required options={cfg.acopioOptions||ACOPIOS_TURCO} value={acopio}
               onChange={function(e){setAcopio(e.target.value);}} error={errors.acopio}/>
           )}
           {cfg.sector&&(
@@ -5510,12 +5514,64 @@ const MESES_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agos
 const MN=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 /* ── DASHBOARD SCREEN ── */
-function DashboardScreen({account,onBack}){
+/* Entrada unica de "Despachos": elige planta (Arenas/Turco) y, para
+   Turco, el sub-tipo (TLH o Arena Iman) — luego abre el mismo Dashboard
+   con la pestana "Acopio / Despacho" generalizada (ver DashboardScreen). */
+function DespachosScreen({account,onBack}){
+  var[modo,setModo]=useState(null); // 'A36' | 'TT_TLH' | 'TT_IMAN_PROD' | null
+  var[turcoOpen,setTurcoOpen]=useState(false);
+  if(modo)return <DashboardScreen account={account} initProd={modo} initTab="acopio" onBack={function(){setModo(null);}}/>;
+  return(
+    <div>
+      <div className="page-hdr">
+        <button className="back-btn" onClick={turcoOpen?function(){setTurcoOpen(false);}:onBack}>&#8592;</button>
+        <h2>Despachos</h2>
+      </div>
+      {!turcoOpen?(
+        <div className="modules-grid">
+          <div className="mod-card active" role="button" tabIndex={0}
+            onClick={function(){setModo('A36');}}
+            onKeyDown={function(e){if(e.key==='Enter')setModo('A36');}}>
+            <div className="mod-icon"><span>🏖️</span></div>
+            <div className="mod-label">Arenas</div>
+            <div className="mod-desc">Certificado de despacho A36 — Vidrios Lirquén / Cristalerías</div>
+          </div>
+          <div className="mod-card active" role="button" tabIndex={0}
+            onClick={function(){setTurcoOpen(true);}}
+            onKeyDown={function(e){if(e.key==='Enter')setTurcoOpen(true);}}>
+            <div className="mod-icon"><span>🏭</span></div>
+            <div className="mod-label">Turco</div>
+            <div className="mod-desc">Certificado de despacho — TLH o Arena Iman</div>
+          </div>
+        </div>
+      ):(
+        <div className="modules-grid">
+          <div className="mod-card active" role="button" tabIndex={0}
+            onClick={function(){setModo('TT_TLH');}}
+            onKeyDown={function(e){if(e.key==='Enter')setModo('TT_TLH');}}>
+            <div className="mod-icon"><span>🧪</span></div>
+            <div className="mod-label">TLH Turco</div>
+            <div className="mod-desc">Agrupado por Acopio</div>
+          </div>
+          <div className="mod-card active" role="button" tabIndex={0}
+            onClick={function(){setModo('TT_IMAN_PROD');}}
+            onKeyDown={function(e){if(e.key==='Enter')setModo('TT_IMAN_PROD');}}>
+            <div className="mod-icon"><span>⛏️</span></div>
+            <div className="mod-label">Arena Imán (Producción)</div>
+            <div className="mod-desc">Agrupado por Silo / Cancha</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardScreen({account,onBack,initProd,initTab}){
   var[records,setRecords]=useState([]);
   var[loading,setLoading]=useState(true);
-  var[tab,setTab]=useState('granu');
-  var[prod,setProd]=useState('A36');
-  var[plantaFiltro,setPlantaFiltro]=useState('Arenas');
+  var[tab,setTab]=useState(initTab||'granu');
+  var[prod,setProd]=useState(initProd||'A36');
+  var[plantaFiltro,setPlantaFiltro]=useState(initProd==='TT_TLH'?'Lavado Turco':initProd==='TT_IMAN_PROD'?'Secado Turco':'Arenas');
   var[eettOpen,setEettOpen]=useState(false);
   var[periodType,setPeriodType]=useState('month');
   var[selWeek,setSelWeek]=useState(function(){
@@ -5714,7 +5770,7 @@ function DashboardScreen({account,onBack}){
         pdf.addImage(slc.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,contentW,sliceH/pxPerMm);
         y+=sliceH;
       }
-      var nomCert=(certModal&&certModal.numCert?certModal.numCert:'A36').replace(/[\/\\\s]+/g,'-');
+      var nomCert=(certModal&&certModal.numCert?certModal.numCert:prod).replace(/[\/\\\s]+/g,'-');
       pdf.save('Certificado_'+nomCert+(certModal&&certModal.lote?'_Lote'+certModal.lote:'')+'.pdf');
       if(certModal&&certModal.regId){
         // Reapertura de un certificado ya emitido: no se registra de nuevo
@@ -5722,21 +5778,14 @@ function DashboardScreen({account,onBack}){
       }else{
       // Registrar el certificado emitido en Supabase (trazabilidad)
       try{
-        var reg={num_cert:certModal.numCert||'',producto:'A36',lote:certModal.lote||'',acopio:certModal.acopio||'',
+        var reg={num_cert:certModal.numCert||'',producto:prod,lote:certModal.lote||'',acopio:certModal.acopio||'',
           fecha:certModal.fecha||null,hora:certModal.hora||'',humedad:certModal.humedad||'',
           patente:certModal.patente||'',muestreador:certModal.muestreador||'',
           n_muestras:certSelDet.length,
           muestras:certSelDet.map(function(d){return{id:d.id,fecha:d.fecha,folio:d.folio};}),
-          stats:certStats?{
-            a35:certStats.acum['#35']?certStats.acum['#35'].media:null,
-            a120:certStats.acum['#120']?certStats.acum['#120'].media:null,
-            a170:certStats.acum['#170']?certStats.acum['#170'].media:null,
-            sio2:certStats.quim.sio2?certStats.quim.sio2.media:null,
-            al2o3:certStats.quim.al2o3?certStats.quim.al2o3.media:null,
-            fe2o3:certStats.quim.fe2o3?certStats.quim.fe2o3.media:null,
-            d50:certStats.d50?certStats.d50.media:null,
-            hum:certStats.hum?certStats.hum.media:null,
-          }:null,
+          // stats guarda el objeto de promedios tal cual (generico, sirve
+          // para cualquier producto/mallas), no solo las claves de A36.
+          stats:certStats||null,
           emitido_por:account?account.email:''};
         var ins=await supabase.from('certificados').insert([reg]);
         if(ins.error)console.error('certificados insert:',ins.error);
@@ -6015,19 +6064,25 @@ function DashboardScreen({account,onBack}){
     return filtered.map(computeStats);
   },[filtered,prod]);
 
-  /* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (pestana Acopio, A36) ── */
-  useEffect(function(){if(tab==='acopio'&&prod!=='A36')setTab('granu');},[prod]);
+  /* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (pestana Acopio) ──
+     A36 (Arenas): valida en paralelo contra Lirquen y Cristalerias.
+     TT_TLH / TT_IMAN_PROD (Turco): valida contra su unica EETT (getSpecs),
+     agrupando por Acopio (TLH) o Silo (Arena Iman) via TT_FORM_CFG. */
+  var PROD_CON_DESPACHO=['A36','TT_TLH','TT_IMAN_PROD'];
+  useEffect(function(){if(tab==='acopio'&&PROD_CON_DESPACHO.indexOf(prod)<0)setTab('granu');},[prod]);
 
   // Ultimos 10 registros del producto dentro del periodo seleccionado arriba,
   // opcionalmente filtrados por tipo de muestra / N° de acopio.
   var certRecs=useMemo(function(){
-    if(prod!=='A36')return[];
+    if(PROD_CON_DESPACHO.indexOf(prod)<0)return[];
     var dr=getDateRange();
     var rs=records.filter(function(r){
       if((r.ProductoKey||r.producto||'')!==prod)return false;
       var f=r.FechaMuestreo||r.fecha||'';
       return f>=dr.from&&f<=dr.to;
     });
+    // "Puntual" (muestra sin acopio) solo existe como concepto en A36; en
+    // Turco toda muestra ya trae Acopio/Silo (campo requerido en el form).
     if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio'&&!normAcopio(r.NumAcopio||r.numAcopio);});
     else if(certFiltro!=='__all')rs=rs.filter(function(r){return normAcopio(r.NumAcopio||r.numAcopio)===certFiltro;});
     rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
@@ -6079,12 +6134,13 @@ function DashboardScreen({account,onBack}){
       d50:m(function(d){return d.d50;})};
   },[records,prod]);
 
-  // Registro de certificados emitidos (tabla certificados en Supabase)
+  // Registro de certificados emitidos (tabla certificados en Supabase),
+  // acotado al producto actual para no mezclar historial entre A36/Turco.
   function cargarCertEmitidos(){
-    supabase.from('certificados').select('*').order('created_at',{ascending:false}).limit(20)
+    supabase.from('certificados').select('*').eq('producto',prod).order('created_at',{ascending:false}).limit(20)
       .then(function(res){setCertEmitidos(res.error?[]:(res.data||[]));});
   }
-  useEffect(function(){if(tab==='acopio'&&prod==='A36')cargarCertEmitidos();},[tab,prod]);
+  useEffect(function(){if(tab==='acopio'&&PROD_CON_DESPACHO.indexOf(prod)>=0)cargarCertEmitidos();},[tab,prod]);
 
   /* Si hay un certificado reabierto, sus muestras reconstruidas mandan
      (independiente del periodo/filtro actual); si no, la seleccion normal. */
@@ -7026,7 +7082,7 @@ function DashboardScreen({account,onBack}){
           <button className={'dash-tab'+(tab==='granu'?' act':'')} onClick={function(){setTab('granu');}}>Granulometria</button>
           {hasChem&&<button className={'dash-tab'+(tab==='quim'?' act':'')} onClick={function(){setTab('quim');}}>Quimica</button>}
           <button className={'dash-tab'+(tab==='tabla'?' act':'')} onClick={function(){setTab('tabla');}}>Tabla de Datos</button>
-          {prod==='A36'&&<button className={'dash-tab'+(tab==='acopio'?' act':'')} onClick={function(){setTab('acopio');}}>Acopio / Despacho</button>}
+          {PROD_CON_DESPACHO.indexOf(prod)>=0&&<button className={'dash-tab'+(tab==='acopio'?' act':'')} onClick={function(){setTab('acopio');}}>Acopio / Despacho</button>}
         </div>
       )}
       {!loading&&filtered.length===0&&(tab==='granu'||tab==='quim')&&(
@@ -7459,12 +7515,23 @@ function DashboardScreen({account,onBack}){
 
 
       {/* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (A36) ── */}
-      {!loading&&tab==='acopio'&&prod==='A36'&&(function(){
+      {!loading&&tab==='acopio'&&PROD_CON_DESPACHO.indexOf(prod)>=0&&(function(){
+        var esA36=prod==='A36';
         var sieves=SIEVE_CONFIG[prod]||[];
         var glir=(SPECS_A36.LIRQUEN||{}).granulometria||{};
         var gcch=(SPECS_A36.CRISTALERIAS||{}).granulometria||{};
-        var mallasEval=sieves.filter(function(s){return glir[s.us]||gcch[s.us];});
+        // Turco: una sola EETT (getSpecs), sin nocion de "cliente"
+        var specT=esA36?null:(getSpecs(prod)||{});
+        var gT=specT?(specT.granulometria||{}):{};
+        var qT=specT?(specT.quimica||{}):{};
+        var mallasEval=esA36?sieves.filter(function(s){return glir[s.us]||gcch[s.us];}):sieves.filter(function(s){return gT[s.us];});
         var humL=(SPECS_A36.LIRQUEN.humedad||{}).max,humC=(SPECS_A36.CRISTALERIAS.humedad||{}).max;
+        var humT=specT&&specT.humedad?specT.humedad.max:null;
+        // Agrupacion (Acopio para TLH, Silo para Arena Iman); en A36 sigue
+        // siendo ACOPIO_OPTS/"Acopio" tal cual funcionaba hasta ahora.
+        var grpLabel=esA36?'Acopio':((TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopioLabel)||'Acopio');
+        var grpOptions=esA36?ACOPIO_OPTS:((TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopioOptions)?TT_FORM_CFG[prod].acopioOptions.map(function(o){return o.value;}):ACOPIOS_TURCO.map(function(o){return o.value;}));
+        var folioPrefix=esA36?'CCVL-':(prod==='TT_TLH'?'CTLH-':'CIMAN-');
         function limG(s){if(!s)return'—';if(s.retAcumMin!=null&&s.retAcumMax!=null)return fmt(s.retAcumMin,2)+' – '+fmt(s.retAcumMax,2);if(s.retAcumMax!=null)return'≤ '+fmt(s.retAcumMax,2);if(s.retAcumMin!=null)return'≥ '+fmt(s.retAcumMin,2);return'—';}
         function limQ(s){if(!s)return'—';if(s.min!=null&&s.max!=null)return fmt(s.min,2)+' – '+fmt(s.max,2);if(s.max!=null)return'≤ '+fmt(s.max,2);if(s.min!=null)return'≥ '+fmt(s.min,2);return'—';}
         function estC(val,mn,mx){if(val==null||(mn==null&&mx==null))return{t:'—',c:'#94a3b8'};return calcSemaforo(val,mn==null?null:mn,mx==null?null:mx)==='error'?{t:'✗ FUERA',c:'#c0392b'}:{t:'✓ OK',c:'#1e7e44'};}
@@ -7486,7 +7553,25 @@ function DashboardScreen({account,onBack}){
           if(sp.humedad&&sp.humedad.max!=null&&certStats.hum){n++;if(certStats.hum.media>sp.humedad.max)ok=false;}
           return n?ok:null;
         }
-        var vLir=verd('LIRQUEN'),vCch=verd('CRISTALERIAS');
+        // Version single-spec del mismo veredicto, para Turco
+        function verdT(){
+          if(!certStats||!specT)return null;
+          var ok=true,n=0;
+          Object.keys(gT).forEach(function(us){
+            var st=certStats.acum[us],s=gT[us];
+            if(!st||(s.retMin==null&&s.retMax==null))return;
+            n++;if(calcSemaforo(st.media,s.retMin,s.retMax)==='error')ok=false;
+          });
+          Object.keys(qT).forEach(function(el){
+            var s=qT[el];if(!s||(s.min==null&&s.max==null))return;
+            var key=el==='K2O_Na2O'?'k2o_na2o':el.toLowerCase();
+            var st=certStats.quim[key];if(!st)return;
+            n++;if(calcSemaforo(st.media,s.min,s.max)==='error')ok=false;
+          });
+          if(humT!=null&&certStats.hum){n++;if(certStats.hum.media>humT)ok=false;}
+          return n?ok:null;
+        }
+        var vLir=esA36?verd('LIRQUEN'):null,vCch=esA36?verd('CRISTALERIAS'):null,vTurco=esA36?null:verdT();
         var thV={padding:'5px 8px',background:'var(--primary)',color:'#fff',fontSize:'.72rem',whiteSpace:'nowrap',textAlign:'center'};
         var tdV={padding:'4px 8px',borderBottom:'1px solid #f0f0f0',textAlign:'center',fontSize:'.8rem'};
         var maxParc=1;
@@ -7508,8 +7593,8 @@ function DashboardScreen({account,onBack}){
                 <span style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                   <button className="btn btn-secondary" disabled={!certSelDet.length} onClick={exportarSeleccionAcopio}
                     style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>&#11015; Excel selección ({certSelDet.length})</button>
-                  <button className="btn btn-primary" onClick={function(){setShowValForm(true);}}
-                    style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>➕ Registrar validación de acopio</button>
+                  {esA36&&<button className="btn btn-primary" onClick={function(){setShowValForm(true);}}
+                    style={{padding:'5px 12px',minHeight:30,fontSize:'.76rem'}}>➕ Registrar validación de acopio</button>}
                 </span>
               </div>
               <div style={{padding:'10px 14px'}}>
@@ -7518,8 +7603,8 @@ function DashboardScreen({account,onBack}){
                     <label>Muestras</label>
                     <select value={certFiltro} onChange={function(e){setCertFiltro(e.target.value);setCertSel({});}}>
                       <option value="__all">Todas</option>
-                      <option value="Puntual">Producción (Puntual)</option>
-                      {ACOPIO_OPTS.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+                      {esA36&&<option value="Puntual">Producción (Puntual)</option>}
+                      {grpOptions.map(function(a){return <option key={a} value={a}>{a}</option>;})}
                     </select>
                   </div>
                   <div className="dff">
@@ -7573,7 +7658,7 @@ function DashboardScreen({account,onBack}){
               </div>
             </div>
 
-            {certStats&&(
+            {certStats&&esA36&&(
               <div className="sec-card" style={{marginBottom:16}}>
                 <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,alignItems:'center'}}>
                   <span>Validación del promedio (n={certSelDet.length}) — Lirquén y Cristalerías</span>
@@ -7682,17 +7767,84 @@ function DashboardScreen({account,onBack}){
               </div>
             )}
 
+            {certStats&&!esA36&&(function(){
+              var nombreSpec=(specT&&specT.nombre)?specT.nombre:(GRANU_TITLE[prod]||prod);
+              return(
+                <div className="sec-card" style={{marginBottom:16}}>
+                  <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+                    <span>Validación del promedio (n={certSelDet.length}) — {nombreSpec}</span>
+                    <span style={{padding:'3px 12px',borderRadius:14,fontSize:'.74rem',fontWeight:800,
+                      background:vTurco==null?'#edf2f7':vTurco?'#f0fff4':'#fff5f5',
+                      color:vTurco==null?'#718096':vTurco?'#1e7e44':'#c0392b',
+                      border:'1px solid '+(vTurco==null?'#cbd5e0':vTurco?'#9ae6b4':'#feb2b2')}}>
+                      EETT: {vTurco==null?'—':vTurco?'CUMPLE':'NO CUMPLE'}
+                    </span>
+                  </div>
+                  <div style={{padding:'8px 14px',overflowX:'auto'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
+                      <thead><tr>
+                        <th style={Object.assign({},thV,{textAlign:'left'})}>Parámetro</th>
+                        <th style={thV}>Promedio</th>
+                        <th style={thV}>EETT</th><th style={thV}>Estado</th>
+                      </tr></thead>
+                      <tbody>
+                        {mallasEval.map(function(s){
+                          var st=certStats.acum[s.us];var sp=gT[s.us];
+                          var e=estC(st?st.media:null,sp?sp.retMin:null,sp?sp.retMax:null);
+                          return(
+                            <tr key={s.us}>
+                              <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>Ret.Acum {s.us}</td>
+                              <td style={Object.assign({},tdV,{fontWeight:700})}>{st?fmt(st.media,2)+' %':'—'}</td>
+                              <td style={tdV}>{limG({retAcumMin:sp?sp.retMin:null,retAcumMax:sp?sp.retMax:null})}</td>
+                              <td style={Object.assign({},tdV,{color:e.c,fontWeight:800})}>{e.t}</td>
+                            </tr>
+                          );
+                        })}
+                        {[['sio2','SiO₂','SiO2',2],['al2o3','Al₂O₃','Al2O3',2],['fe2o3','Fe₂O₃','Fe2O3',3]].map(function(o){
+                          var st=certStats.quim[o[0]];var sp=qT[o[2]];
+                          var e=estC(st?st.media:null,sp?sp.min:null,sp?sp.max:null);
+                          return(
+                            <tr key={o[0]}>
+                              <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>{o[1]}</td>
+                              <td style={Object.assign({},tdV,{fontWeight:700})}>{st?fmt(st.media,o[3])+' %':'—'}</td>
+                              <td style={tdV}>{limQ(sp)}</td>
+                              <td style={Object.assign({},tdV,{color:e.c,fontWeight:800})}>{e.t}</td>
+                            </tr>
+                          );
+                        })}
+                        {humT!=null&&(function(){
+                          var e=estC(certStats.hum?certStats.hum.media:null,null,humT);
+                          return(
+                            <tr>
+                              <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>Humedad</td>
+                              <td style={Object.assign({},tdV,{fontWeight:700})}>{certStats.hum?fmt(certStats.hum.media,2)+' %':'—'}</td>
+                              <td style={tdV}>≤ {fmt(humT,2)}</td>
+                              <td style={Object.assign({},tdV,{color:e.c,fontWeight:800})}>{e.t}</td>
+                            </tr>
+                          );
+                        })()}
+                      </tbody>
+                    </table>
+                    <div style={{fontSize:'.72rem',color:'var(--text-muted)',marginTop:8}}>
+                      El promedio se calcula sobre las {certSelDet.length} muestras marcadas en la tabla superior.
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="sec-card" style={{marginBottom:16}}>
               <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Certificado de despacho</div>
               <div style={{padding:'12px 16px',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
                 <button className="btn btn-primary" disabled={!certStats}
                   onClick={async function(){
                     var ms=[];certSelDet.forEach(function(d){if(d.analista&&ms.indexOf(d.analista)===-1)ms.push(d.analista);});
-                    // Folio correlativo automatico: cuenta los certificados del año y suma 1
-                    var anio=new Date().getFullYear(),sug='CCVL-';
+                    // Folio correlativo automatico: cuenta los certificados del año
+                    // (acotado al producto, cada uno tiene su propia numeracion) y suma 1
+                    var anio=new Date().getFullYear(),sug=folioPrefix;
                     try{
-                      var resC=await supabase.from('certificados').select('id',{count:'exact',head:true}).gte('created_at',anio+'-01-01');
-                      if(resC.count!=null)sug='CCVL-'+(resC.count+1)+'/'+anio;
+                      var resC=await supabase.from('certificados').select('id',{count:'exact',head:true}).eq('producto',prod).gte('created_at',anio+'-01-01');
+                      if(resC.count!=null)sug=folioPrefix+(resC.count+1)+'/'+anio;
                     }catch(eC){}
                     setCertReDet(null);
                     setCertModal({numCert:sug,fecha:today(),hora:nowTime(),lote:'',
@@ -7701,7 +7853,7 @@ function DashboardScreen({account,onBack}){
                       muestreador:ms.join(', ')});
                     setCertMsg('');
                   }}>➕ Generar certificado (promedio de {certSelDet.length} muestras)</button>
-                <span style={{fontSize:'.78rem',color:'var(--text-muted)'}}>Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF. El folio CCVL se sugiere automáticamente y cada certificado queda registrado.</span>
+                <span style={{fontSize:'.78rem',color:'var(--text-muted)'}}>Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF. El folio se sugiere automáticamente y cada certificado queda registrado.</span>
               </div>
             </div>
 
@@ -7791,11 +7943,11 @@ function DashboardScreen({account,onBack}){
                     </div>
                     {certMsg&&<div style={{fontSize:'.8rem',marginBottom:8,color:certMsg.indexOf('Error')===0?'var(--error)':'var(--success)'}}>{certMsg}</div>}
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:14}}>
-                      <div><label style={lbS}>N° certificado</label><input style={inS} value={cm.numCert} onChange={upd('numCert')} placeholder="CCVL-34/2026"/></div>
+                      <div><label style={lbS}>N° certificado</label><input style={inS} value={cm.numCert} onChange={upd('numCert')} placeholder={folioPrefix+'34/2026'}/></div>
                       <div><label style={lbS}>Fecha</label><input style={inS} type="date" value={cm.fecha} onChange={upd('fecha')}/></div>
                       <div><label style={lbS}>Hora</label><input style={inS} type="time" value={cm.hora} onChange={upd('hora')}/></div>
                       <div><label style={lbS}>Lote N°</label><input style={inS} value={cm.lote} onChange={upd('lote')} placeholder="644"/></div>
-                      <div><label style={lbS}>N° Acopio</label><input style={inS} value={cm.acopio} onChange={upd('acopio')} placeholder="Acopio 3"/></div>
+                      <div><label style={lbS}>{esA36?'N° Acopio':grpLabel}</label><input style={inS} value={cm.acopio} onChange={upd('acopio')} placeholder={esA36?'Acopio 3':grpOptions[0]}/></div>
                       <div><label style={lbS}>Humedad (%)</label><input style={inS} value={cm.humedad} onChange={upd('humedad')} placeholder="0,00"/></div>
                       <div><label style={lbS}>Patente camión</label><input style={inS} value={cm.patente} onChange={upd('patente')} placeholder="AB-CD-12"/></div>
                       <div><label style={lbS}>Muestreador</label><input style={inS} value={cm.muestreador} onChange={upd('muestreador')}/></div>
@@ -7811,13 +7963,13 @@ function DashboardScreen({account,onBack}){
                       <div style={{textAlign:'center',lineHeight:1.5,marginBottom:12}}>
                         <div style={{fontWeight:800,fontSize:15}}>Certificado de Calidad</div>
                         <div style={{fontWeight:700,fontSize:12,color:'#1e3a5f'}}>{cm.numCert||'—'}</div>
-                        <div style={{fontWeight:700,fontSize:13}}>Arena A36LGC</div>
+                        <div style={{fontWeight:700,fontSize:13}}>{esA36?'Arena A36LGC':(GRANU_TITLE[prod]||prod)}</div>
                         <div style={{fontWeight:800,fontSize:13,color:'#1e3a5f'}}>Lote N° {cm.lote||'—'}</div>
                         {cm.acopio?<div style={{fontSize:11,color:'#555'}}>({cm.acopio})</div>:null}
                       </div>
                       <table style={{fontSize:11,marginBottom:14,borderCollapse:'collapse'}}><tbody>
                         <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Fecha informe:</td><td>{cm.fecha?cm.fecha.split('-').reverse().join('/'):'—'}{cm.hora?' · '+cm.hora+' h':''}</td></tr>
-                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Lugar de muestreo:</td><td>Planta Las Piedras</td></tr>
+                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Lugar de muestreo:</td><td>{esA36?'Planta Las Piedras':'Planta Turco'}</td></tr>
                         <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Muestreador:</td><td>{cm.muestreador||'—'}</td></tr>
                         {cm.patente?<tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Patente camión:</td><td>{cm.patente}</td></tr>:null}
                         {cm.humedad?<tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Humedad:</td><td>{cm.humedad} %</td></tr>:null}
@@ -7864,7 +8016,7 @@ function DashboardScreen({account,onBack}){
                       </table>
 
                       <div style={{border:'1px solid #c3d0dd',padding:'14px 10px 6px',marginBottom:14}}>
-                        <div style={{textAlign:'center',fontWeight:700,fontSize:11,marginBottom:10}}>Análisis Granulométrico<br/>Lote N° {cm.lote||'—'}<br/>Arena A36LGC</div>
+                        <div style={{textAlign:'center',fontWeight:700,fontSize:11,marginBottom:10}}>Análisis Granulométrico<br/>Lote N° {cm.lote||'—'}<br/>{esA36?'Arena A36LGC':(GRANU_TITLE[prod]||prod)}</div>
                         <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-around',height:170,borderBottom:'1px solid #999',padding:'0 6px'}}>
                           {sieves.map(function(s){
                             var v=certStats.parcM[s.us];var h=v!=null?Math.max(2,v/maxParc*140):2;
@@ -11655,6 +11807,16 @@ function HomeScreen({onSelect,onNav,isViewer,account}){
             <div className="nc-arrow">›</div>
           </div>
           <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
+            onClick={function(){onNav('despachos');}}
+            onKeyDown={function(e){if(e.key==='Enter')onNav('despachos');}}>
+            <div className="nc-ico" style={{background:'linear-gradient(135deg,#154360,#48c9b0)'}}>📜</div>
+            <div>
+              <div className="nc-tit">Despachos</div>
+              <div className="nc-desc">Certificado de despacho — Arenas (A36) o Turco (TLH / Arena Iman)</div>
+            </div>
+            <div className="nc-arrow">›</div>
+          </div>
+          <div className={isViewer?'nav-card nav-card-lg':'nav-card'} role="button" tabIndex={0}
             onClick={function(){onNav('despachos-sur-reporte');}}
             onKeyDown={function(e){if(e.key==='Enter')onNav('despachos-sur-reporte');}}>
             <div className="nc-ico" style={{background:'linear-gradient(135deg,#0e6251,#48c9b0)'}}>🚛</div>
@@ -12182,6 +12344,7 @@ function App(){
         {!isViewer&&screen==='secado-turco'&&<SecadoTurcoScreen account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {!isViewer&&screen==='despachos-sur'&&<DespachosSurForm account={account} onBack={function(){setScreen('home');}} onSuccess={handleSuccess}/>}
         {screen==='dashboard'&&<DashboardScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {screen==='despachos'&&<DespachosScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='history'&&<HistoryScreen account={account} onBack={function(){setScreen('home');}}/>}
         {/* Pantalla 'Preguntar' (consulta-ia) oculta: requiere ANTHROPIC_API_KEY. Reactivar el boton y esta ruta si se repone la key. */}
         {screen==='estadisticas'&&<EstadisticasScreen account={account} onBack={function(){setScreen('home');}}/>}

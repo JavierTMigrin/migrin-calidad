@@ -3090,6 +3090,12 @@ const ACOPIOS_TURCO = ['Acopio 1', 'Acopio 2', 'Acopio 3', 'Acopio 4', 'Acopio 5
     label: n
   };
 });
+const SILOS_IMAN_PROD = ['Silo 3', 'Silo 4', 'Cancha'].map(function (n) {
+  return {
+    value: n,
+    label: n
+  };
+});
 const PUNTOS_MUESTREO_TURCO = [{
   value: 'Correa',
   label: 'Correa'
@@ -6539,10 +6545,16 @@ var TT_FORM_CFG = {
     quimica: true,
     analista: true
   },
+  // Silo cumple para Arena Iman el mismo rol que Acopio cumple para TT_TLH:
+  // es la clave de agrupacion para promediar muestras al generar un
+  // certificado de despacho (ver flujo de Despachos Turco).
   TT_IMAN_PROD: {
     granu: true,
     quimica: true,
-    analista: true
+    analista: true,
+    acopio: true,
+    acopioLabel: 'Silo',
+    acopioOptions: SILOS_IMAN_PROD
   }
 };
 var TT_QUIM_FIELDS = [{
@@ -6739,7 +6751,7 @@ function TurcoEnsayoForm({
     if (!fecha) e.fecha = 'Fecha requerida';
     if (cfg.hora && !hora) e.hora = 'Hora requerida';
     if (cfg.analista && !analista) e.analista = 'Analista requerido';
-    if (cfg.acopio && !acopio) e.acopio = 'Seleccione el acopio';
+    if (cfg.acopio && !acopio) e.acopio = 'Seleccione ' + (cfg.acopioLabel ? 'el ' + cfg.acopioLabel.toLowerCase() : 'el acopio');
     if (cfg.sector && !sector) e.sector = 'Sector requerido';
     if (cfg.tipoArena && !tipoArena) e.tipoArena = 'Tipo de arena requerido';
     if (cfg.granu) {
@@ -6928,9 +6940,9 @@ function TurcoEnsayoForm({
     className: "fg fg-2"
   }, cfg.acopio && /*#__PURE__*/React.createElement(Sel, {
     name: "acopioTT",
-    label: "Acopio",
+    label: cfg.acopioLabel || 'Acopio',
     required: true,
-    options: ACOPIOS_TURCO,
+    options: cfg.acopioOptions || ACOPIOS_TURCO,
     value: acopio,
     onChange: function (e) {
       setAcopio(e.target.value);
@@ -11129,15 +11141,111 @@ const MESES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Juli
 const MN = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 /* ── DASHBOARD SCREEN ── */
-function DashboardScreen({
+/* Entrada unica de "Despachos": elige planta (Arenas/Turco) y, para
+   Turco, el sub-tipo (TLH o Arena Iman) — luego abre el mismo Dashboard
+   con la pestana "Acopio / Despacho" generalizada (ver DashboardScreen). */
+function DespachosScreen({
   account,
   onBack
 }) {
+  var [modo, setModo] = useState(null); // 'A36' | 'TT_TLH' | 'TT_IMAN_PROD' | null
+  var [turcoOpen, setTurcoOpen] = useState(false);
+  if (modo) return /*#__PURE__*/React.createElement(DashboardScreen, {
+    account: account,
+    initProd: modo,
+    initTab: "acopio",
+    onBack: function () {
+      setModo(null);
+    }
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: turcoOpen ? function () {
+      setTurcoOpen(false);
+    } : onBack
+  }, "←"), /*#__PURE__*/React.createElement("h2", null, "Despachos")), !turcoOpen ? /*#__PURE__*/React.createElement("div", {
+    className: "modules-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mod-card active",
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      setModo('A36');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') setModo('A36');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mod-icon"
+  }, /*#__PURE__*/React.createElement("span", null, "🏖️")), /*#__PURE__*/React.createElement("div", {
+    className: "mod-label"
+  }, "Arenas"), /*#__PURE__*/React.createElement("div", {
+    className: "mod-desc"
+  }, "Certificado de despacho A36 — Vidrios Lirquén / Cristalerías")), /*#__PURE__*/React.createElement("div", {
+    className: "mod-card active",
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      setTurcoOpen(true);
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') setTurcoOpen(true);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mod-icon"
+  }, /*#__PURE__*/React.createElement("span", null, "🏭")), /*#__PURE__*/React.createElement("div", {
+    className: "mod-label"
+  }, "Turco"), /*#__PURE__*/React.createElement("div", {
+    className: "mod-desc"
+  }, "Certificado de despacho — TLH o Arena Iman"))) : /*#__PURE__*/React.createElement("div", {
+    className: "modules-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mod-card active",
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      setModo('TT_TLH');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') setModo('TT_TLH');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mod-icon"
+  }, /*#__PURE__*/React.createElement("span", null, "🧪")), /*#__PURE__*/React.createElement("div", {
+    className: "mod-label"
+  }, "TLH Turco"), /*#__PURE__*/React.createElement("div", {
+    className: "mod-desc"
+  }, "Agrupado por Acopio")), /*#__PURE__*/React.createElement("div", {
+    className: "mod-card active",
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
+      setModo('TT_IMAN_PROD');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') setModo('TT_IMAN_PROD');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mod-icon"
+  }, /*#__PURE__*/React.createElement("span", null, "⛏️")), /*#__PURE__*/React.createElement("div", {
+    className: "mod-label"
+  }, "Arena Imán (Producción)"), /*#__PURE__*/React.createElement("div", {
+    className: "mod-desc"
+  }, "Agrupado por Silo / Cancha"))));
+}
+function DashboardScreen({
+  account,
+  onBack,
+  initProd,
+  initTab
+}) {
   var [records, setRecords] = useState([]);
   var [loading, setLoading] = useState(true);
-  var [tab, setTab] = useState('granu');
-  var [prod, setProd] = useState('A36');
-  var [plantaFiltro, setPlantaFiltro] = useState('Arenas');
+  var [tab, setTab] = useState(initTab || 'granu');
+  var [prod, setProd] = useState(initProd || 'A36');
+  var [plantaFiltro, setPlantaFiltro] = useState(initProd === 'TT_TLH' ? 'Lavado Turco' : initProd === 'TT_IMAN_PROD' ? 'Secado Turco' : 'Arenas');
   var [eettOpen, setEettOpen] = useState(false);
   var [periodType, setPeriodType] = useState('month');
   var [selWeek, setSelWeek] = useState(function () {
@@ -11441,7 +11549,7 @@ function DashboardScreen({
         pdf.addImage(slc.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, sliceH / pxPerMm);
         y += sliceH;
       }
-      var nomCert = (certModal && certModal.numCert ? certModal.numCert : 'A36').replace(/[\/\\\s]+/g, '-');
+      var nomCert = (certModal && certModal.numCert ? certModal.numCert : prod).replace(/[\/\\\s]+/g, '-');
       pdf.save('Certificado_' + nomCert + (certModal && certModal.lote ? '_Lote' + certModal.lote : '') + '.pdf');
       if (certModal && certModal.regId) {
         // Reapertura de un certificado ya emitido: no se registra de nuevo
@@ -11451,7 +11559,7 @@ function DashboardScreen({
         try {
           var reg = {
             num_cert: certModal.numCert || '',
-            producto: 'A36',
+            producto: prod,
             lote: certModal.lote || '',
             acopio: certModal.acopio || '',
             fecha: certModal.fecha || null,
@@ -11467,16 +11575,9 @@ function DashboardScreen({
                 folio: d.folio
               };
             }),
-            stats: certStats ? {
-              a35: certStats.acum['#35'] ? certStats.acum['#35'].media : null,
-              a120: certStats.acum['#120'] ? certStats.acum['#120'].media : null,
-              a170: certStats.acum['#170'] ? certStats.acum['#170'].media : null,
-              sio2: certStats.quim.sio2 ? certStats.quim.sio2.media : null,
-              al2o3: certStats.quim.al2o3 ? certStats.quim.al2o3.media : null,
-              fe2o3: certStats.quim.fe2o3 ? certStats.quim.fe2o3.media : null,
-              d50: certStats.d50 ? certStats.d50.media : null,
-              hum: certStats.hum ? certStats.hum.media : null
-            } : null,
+            // stats guarda el objeto de promedios tal cual (generico, sirve
+            // para cualquier producto/mallas), no solo las claves de A36.
+            stats: certStats || null,
             emitido_por: account ? account.email : ''
           };
           var ins = await supabase.from('certificados').insert([reg]);
@@ -11880,21 +11981,27 @@ function DashboardScreen({
     return filtered.map(computeStats);
   }, [filtered, prod]);
 
-  /* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (pestana Acopio, A36) ── */
+  /* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (pestana Acopio) ──
+     A36 (Arenas): valida en paralelo contra Lirquen y Cristalerias.
+     TT_TLH / TT_IMAN_PROD (Turco): valida contra su unica EETT (getSpecs),
+     agrupando por Acopio (TLH) o Silo (Arena Iman) via TT_FORM_CFG. */
+  var PROD_CON_DESPACHO = ['A36', 'TT_TLH', 'TT_IMAN_PROD'];
   useEffect(function () {
-    if (tab === 'acopio' && prod !== 'A36') setTab('granu');
+    if (tab === 'acopio' && PROD_CON_DESPACHO.indexOf(prod) < 0) setTab('granu');
   }, [prod]);
 
   // Ultimos 10 registros del producto dentro del periodo seleccionado arriba,
   // opcionalmente filtrados por tipo de muestra / N° de acopio.
   var certRecs = useMemo(function () {
-    if (prod !== 'A36') return [];
+    if (PROD_CON_DESPACHO.indexOf(prod) < 0) return [];
     var dr = getDateRange();
     var rs = records.filter(function (r) {
       if ((r.ProductoKey || r.producto || '') !== prod) return false;
       var f = r.FechaMuestreo || r.fecha || '';
       return f >= dr.from && f <= dr.to;
     });
+    // "Puntual" (muestra sin acopio) solo existe como concepto en A36; en
+    // Turco toda muestra ya trae Acopio/Silo (campo requerido en el form).
     if (certFiltro === 'Puntual') rs = rs.filter(function (r) {
       return (r.TipoMuestra || r.tipoMuestra || '') !== 'Acopio' && !normAcopio(r.NumAcopio || r.numAcopio);
     });else if (certFiltro !== '__all') rs = rs.filter(function (r) {
@@ -12010,16 +12117,17 @@ function DashboardScreen({
     };
   }, [records, prod]);
 
-  // Registro de certificados emitidos (tabla certificados en Supabase)
+  // Registro de certificados emitidos (tabla certificados en Supabase),
+  // acotado al producto actual para no mezclar historial entre A36/Turco.
   function cargarCertEmitidos() {
-    supabase.from('certificados').select('*').order('created_at', {
+    supabase.from('certificados').select('*').eq('producto', prod).order('created_at', {
       ascending: false
     }).limit(20).then(function (res) {
       setCertEmitidos(res.error ? [] : res.data || []);
     });
   }
   useEffect(function () {
-    if (tab === 'acopio' && prod === 'A36') cargarCertEmitidos();
+    if (tab === 'acopio' && PROD_CON_DESPACHO.indexOf(prod) >= 0) cargarCertEmitidos();
   }, [tab, prod]);
 
   /* Si hay un certificado reabierto, sus muestras reconstruidas mandan
@@ -14050,7 +14158,7 @@ function DashboardScreen({
     onClick: function () {
       setTab('tabla');
     }
-  }, "Tabla de Datos"), prod === 'A36' && /*#__PURE__*/React.createElement("button", {
+  }, "Tabla de Datos"), PROD_CON_DESPACHO.indexOf(prod) >= 0 && /*#__PURE__*/React.createElement("button", {
     className: 'dash-tab' + (tab === 'acopio' ? ' act' : ''),
     onClick: function () {
       setTab('acopio');
@@ -14913,15 +15021,32 @@ function DashboardScreen({
       textAlign: 'center',
       marginTop: 10
     }
-  }, "Cumplimiento evaluado contra las EETT vigentes · Productos sin EETT definida se informan solo con cantidad de ensayos"))), !loading && tab === 'acopio' && prod === 'A36' && function () {
+  }, "Cumplimiento evaluado contra las EETT vigentes · Productos sin EETT definida se informan solo con cantidad de ensayos"))), !loading && tab === 'acopio' && PROD_CON_DESPACHO.indexOf(prod) >= 0 && function () {
+    var esA36 = prod === 'A36';
     var sieves = SIEVE_CONFIG[prod] || [];
     var glir = (SPECS_A36.LIRQUEN || {}).granulometria || {};
     var gcch = (SPECS_A36.CRISTALERIAS || {}).granulometria || {};
-    var mallasEval = sieves.filter(function (s) {
+    // Turco: una sola EETT (getSpecs), sin nocion de "cliente"
+    var specT = esA36 ? null : getSpecs(prod) || {};
+    var gT = specT ? specT.granulometria || {} : {};
+    var qT = specT ? specT.quimica || {} : {};
+    var mallasEval = esA36 ? sieves.filter(function (s) {
       return glir[s.us] || gcch[s.us];
+    }) : sieves.filter(function (s) {
+      return gT[s.us];
     });
     var humL = (SPECS_A36.LIRQUEN.humedad || {}).max,
       humC = (SPECS_A36.CRISTALERIAS.humedad || {}).max;
+    var humT = specT && specT.humedad ? specT.humedad.max : null;
+    // Agrupacion (Acopio para TLH, Silo para Arena Iman); en A36 sigue
+    // siendo ACOPIO_OPTS/"Acopio" tal cual funcionaba hasta ahora.
+    var grpLabel = esA36 ? 'Acopio' : TT_FORM_CFG[prod] && TT_FORM_CFG[prod].acopioLabel || 'Acopio';
+    var grpOptions = esA36 ? ACOPIO_OPTS : TT_FORM_CFG[prod] && TT_FORM_CFG[prod].acopioOptions ? TT_FORM_CFG[prod].acopioOptions.map(function (o) {
+      return o.value;
+    }) : ACOPIOS_TURCO.map(function (o) {
+      return o.value;
+    });
+    var folioPrefix = esA36 ? 'CCVL-' : prod === 'TT_TLH' ? 'CTLH-' : 'CIMAN-';
     function limG(s) {
       if (!s) return '—';
       if (s.retAcumMin != null && s.retAcumMax != null) return fmt(s.retAcumMin, 2) + ' – ' + fmt(s.retAcumMax, 2);
@@ -14980,8 +15105,36 @@ function DashboardScreen({
       }
       return n ? ok : null;
     }
-    var vLir = verd('LIRQUEN'),
-      vCch = verd('CRISTALERIAS');
+    // Version single-spec del mismo veredicto, para Turco
+    function verdT() {
+      if (!certStats || !specT) return null;
+      var ok = true,
+        n = 0;
+      Object.keys(gT).forEach(function (us) {
+        var st = certStats.acum[us],
+          s = gT[us];
+        if (!st || s.retMin == null && s.retMax == null) return;
+        n++;
+        if (calcSemaforo(st.media, s.retMin, s.retMax) === 'error') ok = false;
+      });
+      Object.keys(qT).forEach(function (el) {
+        var s = qT[el];
+        if (!s || s.min == null && s.max == null) return;
+        var key = el === 'K2O_Na2O' ? 'k2o_na2o' : el.toLowerCase();
+        var st = certStats.quim[key];
+        if (!st) return;
+        n++;
+        if (calcSemaforo(st.media, s.min, s.max) === 'error') ok = false;
+      });
+      if (humT != null && certStats.hum) {
+        n++;
+        if (certStats.hum.media > humT) ok = false;
+      }
+      return n ? ok : null;
+    }
+    var vLir = esA36 ? verd('LIRQUEN') : null,
+      vCch = esA36 ? verd('CRISTALERIAS') : null,
+      vTurco = esA36 ? null : verdT();
     var thV = {
       padding: '5px 8px',
       background: 'var(--primary)',
@@ -15060,7 +15213,7 @@ function DashboardScreen({
         minHeight: 30,
         fontSize: '.76rem'
       }
-    }, "⬇ Excel selección (", certSelDet.length, ")"), /*#__PURE__*/React.createElement("button", {
+    }, "⬇ Excel selección (", certSelDet.length, ")"), esA36 && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-primary",
       onClick: function () {
         setShowValForm(true);
@@ -15092,9 +15245,9 @@ function DashboardScreen({
       }
     }, /*#__PURE__*/React.createElement("option", {
       value: "__all"
-    }, "Todas"), /*#__PURE__*/React.createElement("option", {
+    }, "Todas"), esA36 && /*#__PURE__*/React.createElement("option", {
       value: "Puntual"
-    }, "Producción (Puntual)"), ACOPIO_OPTS.map(function (a) {
+    }, "Producción (Puntual)"), grpOptions.map(function (a) {
       return /*#__PURE__*/React.createElement("option", {
         key: a,
         value: a
@@ -15216,7 +15369,7 @@ function DashboardScreen({
         fontSize: '.8rem',
         color: '#7a5c00'
       }
-    }, "⚠ Hay un salto de ", certGap.dias, " días entre ", certGap.de, " y ", certGap.a, " en las muestras seleccionadas — verifica que correspondan a la misma tanda de producción."))), certStats && /*#__PURE__*/React.createElement("div", {
+    }, "⚠ Hay un salto de ", certGap.dias, " días entre ", certGap.de, " y ", certGap.a, " en las muestras seleccionadas — verifica que correspondan a la misma tanda de producción."))), certStats && esA36 && /*#__PURE__*/React.createElement("div", {
       className: "sec-card",
       style: {
         marginBottom: 16
@@ -15447,7 +15600,130 @@ function DashboardScreen({
         color: 'var(--text-muted)',
         marginTop: 4
       }
-    }, "Δ en rojo cuando la selección difiere más de un 10% del promedio de producción — puede indicar un acopio de otra tanda.")))), /*#__PURE__*/React.createElement("div", {
+    }, "Δ en rojo cuando la selección difiere más de un 10% del promedio de producción — puede indicar un acopio de otra tanda.")))), certStats && !esA36 && function () {
+      var nombreSpec = specT && specT.nombre ? specT.nombre : GRANU_TITLE[prod] || prod;
+      return /*#__PURE__*/React.createElement("div", {
+        className: "sec-card",
+        style: {
+          marginBottom: 16
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "sec-card-hdr",
+        style: {
+          fontSize: '.8rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          alignItems: 'center'
+        }
+      }, /*#__PURE__*/React.createElement("span", null, "Validación del promedio (n=", certSelDet.length, ") — ", nombreSpec), /*#__PURE__*/React.createElement("span", {
+        style: {
+          padding: '3px 12px',
+          borderRadius: 14,
+          fontSize: '.74rem',
+          fontWeight: 800,
+          background: vTurco == null ? '#edf2f7' : vTurco ? '#f0fff4' : '#fff5f5',
+          color: vTurco == null ? '#718096' : vTurco ? '#1e7e44' : '#c0392b',
+          border: '1px solid ' + (vTurco == null ? '#cbd5e0' : vTurco ? '#9ae6b4' : '#feb2b2')
+        }
+      }, "EETT: ", vTurco == null ? '—' : vTurco ? 'CUMPLE' : 'NO CUMPLE')), /*#__PURE__*/React.createElement("div", {
+        style: {
+          padding: '8px 14px',
+          overflowX: 'auto'
+        }
+      }, /*#__PURE__*/React.createElement("table", {
+        style: {
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '.8rem'
+        }
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+        style: Object.assign({}, thV, {
+          textAlign: 'left'
+        })
+      }, "Parámetro"), /*#__PURE__*/React.createElement("th", {
+        style: thV
+      }, "Promedio"), /*#__PURE__*/React.createElement("th", {
+        style: thV
+      }, "EETT"), /*#__PURE__*/React.createElement("th", {
+        style: thV
+      }, "Estado"))), /*#__PURE__*/React.createElement("tbody", null, mallasEval.map(function (s) {
+        var st = certStats.acum[s.us];
+        var sp = gT[s.us];
+        var e = estC(st ? st.media : null, sp ? sp.retMin : null, sp ? sp.retMax : null);
+        return /*#__PURE__*/React.createElement("tr", {
+          key: s.us
+        }, /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            textAlign: 'left',
+            fontWeight: 700
+          })
+        }, "Ret.Acum ", s.us), /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            fontWeight: 700
+          })
+        }, st ? fmt(st.media, 2) + ' %' : '—'), /*#__PURE__*/React.createElement("td", {
+          style: tdV
+        }, limG({
+          retAcumMin: sp ? sp.retMin : null,
+          retAcumMax: sp ? sp.retMax : null
+        })), /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            color: e.c,
+            fontWeight: 800
+          })
+        }, e.t));
+      }), [['sio2', 'SiO₂', 'SiO2', 2], ['al2o3', 'Al₂O₃', 'Al2O3', 2], ['fe2o3', 'Fe₂O₃', 'Fe2O3', 3]].map(function (o) {
+        var st = certStats.quim[o[0]];
+        var sp = qT[o[2]];
+        var e = estC(st ? st.media : null, sp ? sp.min : null, sp ? sp.max : null);
+        return /*#__PURE__*/React.createElement("tr", {
+          key: o[0]
+        }, /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            textAlign: 'left',
+            fontWeight: 700
+          })
+        }, o[1]), /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            fontWeight: 700
+          })
+        }, st ? fmt(st.media, o[3]) + ' %' : '—'), /*#__PURE__*/React.createElement("td", {
+          style: tdV
+        }, limQ(sp)), /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            color: e.c,
+            fontWeight: 800
+          })
+        }, e.t));
+      }), humT != null && function () {
+        var e = estC(certStats.hum ? certStats.hum.media : null, null, humT);
+        return /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            textAlign: 'left',
+            fontWeight: 700
+          })
+        }, "Humedad"), /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            fontWeight: 700
+          })
+        }, certStats.hum ? fmt(certStats.hum.media, 2) + ' %' : '—'), /*#__PURE__*/React.createElement("td", {
+          style: tdV
+        }, "≤ ", fmt(humT, 2)), /*#__PURE__*/React.createElement("td", {
+          style: Object.assign({}, tdV, {
+            color: e.c,
+            fontWeight: 800
+          })
+        }, e.t));
+      }())), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: '.72rem',
+          color: 'var(--text-muted)',
+          marginTop: 8
+        }
+      }, "El promedio se calcula sobre las ", certSelDet.length, " muestras marcadas en la tabla superior.")));
+    }(), /*#__PURE__*/React.createElement("div", {
       className: "sec-card",
       style: {
         marginBottom: 16
@@ -15473,15 +15749,16 @@ function DashboardScreen({
         certSelDet.forEach(function (d) {
           if (d.analista && ms.indexOf(d.analista) === -1) ms.push(d.analista);
         });
-        // Folio correlativo automatico: cuenta los certificados del año y suma 1
+        // Folio correlativo automatico: cuenta los certificados del año
+        // (acotado al producto, cada uno tiene su propia numeracion) y suma 1
         var anio = new Date().getFullYear(),
-          sug = 'CCVL-';
+          sug = folioPrefix;
         try {
           var resC = await supabase.from('certificados').select('id', {
             count: 'exact',
             head: true
-          }).gte('created_at', anio + '-01-01');
-          if (resC.count != null) sug = 'CCVL-' + (resC.count + 1) + '/' + anio;
+          }).eq('producto', prod).gte('created_at', anio + '-01-01');
+          if (resC.count != null) sug = folioPrefix + (resC.count + 1) + '/' + anio;
         } catch (eC) {}
         setCertReDet(null);
         setCertModal({
@@ -15501,7 +15778,7 @@ function DashboardScreen({
         fontSize: '.78rem',
         color: 'var(--text-muted)'
       }
-    }, "Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF. El folio CCVL se sugiere automáticamente y cada certificado queda registrado."))), certEmitidos && certEmitidos.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, "Se abre un formulario con fecha, hora, lote, humedad y patente del camión; luego descargas el PDF. El folio se sugiere automáticamente y cada certificado queda registrado."))), certEmitidos && certEmitidos.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "sec-card",
       style: {
         marginBottom: 16
@@ -15808,7 +16085,7 @@ function DashboardScreen({
         style: inS,
         value: cm.numCert,
         onChange: upd('numCert'),
-        placeholder: "CCVL-34/2026"
+        placeholder: folioPrefix + '34/2026'
       })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
         style: lbS
       }, "Fecha"), /*#__PURE__*/React.createElement("input", {
@@ -15832,11 +16109,11 @@ function DashboardScreen({
         placeholder: "644"
       })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
         style: lbS
-      }, "N° Acopio"), /*#__PURE__*/React.createElement("input", {
+      }, esA36 ? 'N° Acopio' : grpLabel), /*#__PURE__*/React.createElement("input", {
         style: inS,
         value: cm.acopio,
         onChange: upd('acopio'),
-        placeholder: "Acopio 3"
+        placeholder: esA36 ? 'Acopio 3' : grpOptions[0]
       })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
         style: lbS
       }, "Humedad (%)"), /*#__PURE__*/React.createElement("input", {
@@ -15919,7 +16196,7 @@ function DashboardScreen({
           fontWeight: 700,
           fontSize: 13
         }
-      }, "Arena A36LGC"), /*#__PURE__*/React.createElement("div", {
+      }, esA36 ? 'Arena A36LGC' : GRANU_TITLE[prod] || prod), /*#__PURE__*/React.createElement("div", {
         style: {
           fontWeight: 800,
           fontSize: 13,
@@ -15946,7 +16223,7 @@ function DashboardScreen({
           padding: '1px 8px 1px 0',
           fontWeight: 700
         }
-      }, "Lugar de muestreo:"), /*#__PURE__*/React.createElement("td", null, "Planta Las Piedras")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+      }, "Lugar de muestreo:"), /*#__PURE__*/React.createElement("td", null, esA36 ? 'Planta Las Piedras' : 'Planta Turco')), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
         style: {
           padding: '1px 8px 1px 0',
           fontWeight: 700
@@ -16062,7 +16339,7 @@ function DashboardScreen({
           fontSize: 11,
           marginBottom: 10
         }
-      }, "Análisis Granulométrico", /*#__PURE__*/React.createElement("br", null), "Lote N° ", cm.lote || '—', /*#__PURE__*/React.createElement("br", null), "Arena A36LGC"), /*#__PURE__*/React.createElement("div", {
+      }, "Análisis Granulométrico", /*#__PURE__*/React.createElement("br", null), "Lote N° ", cm.lote || '—', /*#__PURE__*/React.createElement("br", null), esA36 ? 'Arena A36LGC' : GRANU_TITLE[prod] || prod), /*#__PURE__*/React.createElement("div", {
         style: {
           display: 'flex',
           alignItems: 'flex-end',
@@ -24818,6 +25095,27 @@ function HomeScreen({
     role: "button",
     tabIndex: 0,
     onClick: function () {
+      onNav('despachos');
+    },
+    onKeyDown: function (e) {
+      if (e.key === 'Enter') onNav('despachos');
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "nc-ico",
+    style: {
+      background: 'linear-gradient(135deg,#154360,#48c9b0)'
+    }
+  }, "📜"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "nc-tit"
+  }, "Despachos"), /*#__PURE__*/React.createElement("div", {
+    className: "nc-desc"
+  }, "Certificado de despacho — Arenas (A36) o Turco (TLH / Arena Iman)")), /*#__PURE__*/React.createElement("div", {
+    className: "nc-arrow"
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: isViewer ? 'nav-card nav-card-lg' : 'nav-card',
+    role: "button",
+    tabIndex: 0,
+    onClick: function () {
       onNav('despachos-sur-reporte');
     },
     onKeyDown: function (e) {
@@ -25895,6 +26193,11 @@ function App() {
     },
     onSuccess: handleSuccess
   }), screen === 'dashboard' && /*#__PURE__*/React.createElement(DashboardScreen, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    }
+  }), screen === 'despachos' && /*#__PURE__*/React.createElement(DespachosScreen, {
     account: account,
     onBack: function () {
       setScreen('home');
