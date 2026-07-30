@@ -1601,6 +1601,29 @@ function curvaSVG(gc,producto){
     +'<text x="'+padL+'" y="'+(padT-4)+'" font-size="9" fill="#666">Pasante acumulado (%)'+((bandMin||bandMax)?' · línea roja = límites EETT':'')+'</text></svg>';
 }
 
+/* ── Tolerancia de ALERTA solo para el correo automatico ──
+   Un parametro fuera de la EETT pero dentro de un 2.5% relativo al limite
+   violado se marca como ALERTA (amarillo) en vez de FUERA (rojo), y no
+   dispara el asunto "FUERA DE NORMA" del correo. Esto es exclusivo del
+   correo/PDF adjunto (reporteEnsayoHTML/enviarReporteRegistro): la vista en
+   pantalla (calcSemaforo, evalParams->p.ok) sigue siendo binaria OK/FUERA
+   sin cambios. Si el limite violado es 0, no hay margen relativo posible
+   (0*1.025=0) y se mantiene FUERA. */
+var TOL_ALERTA_EMAIL=0.025;
+function nivelParamEmail(p){
+  if(p.min==null&&p.max==null)return null;
+  if(p.ok)return'ok';
+  if(p.over&&p.max)return p.val<=p.max*(1+TOL_ALERTA_EMAIL)?'alerta':'fuera';
+  if(p.under&&p.min)return p.val>=p.min*(1-TOL_ALERTA_EMAIL)?'alerta':'fuera';
+  return'fuera';
+}
+function resumenNivelEmail(ps){
+  var niveles=ps.map(nivelParamEmail).filter(function(n){return n!=null;});
+  if(niveles.indexOf('fuera')>=0)return'fuera';
+  if(niveles.indexOf('alerta')>=0)return'alerta';
+  return'ok';
+}
+
 function reporteEnsayoHTML(data,gc,params,cumple,incluirCurva){
   var prodLbl=data.productoLabel||data.producto;
   var fechaFmt=/^\d{4}-\d{2}-\d{2}$/.test(String(data.fecha))?String(data.fecha).split('-').reverse().join('-'):(data.fecha||'-');
@@ -1611,15 +1634,18 @@ function reporteEnsayoHTML(data,gc,params,cumple,incluirCurva){
   if(specsU.length>1){
     var algunaOk=false;
     estadoHtml=specsU.map(function(s){
-      var ok=params.filter(function(p){return p.spec===s;}).every(function(p){return p.ok;});
-      if(ok)algunaOk=true;
-      return '<span style="background:'+(ok?'#15803d':'#b91c1c')+';color:#fff;font-size:11px;font-weight:bold;padding:5px 10px;border-radius:20px;margin-left:6px;display:inline-block">'+s+': '+(ok?'CUMPLE':'FUERA')+'</span>';
+      var niv=resumenNivelEmail(params.filter(function(p){return p.spec===s;}));
+      if(niv!=='fuera')algunaOk=true;
+      var bg=niv==='fuera'?'#b91c1c':niv==='alerta'?'#b7791f':'#15803d';
+      var txt=niv==='fuera'?'FUERA':niv==='alerta'?'ALERTA':'CUMPLE';
+      return '<span style="background:'+bg+';color:#fff;font-size:11px;font-weight:bold;padding:5px 10px;border-radius:20px;margin-left:6px;display:inline-block">'+s+': '+txt+'</span>';
     }).join('');
     hdrBg=algunaOk?'#1a5276':'#b91c1c';
   }else{
-    var estadoTxt=cumple==null?'SIN EVALUACIÓN EETT':cumple?'CUMPLE ESPECIFICACIÓN':'NO CUMPLE ESPECIFICACIÓN';
-    var estadoBg=cumple==null?'#64748b':cumple?'#15803d':'#b91c1c';
-    hdrBg=cumple===false?'#b91c1c':'#1a5276';
+    var niv=cumple==null?null:resumenNivelEmail(params);
+    var estadoTxt=cumple==null?'SIN EVALUACIÓN EETT':niv==='fuera'?'NO CUMPLE ESPECIFICACIÓN':niv==='alerta'?'CUMPLE ESPECIFICACIÓN (CON ALERTA)':'CUMPLE ESPECIFICACIÓN';
+    var estadoBg=cumple==null?'#64748b':niv==='fuera'?'#b91c1c':niv==='alerta'?'#b7791f':'#15803d';
+    hdrBg=niv==='fuera'?'#b91c1c':'#1a5276';
     estadoHtml='<span style="background:'+estadoBg+';color:#fff;font-size:12px;font-weight:bold;padding:6px 14px;border-radius:20px">'+estadoTxt+'</span>';
   }
   var datos='<table width="100%" style="font-size:13px;border-collapse:collapse">'
@@ -1646,8 +1672,9 @@ function reporteEnsayoHTML(data,gc,params,cumple,incluirCurva){
       +params.map(function(p,i){
         var conLim=(p.min!=null||p.max!=null);
         var lim=(p.min!=null&&p.max!=null)?(fmt(p.min,p.dec)+' – '+fmt(p.max,p.dec)+' '+p.unit):(p.max!=null?('≤ '+fmt(p.max,p.dec)+' '+p.unit):(p.min!=null?('≥ '+fmt(p.min,p.dec)+' '+p.unit):'—'));
-        var col=!conLim?'#94a3b8':p.ok?'#15803d':'#b91c1c';
-        var est=!conLim?'—':p.ok?'OK':'FUERA';
+        var nivP=conLim?nivelParamEmail(p):null;
+        var col=!conLim?'#94a3b8':nivP==='ok'?'#15803d':nivP==='alerta'?'#b7791f':'#b91c1c';
+        var est=!conLim?'—':nivP==='ok'?'OK':nivP==='alerta'?'ALERTA':'FUERA';
         return '<tr style="background:'+(i%2?'#f7f9fb':'#fff')+'"><td style="padding:5px 8px;font-weight:bold">'+p.param+(p.spec?(' <span style="color:#aaa;font-weight:normal">('+p.spec+')</span>'):'')+'</td><td style="padding:5px 8px;text-align:center">'+fmt(p.val,p.dec)+' '+p.unit+'</td><td style="padding:5px 8px;text-align:center;color:#777">'+lim+'</td><td style="padding:5px 8px;text-align:center;font-weight:bold;color:'+col+'">'+est+'</td></tr>';
       }).join('')+'</tbody></table>';
   }
@@ -1693,10 +1720,14 @@ async function enviarReporteRegistro(data,gc,user){
     // Con varias EETT el asunto dice FUERA DE NORMA solo si no cumple
     // NINGUNA; si cumple al menos un cliente es un reporte normal.
     // (Para A36 ya quedo un unico spec tras el filtro de arriba.)
+    // fueraTotal usa la tolerancia de ALERTA (2.5% relativo al limite,
+    // ver nivelParamEmail/resumenNivelEmail): un parametro apenas fuera de
+    // la EETT no dispara el asunto FUERA DE NORMA, solo uno realmente
+    // fuera de esa banda lo hace.
     var specsR=[];params.forEach(function(p){if(p.spec&&specsR.indexOf(p.spec)<0)specsR.push(p.spec);});
-    var fueraTotal=cumple===false;
+    var fueraTotal=params.length?resumenNivelEmail(params)==='fuera':false;
     if(specsR.length>1){
-      fueraTotal=!specsR.some(function(s){return params.filter(function(p){return p.spec===s;}).every(function(p){return p.ok;});});
+      fueraTotal=!specsR.some(function(s){return resumenNivelEmail(params.filter(function(p){return p.spec===s;}))!=='fuera';});
     }
     var prodLbl=data.productoLabel||data.producto;
     var fechaFmt=/^\d{4}-\d{2}-\d{2}$/.test(String(data.fecha))?String(data.fecha).split('-').reverse().join('-'):(data.fecha||'-');
