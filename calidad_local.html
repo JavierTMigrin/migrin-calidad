@@ -3013,17 +3013,29 @@ const PRODUCTO_PLANTA = function () {
    (fallback de seguridad, ver enviar-reporte). */
 var NOTIF_DESTINATARIOS_LIVE = [];
 var notifDestinatariosCargado = false;
-async function loadNotifDestinatarios() {
-  try {
-    var res = await supabase.from('notificacion_destinatarios').select('*');
-    if (res.error || !res.data) return;
-    NOTIF_DESTINATARIOS_LIVE = res.data;
-    notifDestinatariosCargado = true;
-  } catch (e) {
-    console.error('Error cargando destinatarios de correo:', e);
+var notifDestinatariosPromise = null;
+function loadNotifDestinatarios() {
+  // Cachea la promesa: si enviarReporteRegistro dispara un envio antes de
+  // que esta carga inicial (llamada al montar la app) termine, espera la
+  // MISMA promesa en vez de arrancar una carga en paralelo o asumir que
+  // aun no cargo (evita que una carrera deje 'destinatarios' sin enviar
+  // y la Edge Function caiga silenciosamente a su lista por defecto).
+  if (!notifDestinatariosPromise) {
+    notifDestinatariosPromise = async function () {
+      try {
+        var res = await supabase.from('notificacion_destinatarios').select('*');
+        if (res.error || !res.data) return;
+        NOTIF_DESTINATARIOS_LIVE = res.data;
+        notifDestinatariosCargado = true;
+      } catch (e) {
+        console.error('Error cargando destinatarios de correo:', e);
+      }
+    }();
   }
+  return notifDestinatariosPromise;
 }
-function destinatariosParaProducto(producto) {
+async function destinatariosParaProducto(producto) {
+  await loadNotifDestinatarios();
   if (!notifDestinatariosCargado) return null;
   var planta = PRODUCTO_PLANTA[producto] || 'Arenas';
   return NOTIF_DESTINATARIOS_LIVE.filter(function (d) {
@@ -3858,7 +3870,7 @@ async function enviarReporteRegistro(data, gc, user) {
     // producto; si aun no cargo (offline/error) se omite y la Edge
     // Function enviar-reporte usa su lista por defecto como respaldo.
     // 'remitente' si varia segun la faena/planta (Resend).
-    var destinatarios = destinatariosParaProducto(data.producto);
+    var destinatarios = await destinatariosParaProducto(data.producto);
     var res = await supabase.functions.invoke('enviar-reporte', {
       body: {
         asunto: asunto,
