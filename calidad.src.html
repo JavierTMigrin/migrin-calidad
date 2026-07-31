@@ -1784,6 +1784,12 @@ function reporteEnsayoHTML(data,gc,params,cumple,incluirCurva){
       +'<div style="font-size:11px;color:#aaa;margin-top:12px">Mensaje automático — Sistema de Control de Calidad MIGRIN S.A.</div></div></div>';
 }
 
+/* Solo estos productos disparan el correo automatico al registrar un
+   ensayo (confirmado con el usuario): TLH Turco (Lavado), Produccion
+   Arena Iman (Secado) y A36/TLH Arenas. El resto de productos guarda el
+   ensayo normalmente pero no envia correo. */
+const PRODUCTOS_CON_CORREO=['A36','TT_TLH','TT_IMAN_PROD'];
+
 /* Envia el reporte detallado del ensayo recien registrado (siempre, cumpla
    o no), con PDF adjunto (incluye la curva de distribucion). Best-effort:
    nunca interrumpe el guardado del ensayo. */
@@ -2274,8 +2280,15 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
   var prodSpecs=getSpecs(data.producto);
 
   var sieves=SIEVE_CONFIG[data.producto]||[];
-  var sieveRows=gc.rows.filter(function(r){return !r.isFondo;});
-  var fondRow=gc.rows.find(function(r){return r.isFondo;})||null;
+  // Muchos productos (Floculante, %Arcillas, Control de Granos por
+  // conteo, Cuarzo Proceso, etc.) no miden granulometria: gc puede venir
+  // vacio/sin filas. El modal debe mostrarse igual, solo omitiendo la
+  // seccion de granulometria/curva en ese caso.
+  var gcSafe=(gc&&Array.isArray(gc.rows))?gc:{rows:[]};
+  var sieveRows=gcSafe.rows.filter(function(r){return !r.isFondo;});
+  var fondRow=gcSafe.rows.find(function(r){return r.isFondo;})||null;
+  var tieneGranu=sieves.length>0&&sieveRows.length>0;
+  var humVal=(data.pctHumedad!=null&&data.pctHumedad!=='')?parseDecimal(data.pctHumedad):null;
 
   function parseMm(s){return parseFloat(String(s).replace(',','.'))||0;}
   function interp(thr){
@@ -2298,8 +2311,10 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
 
   function getKpis(){
     var humMax=prodSpecs&&prodSpecs.humedad?prodSpecs.humedad.max:null;
-    var hum={name:'Humedad',val:parseDecimal(data.pctHumedad)||0,unit:'%',dec:2,
-      limMin:null,limMax:humMax,limLabel:humMax!==null?'<= '+fmt(humMax,1)+' %':'—'};
+    // Solo se muestra la Humedad si el formulario realmente la registro
+    // (varios productos, como Floculante o %Arcillas, no la miden).
+    var hum=humVal!=null?{name:'Humedad',val:humVal,unit:'%',dec:2,
+      limMin:null,limMax:humMax,limLabel:humMax!==null?'<= '+fmt(humMax,1)+' %':'—'}:null;
     if(isA36&&specKey&&SPECS_A36[specKey]){
       var spA36=SPECS_A36[specKey];
       var kpisA36=[];
@@ -2309,7 +2324,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
         kpisA36.push({name:'Ret. Acum. '+us,val:sv(us,'pctA'),unit:'%',dec:2,limMin:s.retAcumMin,limMax:s.retAcumMax,limLabel:ll});
       });
       if(spA36.d50Max!=null)kpisA36.push({name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:spA36.d50Max,limLabel:'<= '+fmt(spA36.d50Max,3)+' mm'});
-      kpisA36.push(hum);
+      if(hum)kpisA36.push(hum);
       return kpisA36;
     }
     if(data.producto==='A38'){
@@ -2326,10 +2341,10 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
       kpis38.push({name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
       kpis38.push({name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
       kpis38.push({name:'P20',val:p20,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
-      kpis38.push(hum);
+      if(hum)kpis38.push(hum);
       return kpis38;
     }
-    if(prodSpecs&&prodSpecs.granulometria){
+    if(tieneGranu&&prodSpecs&&prodSpecs.granulometria&&Object.keys(prodSpecs.granulometria).length>0){
       var kpis=[];
       Object.entries(prodSpecs.granulometria).forEach(function(entry){
         var us=entry[0],s=entry[1];
@@ -2342,18 +2357,24 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
           kpis.push({name:'Pasante '+us,val:sv(us,'pctPas'),unit:'%',dec:2,limMin:s.pasMin,limMax:s.pasMax,limLabel:llp});
         }
       });
-      kpis.push(hum);
+      if(hum)kpis.push(hum);
       kpis.push({name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
       kpis.push({name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
       kpis.push({name:'P20',val:p20,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
       return kpis;
     }
-    return[
-      {name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
-      {name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
-      {name:'P20',val:p20,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'},
-      hum,
-    ];
+    // Fallback generico (productos sin granulometria con EETT, ej. TLH/Arena
+    // Iman que se controlan por "indicadores", o formularios sin ninguna
+    // especificacion): D50/P80/P20 solo si hay curva real, Humedad solo si
+    // se registro.
+    var kpisFallback=[];
+    if(tieneGranu){
+      kpisFallback.push({name:'D50',val:d50,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
+      kpisFallback.push({name:'P80',val:p80,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
+      kpisFallback.push({name:'P20',val:p20,unit:'mm',dec:3,limMin:null,limMax:null,limLabel:'—'});
+    }
+    if(hum)kpisFallback.push(hum);
+    return kpisFallback;
   }
 
   var q=data.quimica||{};
@@ -2417,10 +2438,36 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
 
   var fechaLocal=data.fechaEnvio?new Date(data.fechaEnvio).toLocaleDateString('es-CL'):data.fecha;
   var footer='Generado por Sistema de Calidad MIGRIN S.A. · '+fechaLocal+' '+( data.horaEnvio||'');
-  var showSpecCols=(isA36&&specKey)||!!(prodSpecs&&prodSpecs.granulometria);
-  var hasModalSpecs=isA36||!!(prodSpecs&&prodSpecs.granulometria);
+  var showSpecCols=(isA36&&specKey)||!!(prodSpecs&&prodSpecs.granulometria&&Object.keys(prodSpecs.granulometria).length>0);
+  var kpisCalc=getKpis();
+  var hasModalSpecs=kpisCalc.length>0;
   var plantaName=CUARZO_PRODUCTS.some(function(p){return p.value===data.producto;})?'Cuarzo':'Arenas';
   var showChem=!!(PRODUCT_CONFIG[data.producto]&&PRODUCT_CONFIG[data.producto].quimica);
+  // Datos "extra" (JSONB libre por producto: sector, tipoArena, pctArcilla,
+  // dosis de floculante, etc.) para productos sin quimica/granulometria,
+  // como respaldo generico de "algo que mostrar" en el informe.
+  var EXTRA_FIELD_LBL={hora:'Hora',sector:'Sector',tipoArena:'Tipo de Arena',pctArcilla:'% Arcilla',
+    pctArcillas:'% Arcillas',pctSolido:'% Solido',destino:'Destino',mezcla:'Mezcla',
+    frasco1MadreG:'Floculante Madre (Frasco 1, g)',frasco2DilG:'Floculante Dilucion (Frasco 2, g)',
+    frasco3PrepG:'Madre Preparacion (Frasco 3, g)',frasco4Madre2G:'Madre 2 (Frasco 4, g)',
+    mas120:'+#120 (%)',pan:'PAN (%)',suma:'Suma (g)',yacimiento:'Yacimiento',
+    punto:'Punto',control:'Control',salidaPan:'Salida — PAN (g)',salidaControl:'Salida — Control',
+    totalSalida:'Salida — Total (g)',salidaMas6:'Salida — +#6 (%)',salidaMenos6:'Salida — -#6 (%)',
+    mas6:'+#6 (%)',menos6:'-#6 (%)',alimCuarzo:'Alim. Cuarzo',alimIntegral:'Alim. Integral',
+    humedadEntrante:'Humedad Entrante (%)'};
+  var extraRows=Object.keys(data.extra||{}).filter(function(k){
+    var v=data.extra[k];
+    return v!=null&&v!==''&&(typeof v==='string'||typeof v==='number');
+  }).map(function(k){return{label:EXTRA_FIELD_LBL[k]||k,val:data.extra[k]};});
+  // Productos por conteo (Control de Granos): no tienen granulometria en
+  // peso pero si un valor por malla en data.granu, muestralos como filas.
+  if(!tieneGranu&&sieves.length>0&&Array.isArray(data.granu)){
+    sieves.forEach(function(s,i){
+      var v=data.granu[i];
+      if(v!=null&&v!=='')extraRows.push({label:s.us+' ('+s.mm+' mm)',val:v});
+    });
+  }
+  var showExtra=!hasModalSpecs&&!showChem&&extraRows.length>0;
 
   return(
     <div className="rmodal-ov" onClick={function(e){if(e.target===e.currentTarget)onClose();}}>
@@ -2569,7 +2616,9 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
           </div>
           <div className="rc-div"/>
 
-          <div className="rc-sec">1 — Granulometria</div>
+          {tieneGranu&&(
+          <>
+          <div className="rc-sec">Granulometria</div>
           <div className="rc-granu">
             <div className="rc-tbl">
               <table className="rc-gtbl">
@@ -2608,12 +2657,14 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
             <div className="rc-chart" style={{position:'relative',minHeight:200}}><canvas ref={chartRef}/></div>
           </div>
           <div className="rc-div"/>
+          </>
+          )}
 
           {hasModalSpecs&&(
           <>
-          <div className="rc-sec">2 — Control de Calidad</div>
+          <div className="rc-sec">Control de Calidad</div>
           <div className="rc-kpi-grid">
-            {getKpis().map(function(k,i){
+            {kpisCalc.map(function(k,i){
               var sem=calcSemaforo(k.val,k.limMin,k.limMax);
               var fv=(k.val!==null&&!isNaN(k.val)&&k.val!==0)?fmt(k.val,k.dec)+' '+k.unit:'—';
               var borderC={ok:'#276749',warning:'#b7791f',error:'#c53030',info:'#e0e0e0'}[sem];
@@ -2633,7 +2684,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
 
           {showChem&&(
           <>
-          <div className="rc-sec">3 — Analisis Quimico</div>
+          <div className="rc-sec">Analisis Quimico</div>
           <table className="rc-chem-tbl">
             <thead><tr>
               <th>Parametro</th><th>Valor (%)</th>
@@ -2655,6 +2706,25 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
                       <td style={{color:'#555',fontSize:'.72rem'}}>{limMax!=null?fmt(limMax,3):'—'}</td>
                     </>}
                     <td style={{color:SEM_COLOR[sem],fontWeight:700,fontSize:'.72rem'}}>{SEM_ICON[sem]}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="rc-div"/>
+          </>
+          )}
+          {showExtra&&(
+          <>
+          <div className="rc-sec">Datos Registrados</div>
+          <table className="rc-chem-tbl">
+            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+            <tbody>
+              {extraRows.map(function(r,i){
+                return(
+                  <tr key={i}>
+                    <td style={{fontWeight:600}}>{r.label}</td>
+                    <td>{String(r.val)}</td>
                   </tr>
                 );
               })}
@@ -2914,7 +2984,7 @@ function DespachoForm({account,producto,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    enviarReporteRegistro(data,gc,account);
+    if(PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendDespachoToSupabase(data,account);
       delPending(data.id);
@@ -3071,6 +3141,9 @@ function GranosForm({account,onBack,onSuccess}){
   var[gv,setGv]=useState(Array(sieves.length).fill(''));
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function updGv(i,v){
     // solo enteros
@@ -3101,16 +3174,43 @@ function GranosForm({account,onBack,onSuccess}){
       guia:'',lote:'',horaSalida:hora,
     };
     addPending(data);
+    setSendError(null);
     try{
       await sendDespachoToSupabase(data,account);
       delPending(data.id);
       setSending(false);
-      onSuccess('Control de granos registrado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Control de granos registrado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
-      onSuccess('Sin conexion: control de granos guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendDespachoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Control de granos registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   var errList=Object.values(errors);
@@ -3179,6 +3279,9 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
   },[quimica.al2o3,quimica.fe2o3,quimica.cao,quimica.mgo,quimica.k2o,quimica.na2o,quimica.tio2]);
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function validate(){
     var e={};
@@ -3207,16 +3310,43 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
       pctHumedad:'',quimica:quimica,observaciones:'',
     };
     addPending(data);
+    setSendError(null);
     try{
       await sendToSupabase(data,account);
       delPending(data.id);
       setSending(false);
-      onSuccess('Materias primas registrado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Materias primas registrado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Materias primas registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   var errList=Object.values(errors);
@@ -3437,20 +3567,17 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=cfg.granu||cfg.quimica?collectViolations(data,gc):[];
-    if(cfg.granu||cfg.quimica)enviarReporteRegistro(data,gc,account);
+    if((cfg.granu||cfg.quimica)&&PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);
       setSending(false);
-      if(cfg.granu)setReportModal({data:data,gc:gc,violations:violations,msg:'Registro enviado exitosamente.'});
-      else onSuccess('Registro enviado exitosamente.');
+      setReportModal({data:data,gc:gc,violations:violations,msg:'Registro enviado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
-      if(cfg.granu){
-        setSendError(buildDbError(err));
-        setReportModal({data:data,gc:gc,violations:violations,msg:''});
-      }else onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:gc,violations:violations,msg:''});
     }
   }
 
@@ -3593,6 +3720,9 @@ function TurcoGranosForm({account,onBack,onSuccess}){
   var[arcillas,setArcillas]=useState(Array(sieves.length).fill(''));
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function updInt(setter){
     return function(i,v){
@@ -3627,14 +3757,41 @@ function TurcoGranosForm({account,onBack,onSuccess}){
       extra:{hora:hora,punto:punto,arcillas:arcillas},horaSalida:hora,
     };
     addPending(data);
+    setSendError(null);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
-      onSuccess('Control de granos registrado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Control de granos registrado exitosamente.'});
     }catch(err){
       console.error(err);setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Control de granos registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   return(
@@ -3695,6 +3852,9 @@ function TurcoArcillasForm({account,onBack,onSuccess}){
   var[pctArcillas,setPctArcillas]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function validate(){
     var e={};
@@ -3721,14 +3881,41 @@ function TurcoArcillasForm({account,onBack,onSuccess}){
              pctArena:pctArena,pctArcillas:pctArcillas},
     };
     addPending(data);
+    setSendError(null);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
-      onSuccess('Control % arcillas registrado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Control % arcillas registrado exitosamente.'});
     }catch(err){
       console.error(err);setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Control % arcillas registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   return(
@@ -3780,6 +3967,9 @@ function TurcoCilindroForm({account,onBack,onSuccess}){
   var[panS,setPanS]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function upd(setter){return function(i,v){setter(function(p){var n=p.slice();n[i]=v;return n;});};}
   var updE=upd(setGvE),updS=upd(setGvS);
@@ -3811,14 +4001,42 @@ function TurcoCilindroForm({account,onBack,onSuccess}){
       extra:{salidaGranu:gvS,salidaPan:panS,totalEntrada:totE,totalSalida:totS},
     };
     addPending(data);
+    setSendError(null);
+    var gcEntrada=calcGranu('TT_CILINDRO',gvE,totE);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
-      onSuccess('Registro de cilindro enviado exitosamente.');
+      setReportModal({data:data,gc:gcEntrada,violations:[],msg:'Registro de cilindro enviado exitosamente.'});
     }catch(err){
       console.error(err);setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:gcEntrada,violations:[],msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro de cilindro enviado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   function granuGrid(label,arr,updFn,pan,setPan,tot,errKey){
@@ -3881,6 +4099,9 @@ function TurcoFloculanteForm({account,onBack,onSuccess}){
   var[frasco4,setFrasco4]=useState(''); // Madre Estanque 2 (opcional)
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   var sol=parseDecimal(solucion);
   function conc(v){
@@ -3921,19 +4142,48 @@ function TurcoFloculanteForm({account,onBack,onSuccess}){
       horaSalida:horario,
     };
     addPending(data);
+    setSendError(null);
+    var violations=estado==='NO CUMPLE'?[{param:'Floculante dilucion',valor:frasco2+' g',limite:'0,004 – 0,016 g',spec:''}]:[];
     if(estado==='NO CUMPLE'){
-      sendAlertaEmail(data,[{param:'Floculante dilucion',valor:frasco2+' g',limite:'0,004 – 0,016 g',spec:''}],account);
+      sendAlertaEmail(data,violations,account);
     }
+    var msgOk=estado==='NO CUMPLE'
+      ?'Registro enviado — ATENCION: floculante NO CUMPLE (se envio alerta).'
+      :'Registro de floculante enviado exitosamente.';
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
-      onSuccess(estado==='NO CUMPLE'
-        ?'Registro enviado — ATENCION: floculante NO CUMPLE (se envio alerta).'
-        :'Registro de floculante enviado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:violations,msg:msgOk});
     }catch(err){
       console.error(err);setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:violations,msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro de floculante enviado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   var estadoColor=estado==='CUMPLE'?'var(--success)':estado==='NO CUMPLE'?'var(--error)':'var(--text-muted)';
@@ -4017,6 +4267,9 @@ function TurcoEspesadorForm({account,onBack,onSuccess}){
   var[pesoVidrio,setPesoVidrio]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   var ph=parseDecimal(pesoHumedo),ps=parseDecimal(pesoSeco),pv=parseDecimal(pesoVidrio);
   var masaSolidoNum=(pesoSeco!==''&&pesoVidrio!==''&&!isNaN(ps)&&!isNaN(pv))?(ps-pv):null;
@@ -4050,14 +4303,41 @@ function TurcoEspesadorForm({account,onBack,onSuccess}){
              masaSolidoG:masaSolido,pctSolido:pctSolido},
     };
     addPending(data);
+    setSendError(null);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
-      onSuccess('Control de % solidos (espesador) registrado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Control de % solidos (espesador) registrado exitosamente.'});
     }catch(err){
       console.error(err);setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Control de % solidos (espesador) registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   return(
@@ -4153,7 +4433,7 @@ function TurcoLodoForm({account,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    enviarReporteRegistro(data,gc,account);
+    if(PRODUCTOS_CON_CORREO.indexOf(data.producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
@@ -4397,7 +4677,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     lsAdd(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    enviarReporteRegistro(data,gc,account);
+    if(PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendToSupabase(data,account);
       lsDel(data.id);
@@ -4921,6 +5201,9 @@ function ArcillasForm({account,onBack,onSuccess}){
   var[pesoFinal,setPesoFinal]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
   var pctArena=(!isNaN(pi)&&pi>0&&!isNaN(pf))?(pf/pi*100):null;
@@ -4949,9 +5232,40 @@ function ArcillasForm({account,onBack,onSuccess}){
       pctHumedad:'',quimica:{},observaciones:'',
       extra:{identificacion:ident,pctArena:pctArena,pctArcilla:pctArcilla},
     };
+    setSendError(null);
     var ok=await enviarRegistrosCuarzo([data],account);
     setSending(false);
-    onSuccess(ok?'Control de arcillas registrado exitosamente.':'Sin conexion: registro guardado localmente como pendiente.');
+    if(ok){
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Control de arcillas registrado exitosamente.'});
+    }else{
+      setSendError({type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'});
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Control de arcillas registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   function chip(label,val){
@@ -5019,6 +5333,9 @@ function DespachosSurForm({account,onBack,onSuccess}){
   var[pctHumedad,setPctHumedad]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
   var humN=parseDecimal(pctHumedad);
   var fueraNorma=!isNaN(humN)&&humN>DESPSUR_HUM_MAX;
 
@@ -5046,14 +5363,42 @@ function DespachosSurForm({account,onBack,onSuccess}){
       extra:{destino:destino},horaSalida:hora,
     };
     addPending(data);
+    setSendError(null);
+    var violations=fueraNorma?[{param:'Humedad',valor:fmt(humN,2)+'%',limite:'≤ '+DESPSUR_HUM_MAX+'%',spec:''}]:[];
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);setSending(false);
-      onSuccess('Registro de humedad (Despachos Sur) guardado exitosamente.');
+      setReportModal({data:data,gc:{rows:[]},violations:violations,msg:'Registro de humedad (Despachos Sur) guardado exitosamente.'});
     }catch(err){
       console.error(err);setSending(false);
-      onSuccess('Sin conexion: registro guardado localmente como pendiente.');
+      setSendError(buildDbError(err));
+      setReportModal({data:data,gc:{rows:[]},violations:violations,msg:''});
     }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro de humedad (Despachos Sur) guardado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   return(
@@ -5118,6 +5463,9 @@ function LodosCuarzoForm({account,onBack,onSuccess}){
   var[obs,setObs]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   var n120=parseDecimal(m120),nPan=parseDecimal(mPan);
   var suma=(isNaN(n120)?0:n120)+(isNaN(nPan)?0:nPan);
@@ -5144,9 +5492,40 @@ function LodosCuarzoForm({account,onBack,onSuccess}){
       pctHumedad:'',quimica:{},observaciones:obs,
       extra:{hora:hora,mas120:pct120,pan:pctPan,suma:suma},
     };
+    setSendError(null);
     var ok=await enviarRegistrosCuarzo([data],account);
     setSending(false);
-    onSuccess(ok?'Registro de lodos enviado exitosamente.':'Sin conexion: registro guardado localmente como pendiente.');
+    if(ok){
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:'Registro de lodos enviado exitosamente.'});
+    }else{
+      setSendError({type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'});
+      setReportModal({data:data,gc:{rows:[]},violations:[],msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Registro de lodos enviado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   function chip(label,val){
@@ -5222,6 +5601,9 @@ function YacimientoForm({account,onBack,onSuccess}){
   var[obs,setObs]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
   var gc=useMemo(function(){return calcGranu('YACIMIENTO',gv,pesoFinal);},[gv,pesoFinal]);
@@ -5250,9 +5632,40 @@ function YacimientoForm({account,onBack,onSuccess}){
       pctHumedad:'',quimica:quimica,observaciones:obs,
       extra:{yacimiento:yac,sector:sector,pctArcilla:pctArcilla},
     };
+    setSendError(null);
     var ok=await enviarRegistrosCuarzo([data],account);
     setSending(false);
-    onSuccess(ok?'Yacimiento registrado exitosamente.':'Sin conexion: registro guardado localmente como pendiente.');
+    if(ok){
+      setReportModal({data:data,gc:gc,violations:[],msg:'Yacimiento registrado exitosamente.'});
+    }else{
+      setSendError({type:'network',msg:'Sin conexion. Registro guardado localmente como Pendiente.'});
+      setReportModal({data:data,gc:gc,violations:[],msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Yacimiento registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   return(
@@ -5332,6 +5745,9 @@ function ChancadorForm({account,onBack,onSuccess}){
   var[obs,setObs]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function upd(setter){return function(i,v){setter(function(p){var n=p.slice();n[i]=v;return n;});};}
   var updE=upd(setGvE),updS=upd(setGvS);
@@ -5362,9 +5778,42 @@ function ChancadorForm({account,onBack,onSuccess}){
     var recS=Object.assign({},base,{id:uid(),producto:'CHANC_SAL',productoLabel:'Chancador Salida',
       tipoMuestra:'Salida',numAcopio:'',pesoInicial:'',pesoFinal:String(totS).replace('.',','),
       granu:gvS,pesoFondo:parseDecimal(panS)||0,extra:{punto:'Salida',control:ctrlS,hora:hora}});
+    setSendError(null);
     var ok=await enviarRegistrosCuarzo([recE,recS],account);
     setSending(false);
-    onSuccess(ok?'Chancador (entrada y salida) registrado exitosamente.':'Sin conexion: registro(s) guardado(s) localmente como pendiente(s).');
+    var gcEntrada=calcGranu('CHANC_ENT',gvE,totE);
+    var dataModal=Object.assign({},recE,{extra:Object.assign({},recE.extra,
+      {salidaGranu:gvS,salidaPan:panS,salidaControl:ctrlS,totalSalida:totS})});
+    if(ok){
+      setReportModal({data:dataModal,gc:gcEntrada,violations:[],msg:'Chancador (entrada y salida) registrado exitosamente.'});
+    }else{
+      setSendError({type:'network',msg:'Sin conexion. Registro(s) guardado(s) localmente como pendiente(s).'});
+      setReportModal({data:dataModal,gc:gcEntrada,violations:[],msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'Chancador (entrada y salida) registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   function granuGrid(label,arr,updFn,pan,setPan,tot,ctrl,setCtrl,errKey){
@@ -5438,6 +5887,9 @@ function VsiForm({account,onBack,onSuccess}){
   var[obs,setObs]=useState('');
   var[errors,setErrors]=useState({});
   var[sending,setSending]=useState(false);
+  var[reportModal,setReportModal]=useState(null);
+  var[sendError,setSendError]=useState(null);
+  var[retrying,setRetrying]=useState(false);
 
   function upd(setter){return function(i,v){setter(function(p){var n=p.slice();n[i]=v;return n;});};}
   var updE=upd(setGvE),updS=upd(setGvS);
@@ -5471,9 +5923,42 @@ function VsiForm({account,onBack,onSuccess}){
       tipoMuestra:'Salida',numAcopio:'',pesoInicial:'',pesoFinal:String(totS).replace('.',','),
       granu:gvS,pesoFondo:parseDecimal(panS)||0,
       extra:Object.assign({punto:'Salida',control:ctrlS,mas6:mas6S,menos6:menos6S},cab)});
+    setSendError(null);
     var ok=await enviarRegistrosCuarzo([recE,recS],account);
     setSending(false);
-    onSuccess(ok?'VSI (entrada y salida) registrado exitosamente.':'Sin conexion: registro(s) guardado(s) localmente como pendiente(s).');
+    var gcEntrada=calcGranu('VSI_ENT',gvE,totE);
+    var dataModal=Object.assign({},recE,{extra:Object.assign({},recE.extra,
+      {salidaGranu:gvS,salidaPan:panS,salidaControl:ctrlS,salidaMas6:mas6S,salidaMenos6:menos6S,totalSalida:totS})});
+    if(ok){
+      setReportModal({data:dataModal,gc:gcEntrada,violations:[],msg:'VSI (entrada y salida) registrado exitosamente.'});
+    }else{
+      setSendError({type:'network',msg:'Sin conexion. Registro(s) guardado(s) localmente como pendiente(s).'});
+      setReportModal({data:dataModal,gc:gcEntrada,violations:[],msg:''});
+    }
+  }
+
+  async function handleRetry(){
+    if(!reportModal)return;
+    setRetrying(true);setSendError(null);
+    try{
+      await sendTurcoToSupabase(reportModal.data,account);
+      setRetrying(false);
+      setReportModal(function(prev){return Object.assign({},prev,{msg:'VSI (entrada y salida) registrado exitosamente.'});});
+    }catch(err){
+      console.error(err);setRetrying(false);setSendError(buildDbError(err));
+    }
+  }
+
+  if(reportModal){
+    return(
+      <ReportModal
+        data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
+        sendError={sendError} retrying={retrying} onRetry={handleRetry}
+        onClose={function(){
+          setReportModal(null);setSendError(null);
+          onSuccess(sendError?'Registro guardado localmente como pendiente.':reportModal.msg);
+        }}/>
+    );
   }
 
   function granuGrid(label,arr,updFn,pan,setPan,tot,ctrl,setCtrl,mas6,setMas6,menos6,setMenos6,errKey){
