@@ -1039,7 +1039,7 @@ function turcoIndicadores(rec){
   if(prod==='TT_TLH'){
     out.push({label:'#16 retenido',valor:+(m['#16']||0).toFixed(2),unit:'%',tipo:'max',max:0});
     out.push({label:'+#30 (ret.acum)',valor:f(P30),unit:'%',tipo:'max',max:1.5});
-    out.push({label:'+#40 (ret.acum)',valor:f(P40),unit:'%',tipo:'max',max:25});
+    out.push({label:'+#40 (ret.acum)',valor:f(P40),unit:'%',tipo:'max',max:20});
     out.push({label:'-#100 (pasante)',valor:f(B100),unit:'%',tipo:'max',max:2.5});
     out.push({label:'AFS',valor:calcAFS(m),unit:'',tipo:'tendencia'});
   }else if(prod==='TT_IMAN_PROD'){
