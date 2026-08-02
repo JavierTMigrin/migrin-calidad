@@ -1070,6 +1070,7 @@ const SIEVE_CONFIG = {
   }],
   'TT_ARCILLAS': [],
   'TT_FLOC': [],
+  'TT_AGUA': [],
   'TT_ESPESADOR': [],
   'TT_AMCRIST': [],
   'TT_GOLF': GOLF_SIEVES,
@@ -1402,6 +1403,11 @@ const PRODUCT_CONFIG = {
     quimica: false,
     humedad: false,
     tipoMuestra: false
+  },
+  'TT_AGUA': {
+    quimica: false,
+    humedad: false,
+    tipoMuestra: false
   }
 };
 const GRANU_TITLE = {
@@ -1450,11 +1456,13 @@ const GRANU_TITLE = {
   CHANC_ENT: 'Chancador Entrada',
   CHANC_SAL: 'Chancador Salida',
   VSI_ENT: 'VSI Entrada',
-  VSI_SAL: 'VSI Salida'
+  VSI_SAL: 'VSI Salida',
+  TT_AGUA: 'Cloro Residual — Agua Potable'
 };
 /* Texto descriptivo para productos sin EETT: qué se controla / qué muestra el reporte */
 const NO_EETT_DETALLE = {
   TT_FLOC: 'Control de floculante: se registra la dilución en gramos. Cumple cuando oscila entre 0,004 y 0,016 g; No cumple si supera 0,016 g. El reporte muestra la evolución de la dilución y el estado de cumplimiento.',
+  TT_AGUA: 'Control de agua (cloro residual): se registra el cloro residual en ppm por punto de muestreo de agua potable. Cumple entre 0,20 y 2,00 ppm. El reporte muestra la tendencia y el estado de cumplimiento.',
   TT_ARCILLAS: 'Control de % de arcillas: se registra el conteo por banda granulométrica. El reporte muestra la tendencia del conteo en el período.',
   TT_GRANOS: 'Control de granos de producción: conteo de granos por tamiz. El reporte muestra la cantidad de granos por banda a lo largo del tiempo.',
   CGRANOS: 'Control de granos (Arenas): conteo de granos por tamiz (#14 a #20). El reporte muestra la cantidad por banda en el período.',
@@ -2619,6 +2627,16 @@ function turcoIndicadores(rec) {
       tipo: 'rango',
       min: 0.004,
       max: 0.016
+    });
+  } else if (prod === 'TT_AGUA') {
+    var cl = parseDecimal(extra.cloroPpm);
+    out.push({
+      label: 'Cloro Residual',
+      valor: isNaN(cl) ? null : cl,
+      unit: 'ppm',
+      tipo: 'rango',
+      min: 0.2,
+      max: 2.0
     });
   } else if (prod === 'TT_CILINDRO') {
     var entB100 = f(B100);
@@ -4795,10 +4813,59 @@ function ReportModal({
       });
       return kpis;
     }
-    // Fallback generico (productos sin granulometria con EETT, ej. TLH/Arena
-    // Iman que se controlan por "indicadores", o formularios sin ninguna
-    // especificacion): D50/P80/P20 solo si hay curva real, Humedad solo si
-    // se registro.
+    // Muchos productos Turco (TT_*) se controlan via "indicadores" internos
+    // (turcoIndicadores/turcoCtrlLims), un sistema aparte de la tabla
+    // especificaciones (ver EettEditor) usado en Historial/EETT pero que
+    // no se conectaba al informe post-envio. Se muestran aqui igual que
+    // cualquier otra especificacion.
+    var inds = turcoIndicadores(data) || [];
+    if (inds.length > 0) {
+      var kpisInd = inds.map(function (ind) {
+        var lims = turcoCtrlLims(ind);
+        return {
+          name: ind.label,
+          val: ind.valor,
+          unit: ind.unit,
+          dec: ind.unit ? 2 : 0,
+          limMin: lims.limMin,
+          limMax: lims.limMax,
+          limLabel: ind.limLabel
+        };
+      });
+      if (tieneGranu) {
+        kpisInd.push({
+          name: 'D50',
+          val: d50,
+          unit: 'mm',
+          dec: 3,
+          limMin: null,
+          limMax: null,
+          limLabel: '—'
+        });
+        kpisInd.push({
+          name: 'P80',
+          val: p80,
+          unit: 'mm',
+          dec: 3,
+          limMin: null,
+          limMax: null,
+          limLabel: '—'
+        });
+        kpisInd.push({
+          name: 'P20',
+          val: p20,
+          unit: 'mm',
+          dec: 3,
+          limMin: null,
+          limMax: null,
+          limLabel: '—'
+        });
+      }
+      if (hum) kpisInd.push(hum);
+      return kpisInd;
+    }
+    // Fallback generico (formularios sin ninguna especificacion definida):
+    // D50/P80/P20 solo si hay curva real, Humedad solo si se registro.
     var kpisFallback = [];
     if (tieneGranu) {
       kpisFallback.push({
@@ -5021,11 +5088,23 @@ function ReportModal({
     menos6: '-#6 (%)',
     alimCuarzo: 'Alim. Cuarzo',
     alimIntegral: 'Alim. Integral',
-    humedadEntrante: 'Humedad Entrante (%)'
+    humedadEntrante: 'Humedad Entrante (%)',
+    puntoMuestreo: 'Punto de Muestreo',
+    cloroPpm: 'Cloro Residual (ppm)'
+  };
+  // Campos que turcoIndicadores ya lee directo de extra.* y muestra como KPI
+  // arriba — se excluyen aqui para no duplicar el mismo valor dos veces.
+  var KPI_EXTRA_KEYS = {
+    pctArcilla: 1,
+    pctSolido: 1,
+    pctArcillas: 1,
+    frasco1MadreG: 1,
+    frasco2DilG: 1,
+    cloroPpm: 1
   };
   var extraRows = Object.keys(data.extra || {}).filter(function (k) {
     var v = data.extra[k];
-    return v != null && v !== '' && (typeof v === 'string' || typeof v === 'number');
+    return v != null && v !== '' && (typeof v === 'string' || typeof v === 'number') && !KPI_EXTRA_KEYS[k];
   }).map(function (k) {
     return {
       label: EXTRA_FIELD_LBL[k] || k,
@@ -5043,7 +5122,10 @@ function ReportModal({
       });
     });
   }
-  var showExtra = !hasModalSpecs && !showChem && extraRows.length > 0;
+  // "Datos Registrados" es un panel de contexto (punto de muestreo, horario,
+  // frascos, etc.), independiente de los KPIs de Control de Calidad — ambos
+  // pueden coexistir (ej. Cloro Residual muestra el KPI Y el punto de muestreo).
+  var showExtra = !showChem && extraRows.length > 0;
   return /*#__PURE__*/React.createElement("div", {
     className: "rmodal-ov",
     onClick: function (e) {
@@ -5382,7 +5464,7 @@ function ReportModal({
     className: "rc-kpi-grid"
   }, kpisCalc.map(function (k, i) {
     var sem = calcSemaforo(k.val, k.limMin, k.limMax);
-    var fv = k.val !== null && !isNaN(k.val) && k.val !== 0 ? fmt(k.val, k.dec) + ' ' + k.unit : '—';
+    var fv = k.val !== null && k.val !== undefined && !isNaN(k.val) ? fmt(k.val, k.dec) + ' ' + k.unit : '—';
     var borderC = {
       ok: '#276749',
       warning: '#b7791f',
@@ -8096,6 +8178,8 @@ function TurcoFloculanteForm({
     conc4 = conc(frasco4);
   var dil = parseDecimal(frasco2);
   var estado = isNaN(dil) || frasco2 === '' ? null : dil >= 0.004 && dil <= 0.016 ? 'CUMPLE' : 'NO CUMPLE';
+  var madre1 = parseDecimal(frasco1);
+  var estado1 = isNaN(madre1) || frasco1 === '' ? null : madre1 >= 0.015 && madre1 <= 0.033 ? 'CUMPLE' : 'NO CUMPLE';
   function validate() {
     var e = {};
     if (!fecha) e.fecha = 'Fecha requerida';
@@ -8224,6 +8308,7 @@ function TurcoFloculanteForm({
     });
   }
   var estadoColor = estado === 'CUMPLE' ? 'var(--success)' : estado === 'NO CUMPLE' ? 'var(--error)' : 'var(--text-muted)';
+  var estado1Color = estado1 === 'CUMPLE' ? 'var(--success)' : estado1 === 'NO CUMPLE' ? 'var(--error)' : 'var(--text-muted)';
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TurcoPageHdr, {
     onBack: onBack,
     sub: "Floculante"
@@ -8288,7 +8373,9 @@ function TurcoFloculanteForm({
       setFrasco1(e.target.value);
     },
     error: errors.frasco1,
-    placeholder: "0,000"
+    placeholder: "0,000",
+    specHint: "0,015 – 0,033 g",
+    specSemVal: estado1 === null ? 'info' : estado1 === 'CUMPLE' ? 'ok' : 'error'
   }), /*#__PURE__*/React.createElement("div", {
     className: "field"
   }, /*#__PURE__*/React.createElement("label", null, "Concentracion Frasco 1 (g/lt)", /*#__PURE__*/React.createElement("span", {
@@ -8378,6 +8465,22 @@ function TurcoFloculanteForm({
     placeholder: "—",
     value: conc4
   }))), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "field"
+  }, /*#__PURE__*/React.createElement("label", null, "Estado (Frasco 1 — Madre)", /*#__PURE__*/React.createElement("span", {
+    className: "calc-badge"
+  }, "Calculado")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    readOnly: true,
+    className: "f-ro",
+    placeholder: "—",
+    value: estado1 || '',
+    style: {
+      fontWeight: 800,
+      color: estado1Color
+    }
+  })), /*#__PURE__*/React.createElement("div", {
     className: "field"
   }, /*#__PURE__*/React.createElement("label", null, "Estado (Frasco 2 — Dilucion)", /*#__PURE__*/React.createElement("span", {
     className: "calc-badge"
@@ -8391,7 +8494,7 @@ function TurcoFloculanteForm({
       fontWeight: 800,
       color: estadoColor
     }
-  }))), /*#__PURE__*/React.createElement("div", {
+  })))), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -8919,6 +9022,258 @@ function TurcoLodoForm({
     disabled: sending,
     onClick: handleSend
   }, sending ? 'Enviando...' : 'Registrar Lodo')));
+}
+
+/* ── CONTROL DE AGUA (TURCO) — Cloro Residual, Agua Potable ──
+   Planilla aparte de Secado/Lavado: monitoreo diario de cloro residual
+   en los puntos de consumo de agua potable de la planta (Laboratorio,
+   Baño Mujeres, Casino). EETT: 0,20 - 2,00 ppm (igual que la planilla
+   historica en Excel). No dispara correo automatico. */
+const CLORO_POT_MIN = 0.2,
+  CLORO_POT_MAX = 2.0;
+const PUNTOS_AGUA_TURCO = [{
+  value: 'Laboratorio',
+  label: 'Laboratorio'
+}, {
+  value: 'BAÑO MUJERES',
+  label: 'Baño Mujeres'
+}, {
+  value: 'Casino',
+  label: 'Casino'
+}];
+function TurcoAguaForm({
+  account,
+  onBack,
+  onSuccess
+}) {
+  var [fecha, setFecha] = useState(today());
+  var [hora, setHora] = useState(nowTime());
+  var [puntoMuestreo, setPuntoMuestreo] = useState('');
+  var [cloroPpm, setCloroPpm] = useState('');
+  var [obs, setObs] = useState('');
+  var [errors, setErrors] = useState({});
+  var [sending, setSending] = useState(false);
+  var [reportModal, setReportModal] = useState(null);
+  var [sendError, setSendError] = useState(null);
+  var [retrying, setRetrying] = useState(false);
+  var clN = parseDecimal(cloroPpm);
+  var fueraNorma = !isNaN(clN) && (clN < CLORO_POT_MIN || clN > CLORO_POT_MAX);
+  function validate() {
+    var e = {};
+    if (!fecha) e.fecha = 'Fecha requerida';
+    if (!hora) e.hora = 'Hora requerida';
+    if (!puntoMuestreo) e.puntoMuestreo = 'Seleccione el punto de muestreo';
+    if (!cloroPpm) e.cloroPpm = 'Cloro residual requerido';
+    return e;
+  }
+  async function handleSend() {
+    var e = validate();
+    if (Object.keys(e).length) {
+      setErrors(e);
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      return;
+    }
+    setErrors({});
+    setSending(true);
+    var now = new Date();
+    var data = {
+      id: uid(),
+      fecha: fecha,
+      fechaEnvio: now.toISOString(),
+      horaEnvio: now.toLocaleTimeString('es-CL'),
+      turno: '',
+      analista: account ? account.email : '',
+      producto: 'TT_AGUA',
+      productoLabel: 'Cloro Residual — Agua Potable',
+      tipoMuestra: '',
+      numAcopio: '',
+      pesoInicial: '',
+      pesoFinal: '',
+      granu: [],
+      pesoFondo: null,
+      pctHumedad: '',
+      quimica: {},
+      observaciones: obs,
+      extra: {
+        puntoMuestreo: puntoMuestreo,
+        cloroPpm: cloroPpm
+      },
+      horaSalida: hora
+    };
+    addPending(data);
+    setSendError(null);
+    var violations = fueraNorma ? [{
+      param: 'Cloro Residual',
+      valor: fmt(clN, 2) + ' ppm',
+      limite: '0,20 – 2,00 ppm',
+      spec: ''
+    }] : [];
+    try {
+      await sendTurcoToSupabase(data, account);
+      delPending(data.id);
+      setSending(false);
+      setReportModal({
+        data: data,
+        gc: {
+          rows: []
+        },
+        violations: violations,
+        msg: 'Registro de cloro residual guardado exitosamente.'
+      });
+    } catch (err) {
+      console.error(err);
+      setSending(false);
+      setSendError(buildDbError(err));
+      setReportModal({
+        data: data,
+        gc: {
+          rows: []
+        },
+        violations: violations,
+        msg: ''
+      });
+    }
+  }
+  async function handleRetry() {
+    if (!reportModal) return;
+    setRetrying(true);
+    setSendError(null);
+    try {
+      await sendTurcoToSupabase(reportModal.data, account);
+      delPending(reportModal.data.id);
+      setRetrying(false);
+      setReportModal(function (prev) {
+        return Object.assign({}, prev, {
+          msg: 'Registro de cloro residual guardado exitosamente.'
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      setRetrying(false);
+      setSendError(buildDbError(err));
+    }
+  }
+  if (reportModal) {
+    return /*#__PURE__*/React.createElement(ReportModal, {
+      data: reportModal.data,
+      gc: reportModal.gc,
+      violations: reportModal.violations,
+      sendError: sendError,
+      retrying: retrying,
+      onRetry: handleRetry,
+      onClose: function () {
+        setReportModal(null);
+        setSendError(null);
+        onSuccess(sendError ? 'Registro guardado localmente como pendiente.' : reportModal.msg);
+      }
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-hdr"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "back-btn",
+    onClick: onBack
+  }, "←"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", null, "Control de Agua"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '.82rem',
+      color: 'var(--text-secondary)'
+    }
+  }, "Cloro Residual — Agua Potable"))), /*#__PURE__*/React.createElement(TurcoErrBox, {
+    errors: errors
+  }), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Cloro Residual — Agua Potable",
+    icon: "💧"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "fechaAG",
+    label: "Fecha",
+    type: "date",
+    required: true,
+    value: fecha,
+    onChange: function (e) {
+      setFecha(e.target.value);
+    },
+    error: errors.fecha
+  }), /*#__PURE__*/React.createElement(Field, {
+    name: "horaAG",
+    label: "Hora",
+    type: "time",
+    required: true,
+    value: hora,
+    onChange: function (e) {
+      setHora(e.target.value);
+    },
+    error: errors.hora
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "fg fg-2",
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Sel, {
+    name: "puntoAG",
+    label: "Punto de muestreo",
+    required: true,
+    options: PUNTOS_AGUA_TURCO,
+    value: puntoMuestreo,
+    onChange: function (e) {
+      setPuntoMuestreo(e.target.value);
+    },
+    error: errors.puntoMuestreo
+  }), /*#__PURE__*/React.createElement(Field, {
+    name: "cloroAG",
+    label: "Cloro residual (ppm)",
+    type: "decimal",
+    required: true,
+    value: cloroPpm,
+    onChange: function (e) {
+      setCloroPpm(e.target.value);
+    },
+    error: errors.cloroPpm,
+    placeholder: "0,00",
+    specHint: "0,20 – 2,00 ppm",
+    specSemVal: isNaN(clN) || cloroPpm === '' ? 'info' : fueraNorma ? 'error' : 'ok'
+  })), fueraNorma && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 2,
+      padding: '8px 12px',
+      borderRadius: 8,
+      background: '#fde0e0',
+      color: '#922b21',
+      fontSize: '.82rem',
+      fontWeight: 600
+    }
+  }, "⚠ ", fmt(clN, 2), " ppm esta fuera del rango aceptado (0,20 – 2,00 ppm). El registro se guardara igual, marcado como fuera de norma.")), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsAG",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
+    className: "form-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: onBack
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    disabled: sending,
+    onClick: handleSend
+  }, sending ? 'Enviando...' : 'Registrar Cloro Residual')));
 }
 
 /* Pantalla principal Lavado Turco */
@@ -12265,7 +12620,10 @@ function DashboardScreen({
     if (periodType === 'week') return 'Sem' + selWeek + '-' + selYear;
     if (periodType === 'month') return MN[selMonth] + '-' + selYear;
     if (periodType === 'year') return String(selYear);
-    return (custFrom || '?') + '/' + (custTo || '?');
+    // Sin "/": este texto se incrusta tal cual en nombres de archivo
+    // exportados (Excel/PNG); una barra ahi hace que la descarga falle
+    // en silencio (el navegador la interpreta como separador de ruta).
+    return (custFrom || '?') + ' a ' + (custTo || '?');
   }
   function fmtXDate(s) {
     if (!s) return '';
@@ -20894,10 +21252,60 @@ function HistoryScreen({
   var [fDesde, setFDesde] = useState('');
   var [fHasta, setFHasta] = useState('');
   var [fPlanta, setFPlanta] = useState('Arenas'); // filtro por planta; Arenas por defecto
+  var [fProd, setFProd] = useState('__all'); // filtro por producto, depende de fPlanta
+  var [periodType, setPeriodType] = useState('custom'); // custom(Desde/Hasta) | week | month | year
+  var [selWeek, setSelWeek] = useState(function () {
+    var d = new Date(),
+      dc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var dn = dc.getUTCDay() || 7;
+    dc.setUTCDate(dc.getUTCDate() + 4 - dn);
+    var ys = new Date(Date.UTC(dc.getUTCFullYear(), 0, 1));
+    return Math.ceil(((dc - ys) / 86400000 + 1) / 7);
+  });
+  var [selMonth, setSelMonth] = useState(function () {
+    return new Date().getMonth();
+  });
+  var [selYear, setSelYear] = useState(function () {
+    return new Date().getFullYear();
+  });
+  var [filterTurno, setFilterTurno] = useState('');
+  var [filterAnalista, setFilterAnalista] = useState('');
+  var [filterAcopio, setFilterAcopio] = useState('');
+  var [filtrosOpen, setFiltrosOpen] = useState(false);
   var PAGE_SIZE = 50;
   useEffect(function () {
     load();
   }, []);
+  useEffect(function () {
+    setFProd('__all');
+  }, [fPlanta]);
+  function getDateRange() {
+    if (periodType === 'week') {
+      var jan4 = new Date(selYear, 0, 4);
+      var d1 = jan4.getDay() || 7;
+      var w1Mon = new Date(jan4.getTime() - (d1 - 1) * 86400000);
+      var wStart = new Date(w1Mon.getTime() + (selWeek - 1) * 7 * 86400000);
+      var wEnd = new Date(wStart.getTime() + 6 * 86400000);
+      return {
+        from: wStart.toISOString().slice(0, 10),
+        to: wEnd.toISOString().slice(0, 10)
+      };
+    }
+    if (periodType === 'month') {
+      return {
+        from: new Date(selYear, selMonth, 1).toISOString().slice(0, 10),
+        to: new Date(selYear, selMonth + 1, 0).toISOString().slice(0, 10)
+      };
+    }
+    if (periodType === 'year') return {
+      from: selYear + '-01-01',
+      to: selYear + '-12-31'
+    };
+    return {
+      from: fDesde || '1900-01-01',
+      to: fHasta || '2099-12-31'
+    };
+  }
   function getPlanta(r) {
     var pk = r.ProductoKey || r.producto || '';
     if (pk.indexOf('TT_') === 0) return 'Turco';
@@ -21065,19 +21473,55 @@ function HistoryScreen({
     });
     descargarExcel('historial_calidad', hdr, rows, 'Historial');
   }
+
+  // Opciones de Producto: derivadas de los registros realmente presentes
+  // para la planta elegida (siempre al dia, sin mantener una lista aparte).
+  var productOpts = useMemo(function () {
+    var map = {};
+    records.forEach(function (r) {
+      if (fPlanta !== '__all' && getPlanta(r) !== fPlanta) return;
+      var pk = r.ProductoKey || r.producto || '';
+      if (!pk) return;
+      map[pk] = r.Producto || r.productoLabel || pk;
+    });
+    return Object.keys(map).map(function (k) {
+      return {
+        value: k,
+        label: map[k]
+      };
+    }).sort(function (a, b) {
+      return a.label.localeCompare(b.label);
+    });
+  }, [records, fPlanta]);
+  var analistaOpts = useMemo(function () {
+    var set = {};
+    ANALISTAS_DEFAULT.concat(ANALISTAS_TURCO_DEFAULT).forEach(function (a) {
+      set[a.value] = true;
+    });
+    records.forEach(function (r) {
+      var a = r.Analista || r.analista;
+      if (a) set[a] = true;
+    });
+    return Object.keys(set).sort();
+  }, [records]);
   var visibles = useMemo(function () {
     var q = busca.trim().toLowerCase();
+    var dr = getDateRange();
     return records.filter(function (r) {
       var fecha = r.FechaMuestreo || r.fecha || '';
       if (fPlanta !== '__all' && getPlanta(r) !== fPlanta) return false;
-      if (fDesde && fecha < fDesde) return false;
-      if (fHasta && fecha > fHasta) return false;
+      var pk = r.ProductoKey || r.producto || '';
+      if (fProd !== '__all' && pk !== fProd) return false;
+      if (fecha < dr.from || fecha > dr.to) return false;
+      if (filterTurno && (r.Turno || r.turno) !== filterTurno) return false;
+      if (filterAnalista && (r.Analista || r.analista) !== filterAnalista) return false;
+      if (filterAcopio && normAcopio(r.NumAcopio || r.numAcopio || '') !== filterAcopio) return false;
       if (!q) return true;
       var folio = r.Folio ? String(r.Folio) : '';
       var hay = [folio, '#' + folio, r.Producto || r.productoLabel || '', r.Analista || r.analista || '', r.Turno || r.turno || '', getPlanta(r), r.Lote || r.lote || '', r.Guia || r.guia || '', r.NumAcopio || r.numAcopio || ''].join(' ').toLowerCase();
       return hay.indexOf(q) !== -1;
     });
-  }, [records, busca, fDesde, fHasta, fPlanta]);
+  }, [records, busca, fPlanta, fProd, periodType, selWeek, selMonth, selYear, fDesde, fHasta, filterTurno, filterAnalista, filterAcopio]);
   if (reportView) {
     return /*#__PURE__*/React.createElement(ReportModal, {
       data: reportView.data,
@@ -21155,107 +21599,333 @@ function HistoryScreen({
     style: {
       marginLeft: 'auto'
     }
-  }, "↻ Actualizar")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 8,
-      marginBottom: 16,
-      flexWrap: 'wrap',
-      alignItems: 'flex-end',
-      background: 'var(--card)',
-      padding: '10px 14px',
-      borderRadius: 'var(--radius)',
-      boxShadow: 'var(--shadow)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "field",
-    style: {
-      flex: 1,
-      minWidth: 120
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      fontSize: '.72rem'
-    }
-  }, "Planta"), /*#__PURE__*/React.createElement("select", {
-    value: fPlanta,
-    onChange: function (e) {
-      setFPlanta(e.target.value);
-      setPage(0);
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "Arenas"
-  }, "Arenas"), /*#__PURE__*/React.createElement("option", {
-    value: "Cuarzo"
-  }, "Cuarzo"), /*#__PURE__*/React.createElement("option", {
-    value: "Turco"
-  }, "Turco"), /*#__PURE__*/React.createElement("option", {
-    value: "__all"
-  }, "Todas"))), /*#__PURE__*/React.createElement("div", {
-    className: "field",
-    style: {
-      flex: 2,
-      minWidth: 180
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      fontSize: '.72rem'
-    }
-  }, "Buscar"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: busca,
-    placeholder: "Folio, lote, guía, acopio, producto, analista...",
-    onChange: function (e) {
-      setBusca(e.target.value);
-      setPage(0);
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field",
-    style: {
-      flex: 1,
-      minWidth: 130
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      fontSize: '.72rem'
-    }
-  }, "Desde"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: fDesde,
-    onChange: function (e) {
-      setFDesde(e.target.value);
-      setPage(0);
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field",
-    style: {
-      flex: 1,
-      minWidth: 130
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      fontSize: '.72rem'
-    }
-  }, "Hasta"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: fHasta,
-    onChange: function (e) {
-      setFHasta(e.target.value);
-      setPage(0);
-    }
-  })), (busca || fDesde || fHasta || fPlanta !== 'Arenas') && /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-secondary",
-    style: {
-      padding: '8px 14px'
-    },
-    onClick: function () {
-      setBusca('');
-      setFDesde('');
-      setFHasta('');
-      setFPlanta('Arenas');
-      setPage(0);
-    }
-  }, "✕ Limpiar")), loading ? /*#__PURE__*/React.createElement("div", {
+  }, "↻ Actualizar")), function () {
+    var wks = [];
+    for (var wi = 1; wi <= 52; wi++) wks.push(wi);
+    var nAvanzados = (filterTurno ? 1 : 0) + (filterAnalista ? 1 : 0) + (filterAcopio ? 1 : 0);
+    var huboFiltro = busca || fDesde || fHasta || fPlanta !== 'Arenas' || fProd !== '__all' || periodType !== 'custom' || nAvanzados > 0;
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        marginBottom: 8,
+        flexWrap: 'wrap',
+        alignItems: 'flex-end',
+        background: 'var(--card)',
+        padding: '10px 14px',
+        borderRadius: 'var(--radius)',
+        boxShadow: 'var(--shadow)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 120
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Planta"), /*#__PURE__*/React.createElement("select", {
+      value: fPlanta,
+      onChange: function (e) {
+        setFPlanta(e.target.value);
+        setPage(0);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "Arenas"
+    }, "Arenas"), /*#__PURE__*/React.createElement("option", {
+      value: "Cuarzo"
+    }, "Cuarzo"), /*#__PURE__*/React.createElement("option", {
+      value: "Turco"
+    }, "Turco"), /*#__PURE__*/React.createElement("option", {
+      value: "__all"
+    }, "Todas"))), /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 170
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Producto"), /*#__PURE__*/React.createElement("select", {
+      value: fProd,
+      onChange: function (e) {
+        setFProd(e.target.value);
+        setPage(0);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "__all"
+    }, "Todos"), productOpts.map(function (p) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: p.value,
+        value: p.value
+      }, p.label);
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 140
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Periodo"), /*#__PURE__*/React.createElement("select", {
+      value: periodType,
+      onChange: function (e) {
+        setPeriodType(e.target.value);
+        setPage(0);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "custom"
+    }, "Desde / Hasta"), /*#__PURE__*/React.createElement("option", {
+      value: "week"
+    }, "Semana del año"), /*#__PURE__*/React.createElement("option", {
+      value: "month"
+    }, "Mes del año"), /*#__PURE__*/React.createElement("option", {
+      value: "year"
+    }, "Año completo"))), periodType === 'week' && /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 110
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Semana"), /*#__PURE__*/React.createElement("select", {
+      value: selWeek,
+      onChange: function (e) {
+        setSelWeek(parseInt(e.target.value));
+        setPage(0);
+      }
+    }, wks.map(function (w) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: w,
+        value: w
+      }, "Sem ", w);
+    }))), periodType === 'month' && /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 140
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Mes"), /*#__PURE__*/React.createElement("select", {
+      value: selMonth,
+      onChange: function (e) {
+        setSelMonth(parseInt(e.target.value));
+        setPage(0);
+      }
+    }, MESES_FULL.map(function (m, i) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: i,
+        value: i
+      }, m);
+    }))), (periodType === 'month' || periodType === 'year') && /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 90
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Año"), /*#__PURE__*/React.createElement("select", {
+      value: selYear,
+      onChange: function (e) {
+        setSelYear(parseInt(e.target.value));
+        setPage(0);
+      }
+    }, [2024, 2025, 2026, 2027].map(function (y) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: y,
+        value: y
+      }, y);
+    }))), periodType === 'custom' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 130
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Desde"), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: fDesde,
+      onChange: function (e) {
+        setFDesde(e.target.value);
+        setPage(0);
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 130
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Hasta"), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: fHasta,
+      onChange: function (e) {
+        setFHasta(e.target.value);
+        setPage(0);
+      }
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 2,
+        minWidth: 180
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Buscar"), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: busca,
+      placeholder: "Folio, lote, guía, acopio, producto, analista...",
+      onChange: function (e) {
+        setBusca(e.target.value);
+        setPage(0);
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        alignSelf: 'flex-end'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: function () {
+        setFiltrosOpen(function (v) {
+          return !v;
+        });
+      },
+      style: {
+        padding: '8px 14px',
+        minHeight: 36,
+        fontSize: '.82rem',
+        fontFamily: 'Inter,sans-serif',
+        fontWeight: 600,
+        cursor: 'pointer',
+        borderRadius: 8,
+        border: '1.5px solid ' + (filtrosOpen || nAvanzados > 0 ? 'var(--primary)' : 'var(--border)'),
+        background: filtrosOpen ? 'var(--primary)' : nAvanzados > 0 ? 'var(--primary-xlight)' : '#fff',
+        color: filtrosOpen ? '#fff' : nAvanzados > 0 ? 'var(--primary)' : '#555'
+      }
+    }, "⚙ Filtros", nAvanzados > 0 ? ' (' + nAvanzados + ')' : '', " ", filtrosOpen ? '▲' : '▼')), huboFiltro && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-secondary",
+      style: {
+        padding: '8px 14px'
+      },
+      onClick: function () {
+        setBusca('');
+        setFDesde('');
+        setFHasta('');
+        setFPlanta('Arenas');
+        setFProd('__all');
+        setPeriodType('custom');
+        setFilterTurno('');
+        setFilterAnalista('');
+        setFilterAcopio('');
+        setPage(0);
+      }
+    }, "✕ Limpiar")), filtrosOpen && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        marginBottom: 16,
+        flexWrap: 'wrap',
+        alignItems: 'flex-end',
+        background: 'var(--primary-xlight)',
+        border: '1px solid var(--border)',
+        padding: '10px 14px',
+        borderRadius: 'var(--radius)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 120
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Turno"), /*#__PURE__*/React.createElement("select", {
+      value: filterTurno,
+      onChange: function (e) {
+        setFilterTurno(e.target.value);
+        setPage(0);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Todos"), /*#__PURE__*/React.createElement("option", {
+      value: "A"
+    }, "Turno A"), /*#__PURE__*/React.createElement("option", {
+      value: "B"
+    }, "Turno B"), /*#__PURE__*/React.createElement("option", {
+      value: "C"
+    }, "Turno C"))), /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 170
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "Analista"), /*#__PURE__*/React.createElement("select", {
+      value: filterAnalista,
+      onChange: function (e) {
+        setFilterAnalista(e.target.value);
+        setPage(0);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Todos"), analistaOpts.map(function (a) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: a,
+        value: a
+      }, a);
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "field",
+      style: {
+        flex: 1,
+        minWidth: 150
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: '.72rem'
+      }
+    }, "N° Acopio"), /*#__PURE__*/React.createElement("select", {
+      value: filterAcopio,
+      onChange: function (e) {
+        setFilterAcopio(e.target.value);
+        setPage(0);
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Todos"), ACOPIO_OPTS.map(function (a) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: a,
+        value: a
+      }, a);
+    })))));
+  }(), loading ? /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'center',
@@ -25814,6 +26484,13 @@ const MODULES = [{
   active: true,
   planta: 'Turco'
 }, {
+  id: 'agua-turco',
+  label: 'Control de Agua',
+  icon: '🚰',
+  desc: 'Cloro residual — agua potable planta',
+  active: true,
+  planta: 'Turco'
+}, {
   id: 'secado-peral',
   label: 'Secado Peral',
   icon: '♨️',
@@ -27176,7 +27853,7 @@ function App() {
     },
     onSelect: function (id) {
       if (isViewer) return;
-      if (id === 'arenas') setScreen('arenas');else if (id === 'cuarzo') setScreen('cuarzo');else if (id === 'lavado-turco') setScreen('lavado-turco');else if (id === 'secado-turco') setScreen('secado-turco');else if (id === 'despachos-sur') setScreen('despachos-sur');
+      if (id === 'arenas') setScreen('arenas');else if (id === 'cuarzo') setScreen('cuarzo');else if (id === 'lavado-turco') setScreen('lavado-turco');else if (id === 'secado-turco') setScreen('secado-turco');else if (id === 'despachos-sur') setScreen('despachos-sur');else if (id === 'agua-turco') setScreen('agua-turco');
     }
   }), !isViewer && screen === 'arenas' && /*#__PURE__*/React.createElement(ArenasForm, {
     account: account,
@@ -27203,6 +27880,12 @@ function App() {
     },
     onSuccess: handleSuccess
   }), !isViewer && screen === 'despachos-sur' && /*#__PURE__*/React.createElement(DespachosSurForm, {
+    account: account,
+    onBack: function () {
+      setScreen('home');
+    },
+    onSuccess: handleSuccess
+  }), !isViewer && screen === 'agua-turco' && /*#__PURE__*/React.createElement(TurcoAguaForm, {
     account: account,
     onBack: function () {
       setScreen('home');
