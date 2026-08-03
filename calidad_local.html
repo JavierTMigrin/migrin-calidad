@@ -1480,6 +1480,66 @@ const NO_EETT_DETALLE = {
   TT_GMINA: 'Grano Mina (Turco): granulometría (#4 a #30) y química, sin límites EETT definidos. El reporte muestra las tendencias de retenido por banda y de los óxidos.',
   TT_AMCRIST: 'Arena Mina Cristalería (Turco): control químico sin límites EETT definidos. El reporte muestra las tendencias de los óxidos registrados.'
 };
+
+/* Etiquetas para mostrar el JSONB "extra" de un registro como filas
+   legibles ("Datos Registrados"). Compartido por ReportModal e Historial
+   para que ambos muestren exactamente lo mismo sin mantener dos listas. */
+const EXTRA_FIELD_LBL = {
+  hora: 'Hora',
+  sector: 'Sector',
+  tipoArena: 'Tipo de Arena',
+  pctArcilla: '% Arcilla',
+  pctArcillas: '% Arcillas',
+  pctSolido: '% Solido',
+  destino: 'Destino',
+  mezcla: 'Mezcla',
+  frasco1MadreG: 'Floculante Madre (Frasco 1, g)',
+  frasco2DilG: 'Floculante Dilucion (Frasco 2, g)',
+  frasco3PrepG: 'Madre Preparacion (Frasco 3, g)',
+  frasco4Madre2G: 'Madre 2 (Frasco 4, g)',
+  mas120: '+#120 (%)',
+  pan: 'PAN (%)',
+  suma: 'Suma (g)',
+  yacimiento: 'Yacimiento',
+  punto: 'Punto',
+  control: 'Control',
+  salidaPan: 'Salida — PAN (g)',
+  salidaControl: 'Salida — Control',
+  totalSalida: 'Salida — Total (g)',
+  salidaMas6: 'Salida — +#6 (%)',
+  salidaMenos6: 'Salida — -#6 (%)',
+  mas6: '+#6 (%)',
+  menos6: '-#6 (%)',
+  alimCuarzo: 'Alim. Cuarzo',
+  alimIntegral: 'Alim. Integral',
+  humedadEntrante: 'Humedad Entrante (%)',
+  puntoMuestreo: 'Punto de Muestreo',
+  cloroPpm: 'Cloro Residual (ppm)'
+};
+/* Campos que turcoIndicadores ya lee directo de extra.* y muestra como KPI
+   de Control de Calidad — se excluyen de "Datos Registrados" para no
+   duplicar el mismo valor dos veces. */
+const KPI_EXTRA_KEYS = {
+  pctArcilla: 1,
+  pctSolido: 1,
+  pctArcillas: 1,
+  frasco1MadreG: 1,
+  frasco2DilG: 1,
+  cloroPpm: 1
+};
+/* Convierte data.extra en filas {label,val} listas para tabla, filtrando
+   las ya cubiertas por un KPI. Usado por ReportModal e Historial. */
+function extraFieldRows(data) {
+  return Object.keys(data.extra || {}).filter(function (k) {
+    var v = data.extra[k];
+    return v != null && v !== '' && (typeof v === 'string' || typeof v === 'number') && !KPI_EXTRA_KEYS[k];
+  }).map(function (k) {
+    return {
+      label: EXTRA_FIELD_LBL[k] || k,
+      val: data.extra[k]
+    };
+  });
+}
 const SPECS_A36 = {
   LIRQUEN: {
     nombre: 'Vidrios Lirquen',
@@ -5060,57 +5120,7 @@ function ReportModal({
   // Datos "extra" (JSONB libre por producto: sector, tipoArena, pctArcilla,
   // dosis de floculante, etc.) para productos sin quimica/granulometria,
   // como respaldo generico de "algo que mostrar" en el informe.
-  var EXTRA_FIELD_LBL = {
-    hora: 'Hora',
-    sector: 'Sector',
-    tipoArena: 'Tipo de Arena',
-    pctArcilla: '% Arcilla',
-    pctArcillas: '% Arcillas',
-    pctSolido: '% Solido',
-    destino: 'Destino',
-    mezcla: 'Mezcla',
-    frasco1MadreG: 'Floculante Madre (Frasco 1, g)',
-    frasco2DilG: 'Floculante Dilucion (Frasco 2, g)',
-    frasco3PrepG: 'Madre Preparacion (Frasco 3, g)',
-    frasco4Madre2G: 'Madre 2 (Frasco 4, g)',
-    mas120: '+#120 (%)',
-    pan: 'PAN (%)',
-    suma: 'Suma (g)',
-    yacimiento: 'Yacimiento',
-    punto: 'Punto',
-    control: 'Control',
-    salidaPan: 'Salida — PAN (g)',
-    salidaControl: 'Salida — Control',
-    totalSalida: 'Salida — Total (g)',
-    salidaMas6: 'Salida — +#6 (%)',
-    salidaMenos6: 'Salida — -#6 (%)',
-    mas6: '+#6 (%)',
-    menos6: '-#6 (%)',
-    alimCuarzo: 'Alim. Cuarzo',
-    alimIntegral: 'Alim. Integral',
-    humedadEntrante: 'Humedad Entrante (%)',
-    puntoMuestreo: 'Punto de Muestreo',
-    cloroPpm: 'Cloro Residual (ppm)'
-  };
-  // Campos que turcoIndicadores ya lee directo de extra.* y muestra como KPI
-  // arriba — se excluyen aqui para no duplicar el mismo valor dos veces.
-  var KPI_EXTRA_KEYS = {
-    pctArcilla: 1,
-    pctSolido: 1,
-    pctArcillas: 1,
-    frasco1MadreG: 1,
-    frasco2DilG: 1,
-    cloroPpm: 1
-  };
-  var extraRows = Object.keys(data.extra || {}).filter(function (k) {
-    var v = data.extra[k];
-    return v != null && v !== '' && (typeof v === 'string' || typeof v === 'number') && !KPI_EXTRA_KEYS[k];
-  }).map(function (k) {
-    return {
-      label: EXTRA_FIELD_LBL[k] || k,
-      val: data.extra[k]
-    };
-  });
+  var extraRows = extraFieldRows(data);
   // Productos por conteo (Control de Granos): no tienen granulometria en
   // peso pero si un valor por malla en data.granu, muestralos como filas.
   if (!tieneGranu && sieves.length > 0 && Array.isArray(data.granu)) {
@@ -21362,7 +21372,7 @@ function HistoryScreen({
         return String(r[s.us + '_' + s.mm + 'g'] || 0);
       });
     }
-    var pesoFinal = String(r.PesoFinal !== undefined ? r.PesoFinal : r.pesoFinal !== undefined ? r.pesoFinal : 0);
+    var pesoFinal = String(r.PesoFinal != null ? r.PesoFinal : r.pesoFinal != null ? r.pesoFinal : '');
     var gc = calcGranu(prod, gv, pesoFinal);
     var quimica;
     if (r.quimica && typeof r.quimica === 'object') {
@@ -21388,16 +21398,17 @@ function HistoryScreen({
       analista: r.Analista || r.analista || '',
       producto: prod,
       productoLabel: prodLabel,
-      pesoInicial: String(r.PesoInicial !== undefined ? r.PesoInicial : r.pesoInicial !== undefined ? r.pesoInicial : 0),
+      pesoInicial: String(r.PesoInicial != null ? r.PesoInicial : r.pesoInicial != null ? r.pesoInicial : ''),
       pesoFinal: pesoFinal,
       granu: gv,
       pesoFondo: gc.fondPeso,
-      pctHumedad: String(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad !== undefined ? r.pctHumedad : 0),
+      pctHumedad: String(r.PctHumedad != null ? r.PctHumedad : r.pctHumedad != null ? r.pctHumedad : ''),
       quimica: quimica,
       observaciones: r.Observaciones || r.observaciones || '',
       guia: r.Guia || r.guia || '',
       lote: r.Lote || r.lote || '',
-      horaSalida: r.HoraSalida || r.horaSalida || ''
+      horaSalida: r.HoraSalida || r.horaSalida || '',
+      extra: r.Extra || r.extra || null
     };
     return {
       data: data,
@@ -22060,7 +22071,90 @@ function HistoryScreen({
         fontSize: '.83rem',
         marginBottom: 14
       }
-    }, r.Folio && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "N° Muestra:"), " #", r.Folio), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Fecha:"), " ", rec.data.fecha), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Hora envio:"), " ", rec.data.horaEnvio || '—'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Analista:"), " ", rec.data.analista || '—'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Turno:"), " ", rec.data.turno ? 'Turno ' + rec.data.turno : '—'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Planta:"), " ", planta), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Producto:"), " ", rec.data.productoLabel), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Peso Inicial:"), " ", rec.data.pesoInicial, " g"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Peso Final:"), " ", rec.data.pesoFinal, " g")), /*#__PURE__*/React.createElement("div", {
+    }, r.Folio && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "N° Muestra:"), " #", r.Folio), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Fecha:"), " ", rec.data.fecha), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Hora envio:"), " ", rec.data.horaEnvio || '—'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Analista:"), " ", rec.data.analista || '—'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Turno:"), " ", rec.data.turno ? 'Turno ' + rec.data.turno : '—'), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Planta:"), " ", planta), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Producto:"), " ", rec.data.productoLabel), rec.data.pesoInicial !== '' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Peso Inicial:"), " ", rec.data.pesoInicial, " g"), rec.data.pesoFinal !== '' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, "Peso Final:"), " ", rec.data.pesoFinal, " g")), function () {
+      var inds = (turcoIndicadores(rec.data) || []).filter(function (ind) {
+        return ind.tipo !== 'tendencia' || ind.valor != null;
+      });
+      var xrows = extraFieldRows(rec.data);
+      if (!inds.length && !xrows.length) return null;
+      return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+        style: {
+          height: 1,
+          background: 'var(--border)',
+          margin: '12px 0'
+        }
+      }), inds.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontWeight: 700,
+          fontSize: '.78rem',
+          color: 'var(--text-secondary)',
+          textTransform: 'uppercase',
+          letterSpacing: '.05em',
+          marginBottom: 8
+        }
+      }, "Control de Calidad"), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 14
+        }
+      }, inds.map(function (ind, ii) {
+        var sem = turcoEstado(ind);
+        var col = sem === 'error' ? '#c53030' : sem === 'warning' ? '#b7791f' : sem === 'ok' ? '#276749' : '#888';
+        return /*#__PURE__*/React.createElement("div", {
+          key: ii,
+          style: {
+            padding: '7px 12px',
+            borderRadius: 8,
+            minWidth: 130,
+            background: '#f7fafc',
+            border: '1.5px solid var(--border)',
+            borderLeft: '3px solid ' + col
+          }
+        }, /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: '.7rem',
+            fontWeight: 700,
+            color: 'var(--text-secondary)'
+          }
+        }, ind.label), /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: '1rem',
+            fontWeight: 800,
+            color: col
+          }
+        }, ind.valor != null && !isNaN(ind.valor) ? fmt(ind.valor, 2) + ' ' + ind.unit : '—'), /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: '.68rem',
+            color: 'var(--text-muted)'
+          }
+        }, "Limite: ", ind.limLabel));
+      }))), xrows.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontWeight: 700,
+          fontSize: '.78rem',
+          color: 'var(--text-secondary)',
+          textTransform: 'uppercase',
+          letterSpacing: '.05em',
+          marginBottom: 8
+        }
+      }, "Datos Registrados"), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))',
+          gap: '5px 18px',
+          fontSize: '.82rem',
+          marginBottom: 14
+        }
+      }, xrows.map(function (xr, xi) {
+        return /*#__PURE__*/React.createElement("div", {
+          key: xi
+        }, /*#__PURE__*/React.createElement("b", null, xr.label, ":"), " ", String(xr.val));
+      }))));
+    }(), (SIEVE_CONFIG[rec.data.producto] || []).length > 0 && rec.gc.rows.some(function (row) {
+      return !row.isFondo;
+    }) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       style: {
         height: 1,
         background: 'var(--border)',
@@ -22150,7 +22244,7 @@ function HistoryScreen({
           textAlign: 'right'
         }
       }, fmt(row.pctPas)));
-    })))), function () {
+    }))))), function () {
       var pcfg = PRODUCT_CONFIG[rec.data.producto] || {};
       if (!pcfg.humedad && !pcfg.quimica) return null;
       return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
