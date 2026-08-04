@@ -6839,6 +6839,19 @@ function MateriasPrimasForm({
 /* ════════ LAVADO TURCO ════════ */
 
 /* Config por producto del formulario generico de ensayo Turco */
+// Sectores de acopio para Arena Golf: la humedad maxima (5%) puede variar
+// segun el sector, pero el limite unico se mantiene hasta que se definan
+// valores especificos por sector.
+var SECTORES_GOLF = [{
+  value: 'Casillero',
+  label: 'Casillero'
+}, {
+  value: 'Frente Filtro Prensa',
+  label: 'Frente a Filtro de Prensa'
+}, {
+  value: 'Sector Mina',
+  label: 'Sector Mina'
+}];
 var TT_FORM_CFG = {
   TT_TLH: {
     granu: true,
@@ -6872,9 +6885,12 @@ var TT_FORM_CFG = {
     tipoArena: true,
     pctArcilla: true
   },
+  // Fierrillo Casillero rara vez lleva analisis quimico: la seccion se
+  // muestra por si se quiere completar, pero no bloquea el envio si queda vacia.
   TT_FIERRC: {
     granu: true,
-    quimica: true
+    quimica: true,
+    quimicaOpcional: true
   },
   TT_AMCRIST: {
     quimica: true,
@@ -6885,7 +6901,9 @@ var TT_FORM_CFG = {
     quimica: true,
     humedad: true,
     acopio: true,
-    analista: true
+    analista: true,
+    acopioLabel: 'Sector',
+    acopioOptions: SECTORES_GOLF
   },
   TT_IMAN_ALIM: {
     granu: true,
@@ -6967,10 +6985,11 @@ function TurcoQuimicaCard({
   quimica,
   setQuimica,
   errors,
-  qspec
+  qspec,
+  opcional
 }) {
   return /*#__PURE__*/React.createElement(SecCard, {
-    title: "Analisis Quimico (%)",
+    title: 'Analisis Quimico (%)' + (opcional ? ' — opcional' : ''),
     icon: "⚗️"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fg-quim"
@@ -6990,7 +7009,7 @@ function TurcoQuimicaCard({
       name: f.k + 'TT',
       label: f.l,
       type: "decimal",
-      required: true,
+      required: !opcional,
       value: quimica[f.k],
       onChange: function (e) {
         var v = e.target.value;
@@ -7109,7 +7128,7 @@ function TurcoEnsayoForm({
       if (!gc.closeOk) e.granu = 'El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     }
     if (cfg.humedad && !pctHumedad) e.pctHumedad = 'Humedad requerida';
-    if (cfg.quimica) validaQuimica(quimica, e);
+    if (cfg.quimica && !cfg.quimicaOpcional) validaQuimica(quimica, e);
     return e;
   }
   async function handleSend() {
@@ -7426,7 +7445,8 @@ function TurcoEnsayoForm({
     quimica: quimica,
     setQuimica: setQuimica,
     errors: errors,
-    qspec: qspec
+    qspec: qspec,
+    opcional: cfg.quimicaOpcional
   }), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {

@@ -3448,15 +3448,27 @@ function MateriasPrimasForm({account,onBack,onSuccess}){
 /* ════════ LAVADO TURCO ════════ */
 
 /* Config por producto del formulario generico de ensayo Turco */
+// Sectores de acopio para Arena Golf: la humedad maxima (5%) puede variar
+// segun el sector, pero el limite unico se mantiene hasta que se definan
+// valores especificos por sector.
+var SECTORES_GOLF=[
+  {value:'Casillero',label:'Casillero'},
+  {value:'Frente Filtro Prensa',label:'Frente a Filtro de Prensa'},
+  {value:'Sector Mina',label:'Sector Mina'},
+];
+
 var TT_FORM_CFG={
   TT_TLH:    {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
   TT_ALIM:   {granu:true,quimica:true,mezcla:true,analista:true},
   TT_GMINA:  {granu:true,quimica:true,sector:true,hora:true,analista:true},
   TT_AMINAS: {granu:true,quimica:true,tipoArena:true,pctArcilla:true},
   TT_MATPRIMAS:{granu:true,quimica:true,tipoArena:true,pctArcilla:true},
-  TT_FIERRC: {granu:true,quimica:true},
+  // Fierrillo Casillero rara vez lleva analisis quimico: la seccion se
+  // muestra por si se quiere completar, pero no bloquea el envio si queda vacia.
+  TT_FIERRC: {granu:true,quimica:true,quimicaOpcional:true},
   TT_AMCRIST:{quimica:true,tipoArena:true},
-  TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
+  TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true,
+    acopioLabel:'Sector',acopioOptions:SECTORES_GOLF},
   TT_IMAN_ALIM:{granu:true,quimica:true,analista:true},
   // Silo cumple para Arena Iman el mismo rol que Acopio cumple para TT_TLH:
   // es la clave de agrupacion para promediar muestras al generar un
@@ -3494,15 +3506,15 @@ function TurcoErrBox({errors}){
   );
 }
 
-function TurcoQuimicaCard({quimica,setQuimica,errors,qspec}){
+function TurcoQuimicaCard({quimica,setQuimica,errors,qspec,opcional}){
   return(
-    <SecCard title="Analisis Quimico (%)" icon="&#9879;&#65039;">
+    <SecCard title={'Analisis Quimico (%)'+(opcional?' — opcional':'')} icon="&#9879;&#65039;">
       <div className="fg-quim">
         <Field name="sio2TT" label="SiO₂ (%)" type="decimal" readOnly calcBadge value={quimica.sio2} placeholder="—"
           specHint={specChemHint(qspec.SiO2)} specSemVal={specSem(quimica.sio2,qspec.SiO2)}/>
         {TT_QUIM_FIELDS.map(function(f){
           return(
-            <Field key={f.k} name={f.k+'TT'} label={f.l} type="decimal" required value={quimica[f.k]}
+            <Field key={f.k} name={f.k+'TT'} label={f.l} type="decimal" required={!opcional} value={quimica[f.k]}
               onChange={function(e){var v=e.target.value;setQuimica(function(p){var n=Object.assign({},p);n[f.k]=v;return n;});}}
               error={errors[f.k]} placeholder="0,00"
               specHint={specChemHint(qspec[f.sk])} specSemVal={specSem(quimica[f.k],qspec[f.sk])}/>
@@ -3579,7 +3591,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
       if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     }
     if(cfg.humedad&&!pctHumedad)e.pctHumedad='Humedad requerida';
-    if(cfg.quimica)validaQuimica(quimica,e);
+    if(cfg.quimica&&!cfg.quimicaOpcional)validaQuimica(quimica,e);
     return e;
   }
 
@@ -3738,7 +3750,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
         </SecCard>
       )}
 
-      {cfg.quimica&&<TurcoQuimicaCard quimica={quimica} setQuimica={setQuimica} errors={errors} qspec={qspec}/>}
+      {cfg.quimica&&<TurcoQuimicaCard quimica={quimica} setQuimica={setQuimica} errors={errors} qspec={qspec} opcional={cfg.quimicaOpcional}/>}
 
       <div className="form-actions">
         <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
