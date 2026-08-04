@@ -1133,6 +1133,14 @@ function turcoIndicadores(rec){
     out.push({label:'#16 (conteo)',valor:isNaN(c16)?null:c16,unit:'',tipo:'max',max:0});
     out.push({label:'#18 (conteo)',valor:isNaN(c18)?null:c18,unit:'',tipo:'max',max:0});
     out.push({label:'#20 (conteo)',valor:isNaN(c20)?null:c20,unit:'',tipo:'zonas',alerta:11,fuera:29});
+    // Conteo de arcillas por malla: se registra en el formulario junto a
+    // los granos, pero se guarda aparte (extra.arcillas) — sin esto nunca
+    // aparecia en el informe aunque si quedaba guardado en la base.
+    var arc=extra.arcillas||[];
+    var a16=parseDecimal(arc[0]),a18=parseDecimal(arc[1]),a20=parseDecimal(arc[2]);
+    out.push({label:'Arcilla #16 (conteo)',valor:isNaN(a16)?null:a16,unit:'',tipo:'tendencia'});
+    out.push({label:'Arcilla #18 (conteo)',valor:isNaN(a18)?null:a18,unit:'',tipo:'tendencia'});
+    out.push({label:'Arcilla #20 (conteo)',valor:isNaN(a20)?null:a20,unit:'',tipo:'tendencia'});
   }else if(prod==='TT_ARCILLAS'){
     var pa=parseDecimal(extra.pctArcillas);
     out.push({label:'% Arcillas',valor:isNaN(pa)?null:pa,unit:'%',tipo:'max_lt',lim:15});
@@ -9016,7 +9024,45 @@ function statSummary(arr){
   var mean=v.reduce(function(a,b){return a+b;},0)/n;
   var sd=n>1?Math.sqrt(v.reduce(function(s,x){return s+(x-mean)*(x-mean);},0)/(n-1)):0;
   function q(p){var idx=(n-1)*p,lo=Math.floor(idx),hi=Math.ceil(idx);return v[lo]+(v[hi]-v[lo])*(idx-lo);}
-  return{n:n,mean:mean,sd:sd,min:v[0],max:v[n-1],q1:q(0.25),med:q(0.5),q3:q(0.75),cv:mean?sd/mean*100:null};
+  return{n:n,mean:mean,sd:sd,min:v[0],max:v[n-1],range:v[n-1]-v[0],q1:q(0.25),med:q(0.5),q3:q(0.75),cv:mean?sd/mean*100:null};
+}
+/* Densidad normal N(mean,sd) evaluada en x — usada para superponer la
+   curva de campana sobre los histogramas de barras. */
+function normalPdf(x,mean,sd){
+  if(!sd||sd<=0)return 0;
+  var z=(x-mean)/sd;
+  return Math.exp(-0.5*z*z)/(sd*Math.sqrt(2*Math.PI));
+}
+/* Amplitud (rango movil): |valor actual - valor anterior| para cada punto
+   de una serie ordenada en el tiempo. El primer punto no tiene amplitud
+   (no hay punto anterior) y queda null. Tambien entrega el promedio. */
+function amplitudSeries(vals){
+  var amp=vals.map(function(v,i){
+    if(i===0||v==null||vals[i-1]==null||isNaN(v)||isNaN(vals[i-1]))return null;
+    return Math.abs(v-vals[i-1]);
+  });
+  var validAmp=amp.filter(function(a){return a!=null;});
+  var avg=validAmp.length?validAmp.reduce(function(a,b){return a+b;},0)/validAmp.length:null;
+  return{series:amp,avg:avg};
+}
+/* Bins de histograma + curva normal N(mean,sd) escalada a conteo esperado
+   por bin (n*ancho*densidad), lista para superponer sobre las barras.
+   Reutilizado por el histograma por columna y por la vista de distribucion
+   general (todas las columnas/mallas a la vez). */
+function histogramData(vals,st){
+  var lo=st.min,hi=st.max;if(hi<=lo){hi=lo+1;}
+  var nb=Math.min(12,Math.max(5,Math.ceil(Math.sqrt(vals.length))));
+  var w=(hi-lo)/nb,bins=new Array(nb).fill(0),labels=[];
+  for(var b=0;b<nb;b++)labels.push(fmt(lo+w*b,2));
+  vals.forEach(function(v){var idx=Math.min(nb-1,Math.floor((v-lo)/w));bins[idx]++;});
+  var normData=null;
+  if(st.sd>0){
+    normData=labels.map(function(_,bi){
+      var xc=lo+w*(bi+0.5);
+      return+(vals.length*w*normalPdf(xc,st.mean,st.sd)).toFixed(3);
+    });
+  }
+  return{labels:labels,bins:bins,normData:normData};
 }
 function Boxplot({st,color}){
   if(!st)return null;
@@ -9502,8 +9548,21 @@ function EstadisticasScreen({account,onBack}){
   var[chartType,setChartType]=useState('imr'); // imr | ewma | cusum
   var[groupBy,setGroupBy]=useState('dia'); // dia | semana | mes — agrupa los puntos del grafico
   var[selBucket,setSelBucket]=useState(null); // punto/barra seleccionado en el grafico (drill-down del KPI)
+  var[compareWeeks,setCompareWeeks]=useState(false); // comparador Semana X vs Semana Y (mismo producto)
+  var[showDistGrid,setShowDistGrid]=useState(false); // vista general: histograma+normal para todas las columnas
+  var[weekX,setWeekX]=useState(function(){return{year:new Date().getFullYear(),week:1};});
+  var[weekY,setWeekY]=useState(function(){return{year:new Date().getFullYear(),week:2};});
+  var[isAdmin,setIsAdmin]=useState(false);
+  var[showPass,setShowPass]=useState(false);
+  var[analistaSel,setAnalistaSel]=useState(''); // seleccion para la seccion "Por Analista" (solo admin)
+  var[analistaDesde,setAnalistaDesde]=useState(''); // fechas propias de "Por Analista" (independientes del filtro general)
+  var[analistaHasta,setAnalistaHasta]=useState('');
   var chartRefs=useRef({});var chartInsts=useRef({});
   var histRefs=useRef({});var histInsts=useRef({});
+  var weekHistRefs=useRef({});var weekHistInsts=useRef({});
+  var analistaChartRef=useRef(null);var analistaChartInst=useRef(null);
+  var analistaHistRef=useRef(null);var analistaHistInst=useRef(null);
+  var distHistRefs=useRef({});var distHistInsts=useRef({});
 
   function movAvgLocal(arr,w){
     return arr.map(function(v,i){
@@ -9545,15 +9604,40 @@ function EstadisticasScreen({account,onBack}){
     });
   },[records,prod,desde,hasta,turno]);
 
-  var enriched=useMemo(function(){
-    return filtered.map(function(r){
+  function enrichRecs(rs){
+    return rs.map(function(r){
       var pf=r.PesoFinal!==undefined?r.PesoFinal:r.pesoFinal;
       var rec=Object.assign({},r);
       rec._rp=rpMapTurco(prod,r.granu||[],pf);
       if(prod.indexOf('TT_')===0)rec._inds=turcoIndicadores({producto:prod,granu:r.granu,quimica:r.quimica,extra:r.Extra||r.extra,PesoFinal:pf})||[];
       return rec;
     });
-  },[filtered,prod]);
+  }
+  var enriched=useMemo(function(){return enrichRecs(filtered);},[filtered,prod]);
+
+  // Registros del producto+turno elegidos, SIN el filtro Desde/Hasta —
+  // el comparador de semanas elige su propio rango via semana+año, y no
+  // debe depender de que el filtro principal alcance esas fechas.
+  var prodRecords=useMemo(function(){
+    return records.filter(function(r){
+      var pk=r.ProductoKey||r.producto||'';
+      if(pk!==prod)return false;
+      if(turno&&(r.Turno||r.turno)!==turno)return false;
+      return true;
+    });
+  },[records,prod,turno]);
+
+  var weekComparisonData=useMemo(function(){
+    if(!compareWeeks)return null;
+    function pick(wy){
+      return prodRecords.filter(function(r){
+        var f=r.FechaMuestreo||r.fecha||'';if(!f)return false;
+        var iw=isoWeekKey(f);
+        return iw.year===wy.year&&iw.week===wy.week;
+      });
+    }
+    return{recX:enrichRecs(pick(weekX)),recY:enrichRecs(pick(weekY))};
+  },[compareWeeks,weekX,weekY,prodRecords,prod]);
 
   /* Agrupa los registros filtrados en "puntos" de dia/semana/mes para el
      grafico (cada punto guarda sus registros crudos, para el KPI drill-down). */
@@ -9645,8 +9729,13 @@ function EstadisticasScreen({account,onBack}){
         var bv=b.records.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
         return bv.length?bv.reduce(function(a,b2){return a+b2;},0)/bv.length:null;
       });
+      // Amplitud: rango movil punto-a-punto sobre los puntos del grafico
+      // (dia/semana/mes segun agrupacion), para ver saltos entre muestras
+      // consecutivas. El rango de la columna completa ya viene en st.range.
+      var amp=amplitudSeries(bucketSeries);
       return Object.assign({},c,{series:series,bucketSeries:bucketSeries,st:st,ma:movAvgLocal(bucketSeries,maWin),
-        out3:out3,out2:out2,outEett:outEett,maxRun:maxRun,sig:sig,nLow:st?st.n<20:false});
+        out3:out3,out2:out2,outEett:outEett,maxRun:maxRun,sig:sig,nLow:st?st.n<20:false,
+        ampSeries:amp.series,ampAvg:amp.avg});
     });
   },[columns,enriched,buckets,maWin]);
 
@@ -9729,13 +9818,12 @@ function EstadisticasScreen({account,onBack}){
     colStats.forEach(function(c){
       var el=histRefs.current[c.key];if(!el||!c.st||c.st.n<2)return;
       var vals=c.series.filter(function(v){return v!=null&&!isNaN(v);});
-      var lo=c.st.min,hi=c.st.max;if(hi<=lo){hi=lo+1;}
-      var nb=Math.min(12,Math.max(5,Math.ceil(Math.sqrt(vals.length))));
-      var w=(hi-lo)/nb,bins=new Array(nb).fill(0),labels=[];
-      for(var b=0;b<nb;b++)labels.push(fmt(lo+w*b,2));
-      vals.forEach(function(v){var idx=Math.min(nb-1,Math.floor((v-lo)/w));bins[idx]++;});
+      var hd=histogramData(vals,c.st);
+      var ds=[{type:'bar',label:'Frecuencia',data:hd.bins,backgroundColor:(c.color||'#1a5276')+'cc',borderColor:c.color||'#1a5276',borderWidth:1,order:2}];
+      if(hd.normData)ds.push({type:'line',label:'Normal',data:hd.normData,borderColor:'#c0392b',backgroundColor:'transparent',
+        borderWidth:2,pointRadius:0,tension:.35,fill:false,order:1});
       histInsts.current[c.key]=new window.Chart(el,{type:'bar',
-        data:{labels:labels,datasets:[{data:bins,backgroundColor:(c.color||'#1a5276')+'cc',borderColor:c.color||'#1a5276',borderWidth:1}]},
+        data:{labels:hd.labels,datasets:ds},
         options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:false}},
           scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8}},beginAtZero:true}}}});
@@ -9743,13 +9831,186 @@ function EstadisticasScreen({account,onBack}){
     return function(){Object.keys(histInsts.current).forEach(function(k){if(histInsts.current[k]){histInsts.current[k].destroy();histInsts.current[k]=null;}});};
   },[colStats,colSel]);
 
+  // Estadisticas de la columna enfocada, para Semana X y Semana Y
+  var weekColStats=useMemo(function(){
+    if(!weekComparisonData||colSel==='__all')return null;
+    var c=columns.find(function(x){return x.key===colSel;});
+    if(!c)return null;
+    var vx=weekComparisonData.recX.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
+    var vy=weekComparisonData.recY.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
+    return{col:c,vx:vx,vy:vy,stx:statSummary(vx),sty:statSummary(vy),
+      ampx:amplitudSeries(vx).avg,ampy:amplitudSeries(vy).avg};
+  },[weekComparisonData,colSel,columns]);
+
+  useEffect(function(){
+    if(!window.Chart||!weekColStats)return;
+    Object.keys(weekHistInsts.current).forEach(function(k){if(weekHistInsts.current[k]){weekHistInsts.current[k].destroy();weekHistInsts.current[k]=null;}});
+    [['X',weekColStats.vx,weekColStats.stx,'#1a5276'],['Y',weekColStats.vy,weekColStats.sty,'#c0392b']].forEach(function(pair){
+      var side=pair[0],vals=pair[1],st=pair[2],col=pair[3];
+      var el=weekHistRefs.current[side];if(!el||!st||st.n<2)return;
+      var hd=histogramData(vals,st);
+      var ds=[{type:'bar',label:'Frecuencia',data:hd.bins,backgroundColor:col+'cc',borderColor:col,borderWidth:1,order:2}];
+      if(hd.normData)ds.push({type:'line',label:'Normal',data:hd.normData,borderColor:'#333',backgroundColor:'transparent',
+        borderWidth:2,pointRadius:0,tension:.35,fill:false,order:1});
+      weekHistInsts.current[side]=new window.Chart(el,{type:'bar',data:{labels:hd.labels,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8}},beginAtZero:true}}}});
+    });
+    return function(){Object.keys(weekHistInsts.current).forEach(function(k){if(weekHistInsts.current[k]){weekHistInsts.current[k].destroy();weekHistInsts.current[k]=null;}});};
+  },[weekColStats]);
+
+  // Estadisticas Semana X / Semana Y para TODAS las columnas (no solo la
+  // enfocada) — usado por la grilla de distribucion general.
+  var allColsWeekStats=useMemo(function(){
+    if(!weekComparisonData)return null;
+    return columns.map(function(c){
+      var vx=weekComparisonData.recX.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
+      var vy=weekComparisonData.recY.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
+      return{key:c.key,label:c.label,vx:vx,vy:vy,stx:statSummary(vx),sty:statSummary(vy)};
+    });
+  },[weekComparisonData,columns]);
+
+  /* Grilla de distribucion general: un histograma+normal por columna (o,
+     si esta activo el comparador, dos por columna: Semana X y Semana Y).
+     Solo se dibuja cuando el usuario abre la grilla ("__all" + boton),
+     para no crear decenas de graficos Chart.js sin que se pidan. */
+  useEffect(function(){
+    if(!window.Chart)return;
+    Object.keys(distHistInsts.current).forEach(function(k){if(distHistInsts.current[k]){distHistInsts.current[k].destroy();distHistInsts.current[k]=null;}});
+    if(!showDistGrid||colSel!=='__all')return;
+    function draw(key,vals,st,col){
+      var el=distHistRefs.current[key];if(!el||!st||st.n<2)return;
+      var hd=histogramData(vals,st);
+      var ds=[{type:'bar',label:'Frecuencia',data:hd.bins,backgroundColor:col+'cc',borderColor:col,borderWidth:1,order:2}];
+      if(hd.normData)ds.push({type:'line',label:'Normal',data:hd.normData,borderColor:'#333',backgroundColor:'transparent',
+        borderWidth:2,pointRadius:0,tension:.35,fill:false,order:1});
+      distHistInsts.current[key]=new window.Chart(el,{type:'bar',data:{labels:hd.labels,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:6},maxRotation:45,maxTicksLimit:6}},y:{ticks:{font:{size:7}},beginAtZero:true}}}});
+    }
+    if(compareWeeks&&allColsWeekStats){
+      allColsWeekStats.forEach(function(c){
+        draw(c.key+'_X',c.vx,c.stx,'#1a5276');
+        draw(c.key+'_Y',c.vy,c.sty,'#c0392b');
+      });
+    }else{
+      colStats.forEach(function(c){
+        var vals=c.series.filter(function(v){return v!=null&&!isNaN(v);});
+        draw(c.key,vals,c.st,c.color||'#1a5276');
+      });
+    }
+    return function(){Object.keys(distHistInsts.current).forEach(function(k){if(distHistInsts.current[k]){distHistInsts.current[k].destroy();distHistInsts.current[k]=null;}});};
+  },[colStats,colSel,showDistGrid,compareWeeks,allColsWeekStats]);
+
+  /* ══ SOLO ADMINISTRADOR — Por Analista ══
+     Filtra por el analista elegido, con su PROPIO rango de fechas
+     (independiente del filtro Desde/Hasta de arriba) y SIN el filtro de
+     Turno de arriba (para poder desglosar por turno dentro de esta misma
+     seccion). Solo se restringe por producto y por la columna enfocada. */
+  var prodRecordsAllTurno=useMemo(function(){
+    return records.filter(function(r){return(r.ProductoKey||r.producto||'')===prod;});
+  },[records,prod]);
+
+  var analistaOptsAdmin=useMemo(function(){
+    var set={};
+    prodRecordsAllTurno.forEach(function(r){var a=r.Analista||r.analista;if(a)set[a]=true;});
+    return Object.keys(set).sort();
+  },[prodRecordsAllTurno]);
+
+  var analistaBaseRecs=useMemo(function(){
+    if(!isAdmin||colSel==='__all'||!analistaSel)return[];
+    return enrichRecs(prodRecordsAllTurno.filter(function(r){
+      if((r.Analista||r.analista)!==analistaSel)return false;
+      var f=r.FechaMuestreo||r.fecha||'';
+      if(analistaDesde&&f<analistaDesde)return false;
+      if(analistaHasta&&f>analistaHasta)return false;
+      return true;
+    }));
+  },[isAdmin,colSel,analistaSel,analistaDesde,analistaHasta,prodRecordsAllTurno,prod]);
+
+  var analistaColStat=useMemo(function(){
+    if(!isAdmin||colSel==='__all'||!analistaSel)return null;
+    var c=columns.find(function(x){return x.key===colSel;});
+    if(!c)return null;
+    var recs=analistaBaseRecs;
+    var vals=recs.map(c.get).filter(function(v){return v!=null&&!isNaN(v);});
+    var st=statSummary(vals);
+    if(!st)return{col:c,recs:recs,vals:vals,st:null};
+    var mr=[];for(var k=1;k<vals.length;k++)mr.push(Math.abs(vals[k]-vals[k-1]));
+    var mrBar=mr.length?mr.reduce(function(a,b){return a+b;},0)/mr.length:0;
+    var sigmaHat=mrBar/1.128;
+    var sig=sigmaHat>0?sigmaHat:st.sd;
+    var amp=amplitudSeries(vals);
+    var cp=null,cpk=null;
+    if((c.limMin!=null||c.limMax!=null)&&sig){
+      var cpu=c.limMax!=null?(c.limMax-st.mean)/(3*sig):null;
+      var cpl=c.limMin!=null?(st.mean-c.limMin)/(3*sig):null;
+      cpk=Math.min.apply(null,[cpu,cpl].filter(function(x){return x!=null;}));
+      if(c.limMin!=null&&c.limMax!=null)cp=(c.limMax-c.limMin)/(6*sig);
+    }
+    // Desglose por turno: mismo analista, mismo filtro de fechas, agrupado
+    // por Turno — para ver si sus variaciones cambian segun en que turno trabajo.
+    var porTurno={};
+    recs.forEach(function(r){
+      var t=r.Turno||r.turno||'(sin turno)';
+      var v=c.get(r);if(v==null||isNaN(v))return;
+      (porTurno[t]||(porTurno[t]=[])).push(v);
+    });
+    var turnoStats=Object.keys(porTurno).sort().map(function(t){
+      return{turno:t,st:statSummary(porTurno[t])};
+    }).filter(function(x){return x.st;});
+    return{col:c,recs:recs,vals:vals,st:st,sig:sig,amp:amp,cp:cp,cpk:cpk,turnoStats:turnoStats,
+      labels:recs.map(function(r){return(r.FechaMuestreo||r.fecha||'').slice(5);})};
+  },[isAdmin,colSel,analistaSel,analistaBaseRecs,columns]);
+
+  useEffect(function(){
+    if(analistaChartInst.current){analistaChartInst.current.destroy();analistaChartInst.current=null;}
+    if(analistaHistInst.current){analistaHistInst.current.destroy();analistaHistInst.current=null;}
+    if(!window.Chart||!analistaColStat||!analistaColStat.st)return;
+    var acs=analistaColStat;
+    if(analistaChartRef.current){
+      var m=acs.st.mean,sd=acs.sig||acs.st.sd;
+      function band(v){return acs.vals.map(function(){return v;});}
+      analistaChartInst.current=new window.Chart(analistaChartRef.current,{type:'line',
+        data:{labels:acs.labels,datasets:[
+          {label:acs.col.label,data:acs.vals,borderColor:'#6c3483',backgroundColor:'transparent',borderWidth:1.8,pointRadius:3,tension:.3},
+          {label:'Media',data:band(m),borderColor:'#555',borderWidth:1.2,pointRadius:0,borderDash:[2,2]},
+          {label:'+3σ',data:band(m+3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]},
+          {label:'-3σ',data:band(m-3*sd),borderColor:'#c62828',borderWidth:1.2,pointRadius:0,borderDash:[5,3]},
+        ]},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:10}},y:{ticks:{font:{size:8}}}}}});
+    }
+    if(analistaHistRef.current&&acs.st.n>=2){
+      var hd=histogramData(acs.vals,acs.st);
+      var ds=[{type:'bar',label:'Frecuencia',data:hd.bins,backgroundColor:'#6c3483cc',borderColor:'#6c3483',borderWidth:1,order:2}];
+      if(hd.normData)ds.push({type:'line',label:'Normal',data:hd.normData,borderColor:'#333',backgroundColor:'transparent',
+        borderWidth:2,pointRadius:0,tension:.35,fill:false,order:1});
+      analistaHistInst.current=new window.Chart(analistaHistRef.current,{type:'bar',data:{labels:hd.labels,datasets:ds},
+        options:{animation:{duration:0},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:7},maxRotation:45,maxTicksLimit:8}},y:{ticks:{font:{size:8}},beginAtZero:true}}}});
+    }
+    return function(){
+      if(analistaChartInst.current){analistaChartInst.current.destroy();analistaChartInst.current=null;}
+      if(analistaHistInst.current){analistaHistInst.current.destroy();analistaHistInst.current=null;}
+    };
+  },[analistaColStat]);
+
+  var wks=[];for(var wi=1;wi<=52;wi++)wks.push(wi);
+  var yrOpts=[2024,2025,2026,2027];
+
   return(
     <div>
+      {showPass&&<PassModal currentUser={account} onOk={function(){setIsAdmin(true);setShowPass(false);}} onCancel={function(){setShowPass(false);}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <div><h2>Análisis Estadístico</h2>
           <div style={{fontSize:'.82rem',color:'var(--text-secondary)'}}>Control estadístico por columna, período personalizado y KPI con drill-down</div>
         </div>
+        <span style={{marginLeft:'auto'}}>
+          {!isAdmin&&<button className="btn btn-secondary" onClick={function(){setShowPass(true);}}>&#128272; Modo Admin</button>}
+          {isAdmin&&<span className="badge badge-s" style={{padding:'4px 12px'}}>Admin activo</span>}
+        </span>
       </div>
 
       <div className="db-filter-row">
@@ -9817,6 +10078,39 @@ function EstadisticasScreen({account,onBack}){
         )}
       </div>
 
+      <div className="db-filter-row" style={{marginTop:8}}>
+        <div className="dff">
+          <label style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:'.82rem',fontWeight:700,color:'var(--primary)',minHeight:34}}>
+            <input type="checkbox" checked={compareWeeks} onChange={function(e){setCompareWeeks(e.target.checked);}}/>
+            &#128200; Comparar Semana X vs Semana Y
+          </label>
+        </div>
+        {compareWeeks&&(
+          <>
+            <div className="dff"><label>Semana X</label>
+              <div style={{display:'flex',gap:4}}>
+                <select value={weekX.week} onChange={function(e){setWeekX(function(p){return Object.assign({},p,{week:parseInt(e.target.value)});});}}>
+                  {wks.map(function(w){return <option key={w} value={w}>Sem {w}</option>;})}
+                </select>
+                <select value={weekX.year} onChange={function(e){setWeekX(function(p){return Object.assign({},p,{year:parseInt(e.target.value)});});}}>
+                  {yrOpts.map(function(y){return <option key={y} value={y}>{y}</option>;})}
+                </select>
+              </div>
+            </div>
+            <div className="dff"><label>Semana Y</label>
+              <div style={{display:'flex',gap:4}}>
+                <select value={weekY.week} onChange={function(e){setWeekY(function(p){return Object.assign({},p,{week:parseInt(e.target.value)});});}}>
+                  {wks.map(function(w){return <option key={w} value={w}>Sem {w}</option>;})}
+                </select>
+                <select value={weekY.year} onChange={function(e){setWeekY(function(p){return Object.assign({},p,{year:parseInt(e.target.value)});});}}>
+                  {yrOpts.map(function(y){return <option key={y} value={y}>{y}</option>;})}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       {loading&&<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
       {!loading&&filtered.length===0&&(
         <div style={{textAlign:'center',padding:32,color:'var(--text-muted)',background:'var(--card)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)'}}>
@@ -9861,6 +10155,11 @@ function EstadisticasScreen({account,onBack}){
                     </div>
                     <div style={{fontSize:'1.9rem',fontWeight:800,lineHeight:1.15,color:'#1a5276'}}>{bucketVal!=null?fmt(bucketVal,dp):'—'}</div>
                     <div style={{fontSize:'.72rem',color:'var(--text-muted)'}}>Promedio de {b.records.length} ensayo{b.records.length===1?'':'s'} en este {groupBy==='mes'?'mes':groupBy==='semana'?'semana':'día'}</div>
+                    {cs.ampSeries&&cs.ampSeries[selBucket]!=null&&(
+                      <div style={{fontSize:'.72rem',color:'#9a6b00',fontWeight:700,marginTop:3}}>
+                        Amplitud vs. punto anterior: {fmt(cs.ampSeries[selBucket],dp)}
+                      </div>
+                    )}
                   </div>
                 )}
                 {!b&&(
@@ -9875,11 +10174,17 @@ function EstadisticasScreen({account,onBack}){
           {/* Overview: resumen de todas las columnas de un vistazo */}
           {colSel==='__all'&&(
             <div className="sec-card" style={{marginBottom:16}}>
-              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>Resumen general de columnas — clic en una para analizarla</div>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span>Resumen general de columnas — clic en una para analizarla</span>
+                <button className="btn btn-secondary" style={{padding:'4px 12px',fontSize:'.72rem'}}
+                  onClick={function(){setShowDistGrid(function(v){return !v;});}}>
+                  &#128202; {showDistGrid?'Ocultar':'Ver'} distribución (histograma + normal) de todas las mallas
+                </button>
+              </div>
               <div style={{padding:'6px',overflowX:'auto'}}>
                 <table style={{borderCollapse:'collapse',fontSize:'.74rem',width:'100%'}}>
                   <thead><tr style={{background:'#f0f4f8'}}>
-                    {['Columna','n','Media','σ','CV%','Tendencia','Fuera ±2σ','Fuera ±3σ','Fuera EETT','Cpk'].map(function(h){return <th key={h} style={{padding:'5px 8px',textAlign:h==='Columna'?'left':'center',color:'#555',whiteSpace:'nowrap'}}>{h}</th>;})}
+                    {['Columna','n','Media','σ','Rango','Amplitud','CV%','Tendencia','Fuera ±2σ','Fuera ±3σ','Fuera EETT','Cpk'].map(function(h){return <th key={h} style={{padding:'5px 8px',textAlign:h==='Columna'?'left':'center',color:'#555',whiteSpace:'nowrap'}}>{h}</th>;})}
                   </tr></thead>
                   <tbody>
                     {colStats.map(function(c){
@@ -9902,6 +10207,8 @@ function EstadisticasScreen({account,onBack}){
                           <td style={{padding:'4px 8px',textAlign:'center'}}>{st.n}</td>
                           <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(st.mean,2)}</td>
                           <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(c.sig||st.sd,3)}</td>
+                          <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(st.range,3)}</td>
+                          <td style={{padding:'4px 8px',textAlign:'center'}}>{c.ampAvg==null?'—':fmt(c.ampAvg,3)}</td>
                           <td style={{padding:'4px 8px',textAlign:'center',color:cvc,fontWeight:700}}>{st.cv==null?'—':fmt(st.cv,1)}</td>
                           {cell(c.maxRun,c.maxRun>=6,'#2980b9')}
                           {cell(c.out2,c.out2>0,'#e67e22')}
@@ -9913,6 +10220,49 @@ function EstadisticasScreen({account,onBack}){
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Distribucion general: histograma + curva normal de todas las
+              mallas/columnas del producto elegido de una vez. Si el
+              comparador de semanas esta activo, muestra Semana X y
+              Semana Y una al lado de la otra por cada columna. */}
+          {colSel==='__all'&&showDistGrid&&(
+            <div className="sec-card" style={{marginBottom:16}}>
+              <div className="sec-card-hdr" style={{fontSize:'.8rem'}}>
+                Distribución general — histograma + curva normal por malla/columna
+                {compareWeeks&&' · Semana X ('+weekX.week+'-'+weekX.year+') vs Semana Y ('+weekY.week+'-'+weekY.year+')'}
+              </div>
+              <div style={{padding:'12px 14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:14}}>
+                {compareWeeks&&allColsWeekStats
+                  ?allColsWeekStats.map(function(c){
+                    if((!c.stx||c.stx.n<2)&&(!c.sty||c.sty.n<2))return null;
+                    return(
+                      <div key={c.key} style={{border:'1px solid var(--border)',borderRadius:10,padding:8}}>
+                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.label}</div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                          <div>
+                            <div style={{fontSize:'.62rem',color:'#1a5276',fontWeight:700}}>Sem X (n={c.stx?c.stx.n:0})</div>
+                            <div style={{position:'relative',minHeight:100}}><canvas ref={function(el){distHistRefs.current[c.key+'_X']=el;}}/></div>
+                          </div>
+                          <div>
+                            <div style={{fontSize:'.62rem',color:'#c0392b',fontWeight:700}}>Sem Y (n={c.sty?c.sty.n:0})</div>
+                            <div style={{position:'relative',minHeight:100}}><canvas ref={function(el){distHistRefs.current[c.key+'_Y']=el;}}/></div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                  :colStats.map(function(c){
+                    if(!c.st||c.st.n<2)return null;
+                    return(
+                      <div key={c.key} style={{border:'1px solid var(--border)',borderRadius:10,padding:8}}>
+                        <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.label} (n={c.st.n})</div>
+                        <div style={{position:'relative',minHeight:120}}><canvas ref={function(el){distHistRefs.current[c.key]=el;}}/></div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -9957,7 +10307,8 @@ function EstadisticasScreen({account,onBack}){
                   </div>
                   <div style={{padding:'12px 14px'}}>
                     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:'.72rem'}}>
-                      {[['n',st.n,0,'#1a5276'],['Media',st.mean,3,'#1a5276'],['σ',st.sd,4,'#6c3483'],['Mín',st.min,3,'#117864'],['Q1',st.q1,3,'#117864'],['Mediana',st.med,3,'#117864'],['Q3',st.q3,3,'#117864'],['Máx',st.max,3,'#117864']].map(function(kv,i){
+                      {[['n',st.n,0,'#1a5276'],['Media',st.mean,3,'#1a5276'],['σ',st.sd,4,'#6c3483'],['Mín',st.min,3,'#117864'],['Q1',st.q1,3,'#117864'],['Mediana',st.med,3,'#117864'],['Q3',st.q3,3,'#117864'],['Máx',st.max,3,'#117864'],
+                        ['Rango',st.range,3,'#b7791f'],['Amplitud prom.',c.ampAvg,3,'#b7791f']].map(function(kv,i){
                         return <span key={i} style={{padding:'3px 9px',borderRadius:10,background:kv[3]+'12',border:'1px solid '+kv[3]+'44'}}>
                           <span style={{color:'var(--text-muted)',fontWeight:600}}>{kv[0]}</span>{' '}
                           <span style={{fontWeight:800,color:kv[3]}}>{kv[1]==null?'—':fmt(kv[1],kv[2])}</span></span>;
@@ -10009,7 +10360,7 @@ function EstadisticasScreen({account,onBack}){
                       </div>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
                         <div>
-                          <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>HISTOGRAMA (DISTRIBUCIÓN)</div>
+                          <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>HISTOGRAMA + CURVA NORMAL</div>
                           <div style={{position:'relative',minHeight:160}}><canvas ref={function(el){histRefs.current[c.key]=el;}}/></div>
                         </div>
                         <div>
@@ -10055,6 +10406,169 @@ function EstadisticasScreen({account,onBack}){
                         <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
                           <div style={{fontSize:'.74rem',fontWeight:800,color:'var(--primary)',marginBottom:8}}>COMPARATIVA (detección de sesgos)</div>
                           <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>{bT}{bA}</div>
+                        </div>
+                      );
+                    })()}
+                    {/* Comparar Semana X vs Semana Y (mismo producto) — solo al enfocar una columna */}
+                    {compareWeeks&&colSel===c.key&&weekColStats&&(function(){
+                      var wcs=weekColStats;
+                      function deltaRow(lbl,vx,vy,dec){
+                        if(vx==null||vy==null)return null;
+                        var d=vy-vx;
+                        var arrow=d>0?'▲':d<0?'▼':'—';
+                        var col=d>0?'#c0392b':d<0?'#1e7e44':'#888';
+                        return(
+                          <div style={{display:'flex',justifyContent:'space-between',fontSize:'.76rem',padding:'3px 0',borderBottom:'1px solid #f0f0f0'}}>
+                            <span style={{color:'var(--text-muted)'}}>{lbl}</span>
+                            <span><b>{fmt(vx,dec)}</b> &#8594; <b>{fmt(vy,dec)}</b> <span style={{color:col,fontWeight:800}}>{arrow} {fmt(Math.abs(d),dec)}</span></span>
+                          </div>
+                        );
+                      }
+                      return(
+                        <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
+                          <div style={{fontSize:'.74rem',fontWeight:800,color:'var(--primary)',marginBottom:8}}>
+                            COMPARAR SEMANAS — Sem {weekX.week}-{weekX.year} vs Sem {weekY.week}-{weekY.year}
+                          </div>
+                          <div style={{display:'flex',gap:24,flexWrap:'wrap',marginBottom:10}}>
+                            <div style={{flex:1,minWidth:220}}>
+                              <div style={{fontSize:'.7rem',fontWeight:700,color:'#1a5276',marginBottom:4}}>SEMANA X (n={wcs.stx?wcs.stx.n:0})</div>
+                              {wcs.stx?<Boxplot st={wcs.stx} color="#1a5276"/>:<div style={{fontSize:'.74rem',color:'var(--text-muted)'}}>Sin datos en esa semana.</div>}
+                              <div style={{position:'relative',minHeight:120,marginTop:6}}><canvas ref={function(el){weekHistRefs.current['X']=el;}}/></div>
+                            </div>
+                            <div style={{flex:1,minWidth:220}}>
+                              <div style={{fontSize:'.7rem',fontWeight:700,color:'#c0392b',marginBottom:4}}>SEMANA Y (n={wcs.sty?wcs.sty.n:0})</div>
+                              {wcs.sty?<Boxplot st={wcs.sty} color="#c0392b"/>:<div style={{fontSize:'.74rem',color:'var(--text-muted)'}}>Sin datos en esa semana.</div>}
+                              <div style={{position:'relative',minHeight:120,marginTop:6}}><canvas ref={function(el){weekHistRefs.current['Y']=el;}}/></div>
+                            </div>
+                          </div>
+                          {wcs.stx&&wcs.sty&&(
+                            <div style={{maxWidth:420}}>
+                              <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>VARIACIÓN X &#8594; Y</div>
+                              {deltaRow('Media',wcs.stx.mean,wcs.sty.mean,3)}
+                              {deltaRow('σ (desviación estándar)',wcs.stx.sd,wcs.sty.sd,4)}
+                              {deltaRow('Rango',wcs.stx.range,wcs.sty.range,3)}
+                              {deltaRow('Amplitud prom.',wcs.ampx,wcs.ampy,3)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Por Analista — SOLO ADMINISTRADOR */}
+                    {isAdmin&&colSel===c.key&&(function(){
+                      var acs=analistaColStat;
+                      return(
+                        <div style={{marginTop:14,paddingTop:12,borderTop:'2px solid #6c3483'}}>
+                          <div style={{fontSize:'.74rem',fontWeight:800,color:'#6c3483',marginBottom:8}}>
+                            &#128272; POR ANALISTA (SOLO ADMINISTRADOR)
+                          </div>
+                          <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:10,alignItems:'flex-end'}}>
+                            <div className="dff" style={{maxWidth:240}}>
+                              <label style={{fontSize:'.72rem'}}>Analista</label>
+                              <select value={analistaSel} onChange={function(e){setAnalistaSel(e.target.value);}}>
+                                <option value="">Selecciona un analista…</option>
+                                {analistaOptsAdmin.map(function(a){return <option key={a} value={a}>{a}</option>;})}
+                              </select>
+                            </div>
+                            <div className="dff" style={{maxWidth:160}}>
+                              <label style={{fontSize:'.72rem'}}>Desde</label>
+                              <input type="date" value={analistaDesde} onChange={function(e){setAnalistaDesde(e.target.value);}}/>
+                            </div>
+                            <div className="dff" style={{maxWidth:160}}>
+                              <label style={{fontSize:'.72rem'}}>Hasta</label>
+                              <input type="date" value={analistaHasta} onChange={function(e){setAnalistaHasta(e.target.value);}}/>
+                            </div>
+                            <div style={{fontSize:'.68rem',color:'var(--text-muted)',fontStyle:'italic',alignSelf:'center'}}>
+                              (fechas propias de esta sección — no depende del Desde/Hasta ni del Turno de arriba)
+                            </div>
+                          </div>
+                          {!analistaSel&&(
+                            <div style={{fontSize:'.76rem',color:'var(--text-muted)',fontStyle:'italic'}}>
+                              Elige un analista para ver su tendencia, rango, amplitud, desviación, capacidad e histograma en esta columna.
+                            </div>
+                          )}
+                          {analistaSel&&(!acs||!acs.st)&&(
+                            <div style={{fontSize:'.76rem',color:'var(--text-muted)'}}>Sin registros de {analistaSel} para este filtro.</div>
+                          )}
+                          {analistaSel&&acs&&acs.st&&(function(){
+                            var st=acs.st;
+                            var distInf=st.mean-st.min,distSup=st.max-st.mean;
+                            return(
+                            <>
+                              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:6,fontSize:'.72rem'}}>
+                                {[['n',st.n,0],['Media',st.mean,3],['σ',st.sd,4]].map(function(kv,i){
+                                  return <span key={i} style={{padding:'3px 9px',borderRadius:10,background:'#6c348312',border:'1px solid #6c348344'}}>
+                                    <span style={{color:'var(--text-muted)',fontWeight:600}}>{kv[0]}</span>{' '}
+                                    <span style={{fontWeight:800,color:'#6c3483'}}>{kv[1]==null?'—':fmt(kv[1],kv[2])}</span></span>;
+                                })}
+                                {acs.cpk!=null&&(function(){
+                                  var cpkCol=acs.cpk>=1.33?'var(--success)':acs.cpk>=1?'#b7791f':'var(--error)';
+                                  return <span style={{padding:'3px 9px',borderRadius:10,background:'#eef4fb',border:'1px solid var(--primary-light)'}}>
+                                    <b>Capacidad:</b> {acs.cp!=null?'Cp '+fmt(acs.cp,2)+' · ':''}<span style={{color:cpkCol,fontWeight:800}}>Cpk {fmt(acs.cpk,2)}</span>
+                                    {acs.cpk>=1.33?' (capaz)':acs.cpk>=1?' (marginal)':' (no capaz)'}
+                                  </span>;
+                                })()}
+                              </div>
+                              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:'.72rem'}}>
+                                <span style={{padding:'3px 9px',borderRadius:10,background:'#eef4fb',border:'1px solid var(--primary-light)'}}>
+                                  <span style={{color:'var(--text-muted)',fontWeight:600}}>Mínimo</span>{' '}<span style={{fontWeight:800,color:'#1a5276'}}>{fmt(st.min,3)}</span></span>
+                                <span style={{padding:'3px 9px',borderRadius:10,background:'#fff3e0',border:'1px solid #f0c987'}}>
+                                  <span style={{color:'var(--text-muted)',fontWeight:600}}>Distancia inferior (Media−Mín)</span>{' '}<span style={{fontWeight:800,color:'#b7791f'}}>−{fmt(distInf,3)}</span></span>
+                                <span style={{padding:'3px 9px',borderRadius:10,background:'#fff3e0',border:'1px solid #f0c987'}}>
+                                  <span style={{color:'var(--text-muted)',fontWeight:600}}>Distancia superior (Máx−Media)</span>{' '}<span style={{fontWeight:800,color:'#b7791f'}}>+{fmt(distSup,3)}</span></span>
+                                <span style={{padding:'3px 9px',borderRadius:10,background:'#eef4fb',border:'1px solid var(--primary-light)'}}>
+                                  <span style={{color:'var(--text-muted)',fontWeight:600}}>Máximo</span>{' '}<span style={{fontWeight:800,color:'#1a5276'}}>{fmt(st.max,3)}</span></span>
+                                <span style={{padding:'3px 9px',borderRadius:10,background:'#f5f5f5',border:'1px solid var(--border)'}}>
+                                  <span style={{color:'var(--text-muted)',fontWeight:600}}>Rango general (Máx−Mín)</span>{' '}<span style={{fontWeight:800}}>{fmt(st.range,3)}</span></span>
+                                <span style={{padding:'3px 9px',borderRadius:10,background:'#f5f5f5',border:'1px solid var(--border)'}}>
+                                  <span style={{color:'var(--text-muted)',fontWeight:600}}>Amplitud prom. (punto a punto)</span>{' '}<span style={{fontWeight:800}}>{acs.amp.avg==null?'—':fmt(acs.amp.avg,3)}</span></span>
+                              </div>
+                              <div style={{fontSize:'.72rem',color:'var(--text-muted)',marginBottom:10}}>
+                                Oscila entre <b style={{color:'#1a5276'}}>{fmt(st.min,3)}</b> y <b style={{color:'#1a5276'}}>{fmt(st.max,3)}</b>, con media <b>{fmt(st.mean,3)}</b>
+                                {' '}(−{fmt(distInf,3)} / +{fmt(distSup,3)} respecto a la media).
+                              </div>
+                              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+                                <div>
+                                  <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>TENDENCIA (individual + ±3σ)</div>
+                                  <div style={{position:'relative',minHeight:160}}><canvas ref={analistaChartRef}/></div>
+                                </div>
+                                <div>
+                                  <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)',marginBottom:4}}>HISTOGRAMA + CURVA NORMAL</div>
+                                  <div style={{position:'relative',minHeight:160}}><canvas ref={analistaHistRef}/></div>
+                                </div>
+                              </div>
+                              {acs.turnoStats&&acs.turnoStats.length>0&&(
+                                <div>
+                                  <div style={{fontSize:'.72rem',fontWeight:800,color:'#6c3483',marginBottom:6}}>DESGLOSE POR TURNO (mismo analista, mismo filtro de fechas)</div>
+                                  <div style={{overflowX:'auto'}}>
+                                    <table style={{borderCollapse:'collapse',fontSize:'.74rem'}}>
+                                      <thead><tr style={{background:'#f0f4f8'}}>
+                                        {['Turno','n','Media','σ','Mínimo','Dist. inferior','Dist. superior','Máximo','Rango'].map(function(h){return <th key={h} style={{padding:'4px 8px',textAlign:h==='Turno'?'left':'center',color:'#555',whiteSpace:'nowrap'}}>{h}</th>;})}
+                                      </tr></thead>
+                                      <tbody>
+                                        {acs.turnoStats.map(function(ts){
+                                          var s=ts.st,di=s.mean-s.min,ds=s.max-s.mean;
+                                          return(
+                                            <tr key={ts.turno} style={{borderBottom:'1px solid #f0f0f0'}}>
+                                              <td style={{padding:'4px 8px',fontWeight:700}}>{ts.turno}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center'}}>{s.n}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(s.mean,3)}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(s.sd,4)}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(s.min,3)}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center',color:'#b7791f'}}>−{fmt(di,3)}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center',color:'#b7791f'}}>+{fmt(ds,3)}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center'}}>{fmt(s.max,3)}</td>
+                                              <td style={{padding:'4px 8px',textAlign:'center',fontWeight:700}}>{fmt(s.range,3)}</td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                            );
+                          })()}
                         </div>
                       );
                     })()}
