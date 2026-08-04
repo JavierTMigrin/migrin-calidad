@@ -10588,6 +10588,11 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
   var pk=rec.ProductoKey||rec.producto||'';
   var sieves=SIEVE_CONFIG[pk]||[];
   var cfg=PRODUCT_CONFIG[pk]||{};
+  // Control de Granos (Arenas y Turco) mide CONTEO por malla, no masa: no
+  // usa Peso Inicial/Final (siempre quedan null) y las mallas son unidades,
+  // no gramos.
+  var isCount=(pk==='CGRANOS'||pk==='TT_GRANOS');
+  var extra0=rec.Extra||rec.extra||{};
   var[fecha,setFecha]=useState(rec.FechaMuestreo||rec.fecha||'');
   var[turno,setTurno]=useState(rec.Turno||rec.turno||'');
   var[analista,setAnalista]=useState(rec.Analista||rec.analista||'');
@@ -10598,6 +10603,9 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
   var[hum,setHum]=useState(String(rec.PctHumedad!=null?rec.PctHumedad:''));
   var[obs,setObs]=useState(rec.Observaciones||rec.observaciones||'');
   var[granu,setGranu]=useState((rec.granu&&Array.isArray(rec.granu)?rec.granu:sieves.map(function(){return'';})).map(String));
+  // Conteo de arcillas por malla (solo Control Granos Produccion Turco):
+  // se guarda aparte, en extra.arcillas, junto al conteo de granos.
+  var[arcillas,setArcillas]=useState((pk==='TT_GRANOS'&&Array.isArray(extra0.arcillas)?extra0.arcillas:sieves.map(function(){return'';})).map(String));
   var q0=rec.quimica||{};
   var[quim,setQuim]=useState({sio2:String(q0.sio2||''),al2o3:String(q0.al2o3||''),fe2o3:String(q0.fe2o3||''),
     cao:String(q0.cao||''),mgo:String(q0.mgo||''),k2o:String(q0.k2o||''),na2o:String(q0.na2o||''),tio2:String(q0.tio2||'')});
@@ -10605,6 +10613,7 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
   var[err,setErr]=useState('');
 
   function upG(i,v){setGranu(function(p){var n=p.slice();n[i]=v;return n;});}
+  function upA(i,v){setArcillas(function(p){var n=p.slice();n[i]=v;return n;});}
   function upQ(k,v){setQuim(function(p){var n=Object.assign({},p);n[k]=v;return n;});}
 
   async function save(){
@@ -10616,6 +10625,7 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
       pct_humedad:parseDecimal(hum)||null,observaciones:obs||null,
       granu:granu,quimica:quim,
     };
+    if(pk==='TT_GRANOS')fields.extra=Object.assign({},extra0,{arcillas:arcillas});
     try{
       await updateEnsayo(rec.ID||rec.id,fields,account);
       setSaving(false);onSaved();
@@ -10647,18 +10657,31 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
               <select style={inS} value={numA} onChange={function(e){setNumA(e.target.value);}}>
                 <option value="">—</option>{ACOPIOS_PRODUCCION.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
               </select></div>}
-            <div><label style={lbS}>Peso inicial (g)</label><input style={inS} value={pIni} onChange={function(e){setPIni(e.target.value);}}/></div>
-            <div><label style={lbS}>Peso final (g)</label><input style={inS} value={pFin} onChange={function(e){setPFin(e.target.value);}}/></div>
+            {!isCount&&<div><label style={lbS}>Peso inicial (g)</label><input style={inS} value={pIni} onChange={function(e){setPIni(e.target.value);}}/></div>}
+            {!isCount&&<div><label style={lbS}>Peso final (g)</label><input style={inS} value={pFin} onChange={function(e){setPFin(e.target.value);}}/></div>}
             {cfg.humedad&&<div><label style={lbS}>Humedad (%)</label><input style={inS} value={hum} onChange={function(e){setHum(e.target.value);}}/></div>}
           </div>
           {sieves.length>0&&(
             <div style={{marginBottom:12}}>
-              <label style={lbS}>Granulometría (masas g)</label>
+              <label style={lbS}>{isCount?'Cantidad de Granos (conteo)':'Granulometría (masas g)'}</label>
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:6}}>
                 {sieves.map(function(s,i){return(
                   <div key={s.us}>
                     <span style={{fontSize:'.68rem',color:'var(--text-muted)'}}>{s.us}</span>
                     <input style={inS} value={granu[i]||''} onChange={function(e){upG(i,e.target.value);}}/>
+                  </div>
+                );})}
+              </div>
+            </div>
+          )}
+          {pk==='TT_GRANOS'&&sieves.length>0&&(
+            <div style={{marginBottom:12}}>
+              <label style={lbS}>Cantidad de Arcillas (conteo)</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:6}}>
+                {sieves.map(function(s,i){return(
+                  <div key={s.us}>
+                    <span style={{fontSize:'.68rem',color:'var(--text-muted)'}}>{s.us}</span>
+                    <input style={inS} value={arcillas[i]||''} onChange={function(e){upA(i,e.target.value);}}/>
                   </div>
                 );})}
               </div>
