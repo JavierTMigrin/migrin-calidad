@@ -12527,6 +12527,12 @@ function DespachosScreen({
     className: "mod-desc"
   }, "Agrupado por Silo / Cancha"))));
 }
+
+// Oxidos que nunca son realmente 0% en la practica: un valor exacto de 0
+// en estos es dato faltante (ej. registros historicos migrados sin ese
+// oxido medido), no una medicion real. Se tratan como sin dato en las
+// tendencias quimicas para no arrastrar la curva a 0.
+var ZERO_AS_NULL_OXIDES = ['SiO2', 'Al2O3', 'Fe2O3'];
 function DashboardScreen({
   account,
   onBack,
@@ -13653,9 +13659,15 @@ function DashboardScreen({
   /* Estadistica por oxido: ultimo, promedio, desv std, movil, min/max, n */
   var chemStats = useMemo(function () {
     return chemActive.map(function (c) {
+      // SiO2/Al2O3/Fe2O3 nunca son realmente 0% en estos productos: un "0"
+      // exacto es dato faltante (viejos registros migrados sin ese oxido
+      // medido), no una medicion real — se trata como sin dato (null) para
+      // no arrastrar la curva a 0 en la tendencia.
       var vals = filtered.map(function (r) {
         var v = parseDecimal(r[c.key]);
-        return v == null || isNaN(v) ? null : v;
+        if (v == null || isNaN(v)) return null;
+        if (ZERO_AS_NULL_OXIDES.indexOf(c.key) >= 0 && v === 0) return null;
+        return v;
       });
       var vld = vals.filter(function (v) {
         return v != null;
@@ -19779,13 +19791,16 @@ function EstadisticasScreen({
     var cfg = PRODUCT_CONFIG[prod] || {};
     if (cfg.quimica) {
       [['sio2', 'SiO₂'], ['al2o3', 'Al₂O₃'], ['fe2o3', 'Fe₂O₃'], ['cao', 'CaO'], ['mgo', 'MgO'], ['k2o', 'K₂O'], ['na2o', 'Na₂O'], ['tio2', 'TiO₂']].forEach(function (o) {
+        // SiO2/Al2O3/Fe2O3 en 0 exacto es dato faltante (ver ZERO_AS_NULL_OXIDES), no medicion real.
+        var zeroAsNull = ['sio2', 'al2o3', 'fe2o3'].indexOf(o[0]) >= 0;
         cols.push({
           key: 'q_' + o[0],
           label: o[1] + ' (%)',
           color: '#117864',
           get: function (rec) {
             var q = rec.quimica || {};
-            return parseDecimal(q[o[0]]);
+            var v = parseDecimal(q[o[0]]);
+            return zeroAsNull && v === 0 ? null : v;
           }
         });
       });
