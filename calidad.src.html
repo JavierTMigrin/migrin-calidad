@@ -20,6 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
 :root{
   --primary:#1a5276;--primary-dark:#154360;--primary-light:#2e86c1;--primary-xlight:#d6eaf8;
@@ -1130,24 +1131,24 @@ function turcoIndicadores(rec){
     out.push({label:'+#120 (ret.acum)',valor:f(['#40','#50','#80','#100','#120']),unit:'%',tipo:'max',max:10});
   }else if(prod==='TT_GRANOS'){
     var c16=parseDecimal(gv[0]),c18=parseDecimal(gv[1]),c20=parseDecimal(gv[2]);
-    out.push({label:'#16 (conteo)',valor:isNaN(c16)?null:c16,unit:'',tipo:'max',max:0});
-    out.push({label:'#18 (conteo)',valor:isNaN(c18)?null:c18,unit:'',tipo:'max',max:0});
-    out.push({label:'#20 (conteo)',valor:isNaN(c20)?null:c20,unit:'',tipo:'zonas',alerta:11,fuera:29});
+    out.push({label:'#16 (conteo)',valor:isNaN(c16)?null:c16,unit:'',tipo:'max',max:0,dec:0});
+    out.push({label:'#18 (conteo)',valor:isNaN(c18)?null:c18,unit:'',tipo:'max',max:0,dec:0});
+    out.push({label:'#20 (conteo)',valor:isNaN(c20)?null:c20,unit:'',tipo:'zonas',alerta:11,fuera:29,dec:0});
     // Conteo de arcillas por malla: se registra en el formulario junto a
     // los granos, pero se guarda aparte (extra.arcillas) — sin esto nunca
     // aparecia en el informe aunque si quedaba guardado en la base.
     var arc=extra.arcillas||[];
     var a16=parseDecimal(arc[0]),a18=parseDecimal(arc[1]),a20=parseDecimal(arc[2]);
-    out.push({label:'Arcilla #16 (conteo)',valor:isNaN(a16)?null:a16,unit:'',tipo:'tendencia'});
-    out.push({label:'Arcilla #18 (conteo)',valor:isNaN(a18)?null:a18,unit:'',tipo:'tendencia'});
-    out.push({label:'Arcilla #20 (conteo)',valor:isNaN(a20)?null:a20,unit:'',tipo:'tendencia'});
+    out.push({label:'Arcilla #16 (conteo)',valor:isNaN(a16)?null:a16,unit:'',tipo:'tendencia',dec:0});
+    out.push({label:'Arcilla #18 (conteo)',valor:isNaN(a18)?null:a18,unit:'',tipo:'tendencia',dec:0});
+    out.push({label:'Arcilla #20 (conteo)',valor:isNaN(a20)?null:a20,unit:'',tipo:'tendencia',dec:0});
   }else if(prod==='TT_ARCILLAS'){
     var pa=parseDecimal(extra.pctArcillas);
     out.push({label:'% Arcillas',valor:isNaN(pa)?null:pa,unit:'%',tipo:'max_lt',lim:15});
   }else if(prod==='TT_FLOC'){
     var fm=parseDecimal(extra.frasco1MadreG),fd=parseDecimal(extra.frasco2DilG);
-    out.push({label:'Floculante madre (Frasco 1)',valor:isNaN(fm)?null:fm,unit:'g',tipo:'rango',min:0.015,max:0.033});
-    out.push({label:'Floculante dilución (Frasco 2)',valor:isNaN(fd)?null:fd,unit:'g',tipo:'rango',min:0.004,max:0.016});
+    out.push({label:'Floculante madre (Frasco 1)',valor:isNaN(fm)?null:fm,unit:'g',tipo:'rango',min:0.015,max:0.033,dec:3});
+    out.push({label:'Floculante dilución (Frasco 2)',valor:isNaN(fd)?null:fd,unit:'g',tipo:'rango',min:0.004,max:0.016,dec:3});
   }else if(prod==='TT_AGUA'){
     var cl=parseDecimal(extra.cloroPpm);
     out.push({label:'Cloro Residual',valor:isNaN(cl)?null:cl,unit:'ppm',tipo:'rango',min:0.2,max:2.0});
@@ -2412,7 +2413,11 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
     if(inds.length>0){
       var kpisInd=inds.map(function(ind){
         var lims=turcoCtrlLims(ind);
-        return{name:ind.label,val:ind.valor,unit:ind.unit,dec:ind.unit?2:0,
+        // dec explicito en el indicador (ej. conteos enteros); si no viene,
+        // 2 decimales por defecto — el unit vacio NO implica entero (el
+        // Indice de Finos de Cilindro, por ejemplo, es un ratio sin unidad
+        // que si necesita decimales).
+        return{name:ind.label,val:ind.valor,unit:ind.unit,dec:ind.dec!=null?ind.dec:2,
           limMin:lims.limMin,limMax:lims.limMax,limLabel:ind.limLabel};
       });
       if(tieneGranu){
@@ -6348,6 +6353,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
   var[certFiltro,setCertFiltro]=useState('__all'); // Todas | Puntual | Acopio N
   var[certModal,setCertModal]=useState(null);  // datos del certificado en edicion
   var[certGen,setCertGen]=useState(false);
+  var[certExcelGen,setCertExcelGen]=useState(false);
   var[certMsg,setCertMsg]=useState('');
   var[certEmitidos,setCertEmitidos]=useState(null); // historial de certificados emitidos
   var[certReDet,setCertReDet]=useState(null); // muestras reconstruidas al reabrir un certificado emitido
@@ -6905,19 +6911,83 @@ function DashboardScreen({account,onBack,initProd,initTab}){
      en Supabase — ver supabase/3_seguridad/04_certificados-update-delete.sql) */
   var puedeGestionarCert=String(account&&account.email||'').trim().toLowerCase()==='jtorres@migrin.cl';
 
+  /* Reconstruye las muestras originales de un certificado emitido a partir
+     de los ids guardados en certificados.muestras — pura, sin tocar estado
+     (la usan tanto reabrirCertificado como la exportacion a Excel). */
+  function reconstruirMuestrasCert(c){
+    var ids={};(c.muestras||[]).forEach(function(m){if(m&&m.id!=null)ids[String(m.id)]=true;});
+    var rs=records.filter(function(r){return ids[String(r.ID||r.id||'')];});
+    if(!rs.length)return null;
+    rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
+    return{det:rs.map(detA36),total:Object.keys(ids).length};
+  }
   /* Reabre un certificado emitido: reconstruye sus muestras desde los
      ensayos cargados (por id) y abre el modal con los datos originales
      para volver a descargar el PDF. regId evita registrarlo de nuevo. */
   function reabrirCertificado(c){
-    var ids={};(c.muestras||[]).forEach(function(m){if(m&&m.id!=null)ids[String(m.id)]=true;});
-    var rs=records.filter(function(r){return ids[String(r.ID||r.id||'')];});
-    if(!rs.length){setValMsg('No se encontraron los ensayos del certificado '+(c.num_cert||'')+' — no se puede regenerar.');return;}
-    rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
-    setCertReDet(rs.map(detA36));
+    var rec=reconstruirMuestrasCert(c);
+    if(!rec){setValMsg('No se encontraron los ensayos del certificado '+(c.num_cert||'')+' — no se puede regenerar.');return;}
+    setCertReDet(rec.det);
     setCertModal({numCert:c.num_cert||'',fecha:c.fecha||today(),hora:c.hora||'',lote:c.lote||'',
       acopio:c.acopio||'',humedad:c.humedad||'',patente:c.patente||'',
       muestreador:c.muestreador||'',regId:c.id});
-    setCertMsg(rs.length<Object.keys(ids).length?'⚠ Solo se recuperaron '+rs.length+' de '+Object.keys(ids).length+' muestras originales.':'');
+    setCertMsg(rec.det.length<rec.total?'⚠ Solo se recuperaron '+rec.det.length+' de '+rec.total+' muestras originales.':'');
+  }
+  /* Exporta el certificado ABIERTO en pantalla (el div #cert-hoja, el mismo
+     que se captura para el PDF) a un .xlsx: una hoja "Certificado" con la
+     hoja completa como imagen (mismo formato y grafico que el PDF, ya que
+     Excel no soporta graficos incrustados via libreria del lado cliente) y
+     una hoja "Muestras" con el detalle de cada ensayo promediado, por si se
+     quiere manipular los numeros. Requiere el modal de certificado abierto
+     (mismo prerequisito que "Descargar PDF"). */
+  async function exportarCertHojaComoExcel(){
+    if(certExcelGen)return;
+    setCertExcelGen(true);setCertMsg('');
+    try{
+      var node=document.getElementById('cert-hoja');
+      if(!node||!window.html2canvas||!window.ExcelJS)throw new Error('No se pudo preparar el generador de Excel.');
+      var canvas=await window.html2canvas(node,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:840});
+      var base64=canvas.toDataURL('image/png').split(',')[1];
+      var wb=new window.ExcelJS.Workbook();
+      wb.creator='MIGRIN S.A.';
+      var wsImg=wb.addWorksheet('Certificado');
+      var imgId=wb.addImage({base64:base64,extension:'png'});
+      wsImg.addImage(imgId,{tl:{col:0,row:0},ext:{width:canvas.width/2,height:canvas.height/2}});
+
+      if(certSelDet.length){
+        var wsM=wb.addWorksheet('Muestras');
+        var sievesA36=SIEVE_CONFIG[prod]||[];
+        var hdr=['Fecha','Folio','Tipo','Turno','Analista']
+          .concat(sievesA36.map(function(s){return 'RetParc '+s.us;}))
+          .concat(['SiO2','Al2O3','Fe2O3','D50 (mm)','Humedad']);
+        wsM.addRow(hdr);
+        wsM.getRow(1).eachCell(function(cell){
+          cell.font={bold:true,color:{argb:'FFFFFFFF'}};
+          cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1A5276'}};
+        });
+        function r4(v){return v==null||isNaN(v)?'':+(+v).toFixed(4);}
+        certSelDet.forEach(function(d){
+          wsM.addRow([d.fecha,d.folio||'',d.acopio||d.tipo||'',d.turno||'',d.analista||'']
+            .concat(sievesA36.map(function(s){return r4(d.parc[s.us]);}))
+            .concat([r4(d.quim.sio2),r4(d.quim.al2o3),r4(d.quim.fe2o3),r4(d.d50),r4(d.hum)]));
+        });
+        wsM.columns.forEach(function(col){col.width=13;});
+      }
+
+      var buf=await wb.xlsx.writeBuffer();
+      var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      var url=URL.createObjectURL(blob);
+      var safeName=String((certModal&&certModal.numCert)||'certificado').replace(/[\\/:*?"<>|]/g,'-');
+      var a=document.createElement('a');
+      a.href=url;a.download='Certificado_'+safeName+'.xlsx';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url);},2000);
+      setCertMsg('✓ Excel descargado.');
+    }catch(e){
+      console.error('Export cert Excel',e);
+      setCertMsg('Error al generar Excel: '+(e&&e.message?e.message:String(e)));
+    }
+    setCertExcelGen(false);
   }
   function cerrarCertModal(){setCertModal(null);setCertReDet(null);}
   async function eliminarCertificado(c){
@@ -6963,22 +7033,28 @@ function DashboardScreen({account,onBack,initProd,initTab}){
     var sd=v.length>1?Math.sqrt(v.reduce(function(s,x){return s+(x-mean)*(x-mean);},0)/(v.length-1)):0;
     return{media:mean,max:Math.max.apply(null,v),min:Math.min.apply(null,v),sd:sd,n:v.length};
   }
-  var certStats=useMemo(function(){
-    if(!certSelDet.length)return null;
+  // Extraida del useMemo certStats para poder recalcular las mismas
+  // estadisticas del certificado sobre un set de muestras arbitrario
+  // (ej. al exportar un certificado ya emitido a Excel).
+  function computeCertStats(det){
+    if(!det.length)return null;
     var sieves=SIEVE_CONFIG[prod]||[];
     var acum={},parcM={};
     sieves.forEach(function(s){
-      acum[s.us]=aggCert(certSelDet.map(function(d){return d.acum[s.us];}));
-      var p=aggCert(certSelDet.map(function(d){return d.parc[s.us];}));
+      acum[s.us]=aggCert(det.map(function(d){return d.acum[s.us];}));
+      var p=aggCert(det.map(function(d){return d.parc[s.us];}));
       parcM[s.us]=p?p.media:null;
     });
-    var fondoM=aggCert(certSelDet.map(function(d){return d.fondoP;}));
+    var fondoM=aggCert(det.map(function(d){return d.fondoP;}));
     var quim={};['sio2','al2o3','fe2o3','cao','mgo','k2o','na2o','tio2','k2o_na2o'].forEach(function(k){
-      quim[k]=aggCert(certSelDet.map(function(d){return d.quim[k];}));
+      quim[k]=aggCert(det.map(function(d){return d.quim[k];}));
     });
     return{acum:acum,parcM:parcM,fondoM:fondoM?fondoM.media:null,quim:quim,
-      d50:aggCert(certSelDet.map(function(d){return d.d50;})),
-      hum:aggCert(certSelDet.map(function(d){return d.hum;}))};
+      d50:aggCert(det.map(function(d){return d.d50;})),
+      hum:aggCert(det.map(function(d){return d.hum;}))};
+  }
+  var certStats=useMemo(function(){
+    return computeCertStats(certSelDet);
   },[certSelDet,prod]);
 
   // Salto de dias entre muestras seleccionadas: posible mezcla de tandas de produccion
@@ -8641,6 +8717,8 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                           <td style={Object.assign({},tdV,{whiteSpace:'nowrap'})}>
                             <button title="Ver / descargar de nuevo" onClick={function(){reabrirCertificado(c);}}
                               style={{background:'none',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:'2px 7px',marginRight:4}}>⬇ PDF</button>
+                            <button title="Abrir certificado para descargar en Excel" onClick={function(){reabrirCertificado(c);}}
+                              style={{background:'none',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:'2px 7px',marginRight:4}}>⬇ Excel</button>
                             {puedeGestionarCert&&<button title="Editar datos" onClick={function(){setCertEdit(Object.assign({},c));setCertEditMsg('');}}
                               style={{background:'none',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:'2px 7px',marginRight:4}}>✏</button>}
                             {puedeGestionarCert&&<button title="Eliminar registro" onClick={function(){eliminarCertificado(c);}}
@@ -8651,7 +8729,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                     </tbody>
                   </table>
                   <div style={{fontSize:'.7rem',color:'var(--text-muted)',marginTop:6}}>
-                    ⬇ PDF reconstruye el certificado desde sus muestras originales y abre el formulario para descargarlo de nuevo (no se duplica el registro).
+                    ⬇ PDF reconstruye el certificado desde sus muestras originales y abre el formulario para descargarlo de nuevo (no se duplica el registro). ⬇ Excel descarga el mismo certificado (datos, análisis químico y granulometría) en planilla.
                   </div>
                 </div>
               </div>
@@ -8699,6 +8777,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                       <b style={{fontSize:'.95rem'}}>{cm.regId?'Certificado emitido — revisa y vuelve a descargar':'Certificado de despacho — completa los datos y descarga'}</b>
                       <span style={{display:'flex',gap:8}}>
                         <button className="btn btn-secondary" onClick={cerrarCertModal}>Cerrar</button>
+                        <button className="btn btn-secondary" disabled={certExcelGen} onClick={exportarCertHojaComoExcel}>{certExcelGen?'Generando…':'⬇ Descargar Excel'}</button>
                         <button className="btn btn-primary" disabled={certGen} onClick={descargarCertificado}>{certGen?'Generando…':'⬇ Descargar PDF'}</button>
                       </span>
                     </div>
@@ -11178,7 +11257,7 @@ function HistoryScreen({account,onBack}){
                                                 background:'#f7fafc',border:'1.5px solid var(--border)',borderLeft:'3px solid '+col}}>
                                                 <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text-secondary)'}}>{ind.label}</div>
                                                 <div style={{fontSize:'1rem',fontWeight:800,color:col}}>
-                                                  {ind.valor!=null&&!isNaN(ind.valor)?fmt(ind.valor,2)+' '+ind.unit:'—'}
+                                                  {ind.valor!=null&&!isNaN(ind.valor)?fmt(ind.valor,ind.dec!=null?ind.dec:2)+' '+ind.unit:'—'}
                                                 </div>
                                                 <div style={{fontSize:'.68rem',color:'var(--text-muted)'}}>Limite: {ind.limLabel}</div>
                                               </div>
