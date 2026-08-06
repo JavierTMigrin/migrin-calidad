@@ -6907,9 +6907,10 @@ function DashboardScreen({account,onBack,initProd,initTab}){
     return certDet.filter(function(d){return certSel[d.id];});
   },[certDet,certSel,certReDet]);
 
-  /* Editar/eliminar certificados: solo jtorres (tambien reforzado por RLS
-     en Supabase — ver supabase/3_seguridad/04_certificados-update-delete.sql) */
-  var puedeGestionarCert=String(account&&account.email||'').trim().toLowerCase()==='jtorres@migrin.cl';
+  /* Editar/eliminar certificados: solo estos correos (tambien reforzado por
+     RLS en Supabase — ver supabase/3_seguridad/04_certificados-update-delete.sql) */
+  var CERT_ADMINS=['jtorres@migrin.cl','scontreras@migrin.cl'];
+  var puedeGestionarCert=CERT_ADMINS.indexOf(String(account&&account.email||'').trim().toLowerCase())>=0;
 
   /* Reconstruye las muestras originales de un certificado emitido a partir
      de los ids guardados en certificados.muestras — pura, sin tocar estado
@@ -6933,42 +6934,170 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       muestreador:c.muestreador||'',regId:c.id});
     setCertMsg(rec.det.length<rec.total?'⚠ Solo se recuperaron '+rec.det.length+' de '+rec.total+' muestras originales.':'');
   }
-  /* Exporta el certificado ABIERTO en pantalla (el div #cert-hoja, el mismo
-     que se captura para el PDF) a un .xlsx: una hoja "Certificado" con la
-     hoja completa como imagen (mismo formato y grafico que el PDF, ya que
-     Excel no soporta graficos incrustados via libreria del lado cliente) y
-     una hoja "Muestras" con el detalle de cada ensayo promediado, por si se
-     quiere manipular los numeros. Requiere el modal de certificado abierto
+  /* Exporta el certificado ABIERTO en pantalla a un .xlsx REAL: construye
+     las mismas secciones que el PDF (encabezado, Analisis Quimico,
+     Granulometria - Retenido Acumulado, Analisis Granulometrico y Otros
+     Quimicos) como celdas/tablas de Excel de verdad -- no una imagen ni una
+     captura de pantalla. La hoja "Muestras" con el detalle de cada ensayo
+     se mantiene igual que antes. Requiere el modal de certificado abierto
      (mismo prerequisito que "Descargar PDF"). */
   async function exportarCertHojaComoExcel(){
-    if(certExcelGen)return;
+    if(certExcelGen||!certModal||!certStats)return;
     setCertExcelGen(true);setCertMsg('');
     try{
-      var node=document.getElementById('cert-hoja');
-      if(!node||!window.html2canvas||!window.ExcelJS)throw new Error('No se pudo preparar el generador de Excel.');
-      var canvas=await window.html2canvas(node,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:840});
-      var base64=canvas.toDataURL('image/png').split(',')[1];
+      if(!window.ExcelJS)throw new Error('No se pudo preparar el generador de Excel.');
+      var cm=certModal,st=certStats;
+      var esA36cert=prod==='A36';
+      var sievesX=SIEVE_CONFIG[prod]||[];
+      function rnd(v,d){return(v==null||isNaN(v))?null:+(+v).toFixed(d);}
+      function colLetter(n){var s='';while(n>0){var m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
+
       var wb=new window.ExcelJS.Workbook();
       wb.creator='MIGRIN S.A.';
-      var wsImg=wb.addWorksheet('Certificado');
-      var imgId=wb.addImage({base64:base64,extension:'png'});
-      wsImg.addImage(imgId,{tl:{col:0,row:0},ext:{width:canvas.width/2,height:canvas.height/2}});
+      var ws=wb.addWorksheet('Certificado',{views:[{showGridLines:false}]});
+      var NCOL=Math.max(6,sievesX.length+1);
+      ws.columns=Array.from({length:NCOL},function(){return{width:13};});
+
+      var BAND_FILL={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8EEF4'}};
+      var HDR_FILL={type:'pattern',pattern:'solid',fgColor:{argb:'FF1A5276'}};
+      var thin={style:'thin',color:{argb:'FF9DB2C8'}};
+      var thinBorders={top:thin,left:thin,bottom:thin,right:thin};
+
+      function mergeRow(r,text,opts){
+        opts=opts||{};
+        ws.mergeCells(r,1,r,NCOL);
+        var cell=ws.getCell(r,1);
+        cell.value=text;
+        cell.font={name:'Arial',size:opts.size||11,bold:opts.bold!==false,italic:!!opts.italic,color:{argb:opts.color||'FF1A202C'}};
+        cell.alignment={horizontal:opts.align||'center',vertical:'middle'};
+        if(opts.fill)cell.fill=opts.fill;
+        return r+1;
+      }
+      function labelValRow(r,label,val){
+        ws.getCell(r,1).value=label;
+        ws.getCell(r,1).font={name:'Arial',size:10,bold:true};
+        ws.mergeCells(r,2,r,NCOL);
+        ws.getCell(r,2).value=val;
+        ws.getCell(r,2).font={name:'Arial',size:10};
+        return r+1;
+      }
+      function sectionTitle(r,text){ return mergeRow(r,text,{size:10,fill:BAND_FILL}); }
+      function headerRow(r,labels){
+        labels.forEach(function(t,i){
+          var c=ws.getCell(r,1+i);
+          c.value=t;c.font={name:'Arial',size:9,bold:true};
+          c.fill=BAND_FILL;c.border=thinBorders;c.alignment={horizontal:'center',vertical:'middle'};
+        });
+        return r+1;
+      }
+      function dataRow(r,cells){
+        cells.forEach(function(v,i){
+          var c=ws.getCell(r,1+i);
+          c.value=v==null?'—':v;
+          c.font={name:'Arial',size:9,bold:i===0};
+          c.border=thinBorders;
+          c.alignment={horizontal:i===0?'left':'center',vertical:'middle'};
+          if(typeof v==='number')c.numFmt='0.000';
+        });
+        return r+1;
+      }
+
+      var r=1;
+      r=mergeRow(r,'MIGRIN S.A.',{size:14,color:'FF1A5276'});
+      r=mergeRow(r,'Certificado de Calidad',{size:12});
+      r=mergeRow(r,cm.numCert||'—',{size:11,color:'FF1A5276'});
+      r=mergeRow(r,esA36cert?'Arena A36LGC':(GRANU_TITLE[prod]||prod),{size:11});
+      r=mergeRow(r,'Lote N° '+(cm.lote||'—'),{size:11,color:'FF1A5276'});
+      if(cm.acopio)r=mergeRow(r,'('+cm.acopio+')',{size:9,bold:false,color:'FF555555'});
+      r++;
+
+      r=labelValRow(r,'Fecha informe:',(cm.fecha?cm.fecha.split('-').reverse().join('/'):'—')+(cm.hora?' · '+cm.hora+' h':''));
+      r=labelValRow(r,'Lugar de muestreo:',esA36cert?'Planta Las Piedras':'Planta Turco');
+      r=labelValRow(r,'Muestreador:',cm.muestreador||'—');
+      if(cm.patente)r=labelValRow(r,'Patente camión:',cm.patente);
+      if(cm.humedad)r=labelValRow(r,'Humedad:',cm.humedad+' %');
+      r=labelValRow(r,'Muestras promediadas:',certSelDet.length+(certSelDet.length?' ('+certSelDet[0].fecha+' a '+certSelDet[certSelDet.length-1].fecha+')':''));
+      r++;
+
+      // Analisis Quimico (EETT)
+      r=sectionTitle(r,'ANÁLISIS QUÍMICO (%)');
+      var oxCols=[['SiO₂','sio2',3],['Al₂O₃','al2o3',3],['Fe₂O₃','fe2o3',3]];
+      r=headerRow(r,[''].concat(oxCols.map(function(o){return o[0];})));
+      [['Media','media'],['Máximo','max'],['Mínimo','min'],['Desv. Est.','sd']].forEach(function(rw){
+        r=dataRow(r,[rw[0]].concat(oxCols.map(function(o){var s=st.quim[o[1]];return s?rnd(s[rw[1]],o[2]):null;})));
+      });
+      r++;
+
+      // Granulometria - Retenido Acumulado
+      r=sectionTitle(r,'GRANULOMETRÍA — RETENIDO ACUMULADO (%)');
+      r=headerRow(r,['malla en mm'].concat(sievesX.map(function(s){return rnd(parseFloat(String(s.mm).replace(',','.'))||0,3);})));
+      r=headerRow(r,['N° malla'].concat(sievesX.map(function(s){return String(s.us).replace('#','');})));
+      [['Media','media'],['Máximo','max'],['Mínimo','min'],['Desv. Est.','sd']].forEach(function(rw){
+        r=dataRow(r,[rw[0]].concat(sievesX.map(function(s){var a=st.acum[s.us];return a?rnd(a[rw[1]],2):null;})));
+      });
+      r++;
+
+      // Analisis Granulometrico: retenido parcial promedio + barra nativa de Excel
+      r=sectionTitle(r,'ANÁLISIS GRANULOMÉTRICO — % Retenido Parcial Promedio');
+      var parcLabels=sievesX.map(function(s){return s.us;}).concat(st.fondoM!=null?['Fondo']:[]);
+      var parcVals=sievesX.map(function(s){return rnd(st.parcM[s.us],2);}).concat(st.fondoM!=null?[rnd(st.fondoM,2)]:[]);
+      var rHead=headerRow(r,parcLabels);
+      var barRowIdx=rHead;
+      r=dataRow(rHead,parcVals);
+      try{
+        ws.addConditionalFormatting({
+          ref: colLetter(1)+barRowIdx+':'+colLetter(parcVals.length)+barRowIdx,
+          rules: [{type:'dataBar',cfvo:[{type:'min'},{type:'max'}],color:{argb:'FF8BC34A'},priority:1}],
+        });
+      }catch(eCF){console.warn('Conditional formatting no disponible',eCF);}
+      r++;
+      // Grafico de barras real (imagen chica generada de nuevo con Chart.js,
+      // NO una captura de la pantalla completa): ExcelJS no soporta graficos
+      // nativos de Excel, asi que esta es la unica forma de incluir el
+      // grafico visual — el resto del certificado sigue siendo celdas reales.
+      if(window.Chart){
+        try{
+          var chartB64=await new Promise(function(resolve,reject){
+            var cv=document.createElement('canvas');cv.width=700;cv.height=260;
+            var ch=new window.Chart(cv,{type:'bar',
+              data:{labels:parcLabels,datasets:[{data:parcVals.map(function(v){return v==null?0:v;}),backgroundColor:'#8bc34a',borderRadius:2}]},
+              options:{responsive:false,animation:false,plugins:{legend:{display:false},
+                title:{display:true,text:'Análisis Granulométrico — Lote N° '+(cm.lote||'—'),font:{size:13}}},
+                scales:{y:{beginAtZero:true,title:{display:true,text:'% retenido parcial promedio'}}}}});
+            setTimeout(function(){
+              try{var url=cv.toDataURL('image/png');ch.destroy();resolve(url.split(',')[1]);}
+              catch(eImg){reject(eImg);}
+            },60);
+          });
+          var chartImgId=wb.addImage({base64:chartB64,extension:'png'});
+          ws.addImage(chartImgId,{tl:{col:0,row:r-1},ext:{width:500,height:186}});
+          r+=10; // reservar filas para no solapar con la siguiente seccion
+        }catch(eChart){console.warn('No se pudo generar la imagen del grafico',eChart);}
+      }
+
+      // Otros quimicos (sin EETT): solo promedio, sin min/max/desv.est.
+      r=sectionTitle(r,'OTROS QUÍMICOS (%) — PROMEDIO (sin EETT asociado)');
+      var otherOx=[['CaO','cao'],['MgO','mgo'],['K₂O','k2o'],['Na₂O','na2o'],['TiO₂','tio2']];
+      r=headerRow(r,otherOx.map(function(o){return o[0];}));
+      r=dataRow(r,otherOx.map(function(o){var s=st.quim[o[1]];return s?rnd(s.media,3):null;}));
+      r++;
+
+      r=mergeRow(r,'Jefatura de Calidad — MIGRIN S.A.',{size:10,italic:true});
 
       if(certSelDet.length){
         var wsM=wb.addWorksheet('Muestras');
-        var sievesA36=SIEVE_CONFIG[prod]||[];
         var hdr=['Fecha','Folio','Tipo','Turno','Analista']
-          .concat(sievesA36.map(function(s){return 'RetParc '+s.us;}))
+          .concat(sievesX.map(function(s){return 'RetParc '+s.us;}))
           .concat(['SiO2','Al2O3','Fe2O3','D50 (mm)','Humedad']);
         wsM.addRow(hdr);
         wsM.getRow(1).eachCell(function(cell){
           cell.font={bold:true,color:{argb:'FFFFFFFF'}};
-          cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1A5276'}};
+          cell.fill=HDR_FILL;
         });
         function r4(v){return v==null||isNaN(v)?'':+(+v).toFixed(4);}
         certSelDet.forEach(function(d){
           wsM.addRow([d.fecha,d.folio||'',d.acopio||d.tipo||'',d.turno||'',d.analista||'']
-            .concat(sievesA36.map(function(s){return r4(d.parc[s.us]);}))
+            .concat(sievesX.map(function(s){return r4(d.parc[s.us]);}))
             .concat([r4(d.quim.sio2),r4(d.quim.al2o3),r4(d.quim.fe2o3),r4(d.d50),r4(d.hum)]));
         });
         wsM.columns.forEach(function(col){col.width=13;});
@@ -8880,6 +9009,24 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                         </div>
                         <div style={{textAlign:'center',fontSize:9,color:'#777',marginTop:2}}>Abertura (µm) — % retenido parcial promedio</div>
                       </div>
+
+                      {/* Otros quimicos (sin EETT asociado): seccion aparte, solo
+                          el promedio de las muestras seleccionadas — sin min/max/
+                          desv.est. porque no se evaluan contra ninguna especificacion,
+                          es solo informativo/registro. */}
+                      <div style={{fontWeight:700,fontSize:11,textAlign:'center',background:'#e8eef4',border:'1px solid #9db2c8',borderBottom:'none',padding:'3px 0'}}>Otros Químicos (%) — Promedio (sin EETT asociado)</div>
+                      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:6}}>
+                        <thead><tr>
+                          {[['CaO','cao'],['MgO','mgo'],['K₂O','k2o'],['Na₂O','na2o'],['TiO₂','tio2']].map(function(o){return <th key={o[1]} style={cH}>{o[0]}</th>;})}
+                        </tr></thead>
+                        <tbody><tr>
+                          {[['CaO','cao'],['MgO','mgo'],['K₂O','k2o'],['Na₂O','na2o'],['TiO₂','tio2']].map(function(o){
+                            var stq=certStats.quim[o[1]];
+                            return <td key={o[1]} style={cD}>{stq?fmt(stq.media,3):'—'}</td>;
+                          })}
+                        </tr></tbody>
+                      </table>
+                      <div style={{fontSize:9,color:'#777',textAlign:'center',marginBottom:14}}>Valor informativo — promedio de las muestras seleccionadas, sin especificación técnica asociada.</div>
 
                       <div style={{textAlign:'center',fontSize:11,fontWeight:700,marginTop:22}}>Jefatura de Calidad<br/>MIGRIN</div>
                       <div style={{borderTop:'3px solid #1e3a5f',marginTop:12}}/>
