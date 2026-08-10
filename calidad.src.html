@@ -6844,7 +6844,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
     if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio'&&!normAcopio(r.NumAcopio||r.numAcopio);});
     else if(certFiltro!=='__all')rs=rs.filter(function(r){return normAcopio(r.NumAcopio||r.numAcopio)===certFiltro;});
     rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
-    return rs.slice(-10);
+    return rs.slice(-20);
   },[records,prod,certFiltro,periodType,selWeek,selMonth,selYear,custFrom,custTo]);
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
@@ -8576,7 +8576,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                   <div className="dff">
                     <label>Promediar últimos</label>
                     <select value={certLastN} onChange={function(e){var n=parseInt(e.target.value);setCertLastN(n);var sel={};certDet.slice(-n).forEach(function(d){sel[d.id]=true;});setCertSel(sel);}}>
-                      {[2,3,4,5,6,7,8,9,10].map(function(n){return <option key={n} value={n}>{n} muestras</option>;})}
+                      {[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(function(n){return <option key={n} value={n}>{n} muestras</option>;})}
                     </select>
                   </div>
                   <div style={{fontSize:'.76rem',color:'var(--text-muted)',paddingBottom:8}}>

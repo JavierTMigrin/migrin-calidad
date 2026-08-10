@@ -13325,7 +13325,7 @@ function DashboardScreen({
     rs.sort(function (a, b) {
       return (a.FechaMuestreo || a.fecha || '').localeCompare(b.FechaMuestreo || b.fecha || '');
     });
-    return rs.slice(-10);
+    return rs.slice(-20);
   }, [records, prod, certFiltro, periodType, selWeek, selMonth, selYear, custFrom, custTo]);
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
@@ -16988,7 +16988,7 @@ function DashboardScreen({
         });
         setCertSel(sel);
       }
-    }, [2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+    }, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(function (n) {
       return /*#__PURE__*/React.createElement("option", {
         key: n,
         value: n
