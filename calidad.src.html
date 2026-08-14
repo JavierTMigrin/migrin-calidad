@@ -245,6 +245,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.73rem;font-weight:700}
 .badge-s{background:var(--success-bg);color:var(--success)}
 .badge-w{background:var(--warning-bg);color:var(--warning)}
+/* Dato incompleto (extra.pendiente): azul, distinto a proposito del ambar
+   de sincronizacion (badge-w) para no confundir ambos conceptos. */
+.badge-i{background:#d6eaf8;color:#1a5276}
 .cc{font-size:.73rem;color:var(--text-muted);text-align:right;margin-top:2px}
 .auth-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;
   min-height:60vh;gap:18px;text-align:center;padding:20px}
@@ -711,12 +714,19 @@ const EXTRA_FIELD_LBL={hora:'Hora',sector:'Sector',tipoArena:'Tipo de Arena',pct
    de Control de Calidad — se excluyen de "Datos Registrados" para no
    duplicar el mismo valor dos veces. */
 const KPI_EXTRA_KEYS={pctArcilla:1,pctSolido:1,pctArcillas:1,frasco1MadreG:1,frasco2DilG:1,cloroPpm:1};
+/* Claves de extra.* que son control interno de la app (no datos de planta)
+   y nunca deben mostrarse como fila cruda en "Datos Registrados". */
+const EXTRA_INTERNAL_KEYS={pendiente:1};
+/* extra.pendiente = seccion (granulometria|quimica) que aun falta completar
+   en un registro guardado parcial (ver PRODUCTOS_DATO_PARCIAL) — distinto
+   del status 'pending' de sincronizacion local (sin conexion). */
+function datoPendiente(r){return(r.Extra||r.extra||{}).pendiente||null;}
 /* Convierte data.extra en filas {label,val} listas para tabla, filtrando
    las ya cubiertas por un KPI. Usado por ReportModal e Historial. */
 function extraFieldRows(data){
   return Object.keys(data.extra||{}).filter(function(k){
     var v=data.extra[k];
-    return v!=null&&v!==''&&(typeof v==='string'||typeof v==='number')&&!KPI_EXTRA_KEYS[k];
+    return v!=null&&v!==''&&(typeof v==='string'||typeof v==='number')&&!KPI_EXTRA_KEYS[k]&&!EXTRA_INTERNAL_KEYS[k];
   }).map(function(k){return{label:EXTRA_FIELD_LBL[k]||k,val:data.extra[k]};});
 }
 
@@ -1665,6 +1675,7 @@ function dbToRow(r){
 
 async function sendToSupabase(data,user){
   var row=buildDbRow(data,user);
+  if(data.extra!==undefined)row.extra=data.extra;
   var res=await supabase.from('ensayos').insert([row]);
   if(res.error)throw res.error;
 }
@@ -1830,6 +1841,13 @@ function reporteEnsayoHTML(data,gc,params,cumple,incluirCurva){
    Arena Iman (Secado) y A36/TLH Arenas. El resto de productos guarda el
    ensayo normalmente pero no envia correo. */
 const PRODUCTOS_CON_CORREO=['A36','TT_TLH','TT_IMAN_PROD'];
+
+/* Estos productos permiten guardar con solo Granulometria O Quimica
+   completa (la otra seccion queda pendiente de completar despues) porque
+   quimica suele demorar mas que granulometria y bloquear el envio hasta
+   tener ambas frena el trabajo del analista sin necesidad. Ver extra.pendiente
+   y CompletarEnsayoModal. */
+const PRODUCTOS_DATO_PARCIAL=['A36','TT_TLH'];
 
 /* Envia el reporte detallado del ensayo recien registrado (siempre, cumpla
    o no), con PDF adjunto (incluye la curva de distribucion). Best-effort:
@@ -2316,6 +2334,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
   var pendingDlRef=useRef(null);
   var logoSrc=useMemo(function(){return document.querySelector('.hdr-brand img')?document.querySelector('.hdr-brand img').src:'';},[]);
 
+  var pendiente=(data.extra||{}).pendiente||null;
   var isA36=data.producto==='A36';
   var[specKey,setSpecKey]=useState(isA36?'LIRQUEN':null);
   var prodSpecs=getSpecs(data.producto);
@@ -2545,11 +2564,26 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
           <button className="btn btn-secondary" style={{padding:'5px 14px'}} onClick={onClose}>X Cerrar</button>
         </div>
 
+        {/* ── BANNER PENDIENTE (dato parcial: falta Granulometria o Quimica) ──
+           Mientras falte una parte no tiene sentido evaluar cumplimiento
+           EETT (los datos aun no estan completos), asi que este banner
+           reemplaza al de fuera de norma/cumplimiento hasta completarse. */}
+        {pendiente&&(
+          <div style={{padding:'14px 20px',background:'#fffbea',borderBottom:'3px solid #b7791f'}}>
+            <div style={{fontWeight:800,color:'#b7791f',fontSize:'.95rem',marginBottom:6}}>
+              ⏳ PENDIENTE — falta completar {pendiente==='granulometria'?'Granulometría':'Química'}
+            </div>
+            <div style={{fontSize:'.8rem',color:'#7a6a3a'}}>
+              El registro se guardo con los datos disponibles. La evaluacion de cumplimiento EETT y el correo automatico quedan en espera hasta que se complete la parte faltante desde Historial.
+            </div>
+          </div>
+        )}
+
         {/* ── BANNER FUERA DE NORMA ──
            A36 se evalua contra dos EETT incompatibles entre si: si cumple
            al menos una, el aviso es parcial (ambar) y sin recomendacion de
            cono de emergencia; rojo solo si no cumple NINGUNA. */}
-        {violations&&violations.length>0&&(function(){
+        {!pendiente&&violations&&violations.length>0&&(function(){
           var specNames=isA36?Object.keys(SPECS_A36).map(function(k){return SPECS_A36[k].nombre;}):[];
           var specsFuera=specNames.filter(function(n){return violations.some(function(v){return v.spec===n;});});
           var specsOk=specNames.filter(function(n){return specsFuera.indexOf(n)<0;});
@@ -3471,7 +3505,7 @@ var SECTORES_GOLF=[
 ];
 
 var TT_FORM_CFG={
-  TT_TLH:    {granu:true,quimica:true,humedad:true,acopio:true,analista:true},
+  TT_TLH:    {granu:true,quimica:true,humedad:true,acopio:true,analista:true,datoParcial:true},
   TT_ALIM:   {granu:true,quimica:true,mezcla:true,analista:true},
   TT_GMINA:  {granu:true,quimica:true,sector:true,hora:true,analista:true},
   TT_AMINAS: {granu:true,quimica:true,tipoArena:true,pctArcilla:true},
@@ -3595,16 +3629,22 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     if(cfg.acopio&&!acopio)e.acopio='Seleccione '+(cfg.acopioLabel?('el '+cfg.acopioLabel.toLowerCase()):'el acopio');
     if(cfg.sector&&!sector)e.sector='Sector requerido';
     if(cfg.tipoArena&&!tipoArena)e.tipoArena='Tipo de arena requerido';
-    if(cfg.granu){
+    var granuVacio=cfg.datoParcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+    var quimVacio=cfg.datoParcial&&TT_QUIM_FIELDS.every(function(f){return !quimica[f.k];});
+    if(cfg.datoParcial&&granuVacio&&quimVacio)
+      e._parcial='Debe completar Granulometria o Quimica.';
+    if(cfg.granu&&!granuVacio){
       var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
       if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
       if(!pesoFinal)e.pesoFinal='Peso final requerido';
       else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
         e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
       if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+      if(cfg.humedad&&!pctHumedad)e.pctHumedad='Humedad requerida';
+    }else if(!cfg.datoParcial&&cfg.humedad&&!pctHumedad){
+      e.pctHumedad='Humedad requerida';
     }
-    if(cfg.humedad&&!pctHumedad)e.pctHumedad='Humedad requerida';
-    if(cfg.quimica&&!cfg.quimicaOpcional)validaQuimica(quimica,e);
+    if(cfg.quimica&&!cfg.quimicaOpcional&&!quimVacio)validaQuimica(quimica,e);
     return e;
   }
 
@@ -3619,6 +3659,10 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     if(cfg.tipoArena)extra.tipoArena=tipoArena;
     if(cfg.pctArcilla&&pctArcilla)extra.pctArcilla=pctArcilla;
     if(cfg.mezcla)extra.mezcla=mezcla;
+    var granuVacio=cfg.datoParcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+    var quimVacio=cfg.datoParcial&&TT_QUIM_FIELDS.every(function(f){return !quimica[f.k];});
+    var pendiente=granuVacio?'granulometria':(quimVacio?'quimica':null);
+    if(pendiente)extra.pendiente=pendiente;
     var data={
       id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
       turno:cfg.analista?turno:'',analista:cfg.analista?analista:(account?account.email:''),
@@ -3633,12 +3677,13 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     addPending(data);
     setSendError(null);
     var violations=cfg.granu||cfg.quimica?collectViolations(data,gc):[];
-    if((cfg.granu||cfg.quimica)&&PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
+    if(!pendiente&&(cfg.granu||cfg.quimica)&&PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendTurcoToSupabase(data,account);
       delPending(data.id);
       setSending(false);
-      setReportModal({data:data,gc:gc,violations:violations,msg:'Registro enviado exitosamente.'});
+      setReportModal({data:data,gc:gc,violations:violations,
+        msg:pendiente?'Registro guardado — falta completar '+(pendiente==='granulometria'?'Granulometria':'Quimica')+'.':'Registro enviado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
@@ -4842,14 +4887,23 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     if(!analista)e.analista='Requerido';
     if(!producto)e.producto='Seleccione un producto';
     var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
-    if(!pesoInicial)e.pesoInicial='Requerido';
-    if(!pesoFinal)e.pesoFinal='Requerido';
-    else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
-      e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+    var parcial=PRODUCTOS_DATO_PARCIAL.indexOf(producto)>=0;
+    var granuVacio=!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+    var quimVacio=!quimica.al2o3&&!quimica.fe2o3&&!quimica.cao&&!quimica.mgo&&!quimica.k2o&&!quimica.na2o&&!quimica.tio2;
+    if(parcial&&granuVacio&&(!cfg.quimica||quimVacio))
+      e._parcial='Debe completar Granulometria o Quimica.';
+    if(!(parcial&&granuVacio)){
+      if(!pesoInicial)e.pesoInicial='Requerido';
+      if(!pesoFinal)e.pesoFinal='Requerido';
+      else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
+        e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+      if(cfg.humedad&&!pctHumedad)e.pctHumedad='Requerido';
+      if(producto&&!gc.closeOk)
+        e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+    }
     if(cfg.tipoMuestra&&!tipoMuestra)e.tipoMuestra='Requerido';
     if(cfg.tipoMuestra&&tipoMuestra&&!numAcopio)e.numAcopio='Requerido';
-    if(cfg.humedad&&!pctHumedad)e.pctHumedad='Requerido';
-    if(cfg.quimica){
+    if(cfg.quimica&&!(parcial&&quimVacio)){
       if(!quimica.al2o3)e.al2o3='Requerido';
       if(!quimica.fe2o3)e.fe2o3='Requerido';
       if(!quimica.cao)e.cao='Requerido';
@@ -4858,8 +4912,6 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
       if(!quimica.na2o)e.na2o='Requerido';
       if(!quimica.tio2)e.tio2='Requerido';
     }
-    if(producto&&!gc.closeOk)
-      e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
     return e;
   }
 
@@ -4878,6 +4930,10 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     var prodLabel=prodObj?prodObj.label:producto;
     var tmVal=cfg.tipoMuestra?tipoMuestra:'';
     var naVal=cfg.tipoMuestra&&tipoMuestra?numAcopio:'';
+    var parcial=PRODUCTOS_DATO_PARCIAL.indexOf(producto)>=0;
+    var granuVacio=parcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+    var quimVacio=parcial&&cfg.quimica&&!quimica.al2o3&&!quimica.fe2o3&&!quimica.cao&&!quimica.mgo&&!quimica.k2o&&!quimica.na2o&&!quimica.tio2;
+    var pendiente=granuVacio?'granulometria':(quimVacio?'quimica':null);
     var data={
       id:uid(),fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,
       turno:turno,analista:analista,producto:producto,productoLabel:prodLabel,
@@ -4885,15 +4941,17 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
       pesoInicial:pesoInicial,pesoFinal:pesoFinal,granu:gv,pesoFondo:gc.fondPeso,
       pctHumedad:pctHumedad,quimica:quimica,observaciones:obs,
     };
+    if(pendiente)data.extra={pendiente:pendiente};
     lsAdd(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    if(PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
+    if(!pendiente&&PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendToSupabase(data,account);
       lsDel(data.id);
       setSending(false);
-      setReportModal({data:data,gc:gc,violations:violations,msg:'Registro enviado exitosamente.'});
+      setReportModal({data:data,gc:gc,violations:violations,
+        msg:pendiente?'Registro guardado — falta completar '+(pendiente==='granulometria'?'Granulometria':'Quimica')+'.':'Registro enviado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
@@ -6365,6 +6423,11 @@ function DashboardScreen({account,onBack,initProd,initTab}){
   var[msgPdf,setMsgPdf]=useState('');
   var[filterTipoMuestra,setFilterTipoMuestra]=useState(['Puntual','Acopio']);
   var[filterNumAcopio,setFilterNumAcopio]=useState(ACOPIO_OPTS.slice());
+  // Filtro por Acopio/Silo/Sector para productos Turco con TT_FORM_CFG.acopio
+  // (TT_TLH, TT_IMAN_PROD, TT_GOLF, etc.) — equivalente al filtro de N°
+  // Acopio de A36, pero generico: cada producto define su propia etiqueta
+  // y lista de opciones (acopioLabel/acopioOptions).
+  var[filterAcopioTurco,setFilterAcopioTurco]=useState('');
   // chart refs — granu curves
   var cParRef=useRef(null);var cPasRef=useRef(null);
   var iParRef=useRef(null);var iPasRef=useRef(null);
@@ -6382,6 +6445,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
   useEffect(function(){
     setFilterTipoMuestra(['Puntual','Acopio']);
     setFilterNumAcopio(ACOPIO_OPTS.slice());
+    setFilterAcopioTurco('');
   },[prod]);
 
   async function loadData(){
@@ -6614,9 +6678,13 @@ function DashboardScreen({account,onBack,initProd,initTab}){
           if(!na||!filterNumAcopio.includes(na))return false;
         }
       }
+      var tcfg=TT_FORM_CFG[prod];
+      if(tcfg&&tcfg.acopio&&filterAcopioTurco){
+        if(normAcopio(r.NumAcopio||r.numAcopio||'')!==filterAcopioTurco)return false;
+      }
       return true;
     });
-  },[records,prod,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno,filterAnalista,filterTipoMuestra,filterNumAcopio]);
+  },[records,prod,periodType,selWeek,selMonth,selYear,custFrom,custTo,filterTurno,filterAnalista,filterTipoMuestra,filterNumAcopio,filterAcopioTurco]);
 
   /* % cumplimiento EETT del periodo: evalua cada ensayo filtrado con
      collectViolations (mismas reglas que la alerta del informe) */
@@ -6831,8 +6899,12 @@ function DashboardScreen({account,onBack,initProd,initTab}){
 
   // Ultimos 10 registros del producto dentro del periodo seleccionado arriba,
   // opcionalmente filtrados por tipo de muestra / N° de acopio.
-  var certRecs=useMemo(function(){
-    if(PROD_CON_DESPACHO.indexOf(prod)<0)return[];
+  // Cuantas muestras del rango se excluyeron por estar pendientes de
+  // completar Granulometria/Quimica (ver PRODUCTOS_DATO_PARCIAL) — se
+  // muestra como nota junto a la tabla para que no parezca que faltan
+  // datos por otro motivo.
+  var certInfo=useMemo(function(){
+    if(PROD_CON_DESPACHO.indexOf(prod)<0)return{recs:[],excluidos:0};
     var dr=getDateRange();
     var rs=records.filter(function(r){
       if((r.ProductoKey||r.producto||'')!==prod)return false;
@@ -6843,9 +6915,13 @@ function DashboardScreen({account,onBack,initProd,initTab}){
     // Turco toda muestra ya trae Acopio/Silo (campo requerido en el form).
     if(certFiltro==='Puntual')rs=rs.filter(function(r){return(r.TipoMuestra||r.tipoMuestra||'')!=='Acopio'&&!normAcopio(r.NumAcopio||r.numAcopio);});
     else if(certFiltro!=='__all')rs=rs.filter(function(r){return normAcopio(r.NumAcopio||r.numAcopio)===certFiltro;});
+    var antesPendiente=rs.length;
+    rs=rs.filter(function(r){return!datoPendiente(r);});
     rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
-    return rs.slice(-20);
+    return{recs:rs.slice(-20),excluidos:antesPendiente-rs.length};
   },[records,prod,certFiltro,periodType,selWeek,selMonth,selYear,custFrom,custTo]);
+  var certRecs=certInfo.recs;
+  var certExcluidosPendiente=certInfo.excluidos;
 
   // Detalle por registro: ret. acumulado/parcial por malla, quimica, D50, humedad
   function detA36(r){
@@ -7611,6 +7687,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
             {filterTurno?' · Turno '+filterTurno:' · Todos turnos'}
             {filterAnalista?' · '+filterAnalista:' · Todos analistas'}
             {prod==='A36'&&filterTipoMuestra.length<2&&(' · '+filterTipoMuestra.join(', '))}
+            {TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopio&&filterAcopioTurco&&(' · '+filterAcopioTurco)}
             {' · '}<strong>{filtered.length} registros</strong>
           </div>
         </div>
@@ -7852,6 +7929,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
   if(filterTurno)badges.push('Turno '+filterTurno);
   if(filterAnalista)badges.push(filterAnalista.split(' ')[0]);
   if(prod==='A36'&&filterTipoMuestra.length<2)badges.push(filterTipoMuestra.join('+')||'—');
+  if(TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopio&&filterAcopioTurco)badges.push(filterAcopioTurco);
   badges.push(filtered.length+' registros');
 
   if(showValForm){
@@ -7873,7 +7951,8 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       {(function(){
         var nAvanzados=(filterTurno?1:0)+(filterAnalista?1:0)
           +(prod==='A36'&&filterTipoMuestra.length<2?1:0)
-          +(prod==='A36'&&filterTipoMuestra.includes('Acopio')&&filterNumAcopio.length<ACOPIO_OPTS.length?1:0);
+          +(prod==='A36'&&filterTipoMuestra.includes('Acopio')&&filterNumAcopio.length<ACOPIO_OPTS.length?1:0)
+          +(TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopio&&filterAcopioTurco?1:0);
         return(
           <>
             <div className="db-filter-row">
@@ -7958,6 +8037,15 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                     {analistaOpts.map(function(a){return <option key={a} value={a}>{a}</option>;})}
                   </select>
                 </div>
+                {TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopio&&(
+                  <div className="dff">
+                    <label>{TT_FORM_CFG[prod].acopioLabel||'Acopio'}</label>
+                    <select value={filterAcopioTurco} onChange={function(e){setFilterAcopioTurco(e.target.value);}}>
+                      <option value="">Todos</option>
+                      {(TT_FORM_CFG[prod].acopioOptions||ACOPIOS_TURCO).map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
+                    </select>
+                  </div>
+                )}
                 {prod==='A36'&&(
                   <>
                     <div className="dff">
@@ -7999,7 +8087,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                 </div>
                 {nAvanzados>0&&(
                   <div style={{alignSelf:'flex-end'}}>
-                    <button type="button" onClick={function(){setFilterTurno('');setFilterAnalista('');setFilterTipoMuestra(['Puntual','Acopio']);setFilterNumAcopio(ACOPIO_OPTS.slice());}}
+                    <button type="button" onClick={function(){setFilterTurno('');setFilterAnalista('');setFilterTipoMuestra(['Puntual','Acopio']);setFilterNumAcopio(ACOPIO_OPTS.slice());setFilterAcopioTurco('');}}
                       style={{padding:'6px 12px',minHeight:34,fontSize:'.78rem',fontFamily:'Inter',cursor:'pointer',borderRadius:8,border:'1.5px solid var(--border)',background:'#fff',color:'#c0392b'}}>
                       ✕ Limpiar filtros
                     </button>
@@ -8564,6 +8652,12 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                 </span>
               </div>
               <div style={{padding:'10px 14px'}}>
+                {certExcluidosPendiente>0&&(
+                  <div style={{marginBottom:10,padding:'7px 12px',background:'#fffbea',border:'1px solid #f6e05e',
+                    borderRadius:8,fontSize:'.78rem',color:'#7a6a3a'}}>
+                    ⏳ Nota: {certExcluidosPendiente} muestra{certExcluidosPendiente===1?'':'s'} excluida{certExcluidosPendiente===1?'':'s'} por dato incompleto (pendiente de completar Granulometría/Química en Historial).
+                  </div>
+                )}
                 <div style={{display:'flex',gap:14,flexWrap:'wrap',alignItems:'flex-end',marginBottom:10}}>
                   <div className="dff">
                     <label>Muestras</label>
@@ -9841,6 +9935,11 @@ function EstadisticasScreen({account,onBack}){
       if(desde&&f<desde)return false;
       if(hasta&&f>hasta)return false;
       if(turno&&(r.Turno||r.turno)!==turno)return false;
+      // Excluir registros pendientes de completar Granulometria/Quimica
+      // (PRODUCTOS_DATO_PARCIAL): un dato incompleto no debe mezclarse en
+      // las cartas de control (I-mR/EWMA/CUSUM, sensibles al orden) hasta
+      // que se complete y su valor definitivo quede fijo.
+      if(datoPendiente(r))return false;
       return true;
     });
   },[records,prod,desde,hasta,turno]);
@@ -9864,6 +9963,7 @@ function EstadisticasScreen({account,onBack}){
       var pk=r.ProductoKey||r.producto||'';
       if(pk!==prod)return false;
       if(turno&&(r.Turno||r.turno)!==turno)return false;
+      if(datoPendiente(r))return false;
       return true;
     });
   },[records,prod,turno]);
@@ -10954,6 +11054,156 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
   );
 }
 
+/* Modal chico para completar la parte faltante (Granulometria o Quimica) de
+   un registro guardado como parcial via PRODUCTOS_DATO_PARCIAL/extra.pendiente
+   (ver PlantaForm/TurcoEnsayoForm). Muestra SOLO la seccion que falta, la
+   valida con las mismas reglas de siempre, limpia extra.pendiente al guardar
+   y recien ahi evalua EETT y dispara el correo automatico si corresponde
+   (no se hizo al guardar la parte parcial). Cualquier analista puede
+   completar un pendiente, no solo quien lo creo (analista es texto libre). */
+function CompletarEnsayoModal({rec,account,onClose,onSaved}){
+  var pk=rec.ProductoKey||rec.producto||'';
+  var extra0=rec.Extra||rec.extra||{};
+  var falta=extra0.pendiente||null;
+  var sieves=SIEVE_CONFIG[pk]||[];
+  var pcfg=PRODUCT_CONFIG[pk]||{};
+  var specs=getSpecs(pk);
+  var qspec=(specs&&specs.quimica)||{};
+  // getSpecs devuelve null para A36 (se evalua aparte contra SPECS_A36, con
+  // dos clientes/limites distintos) — usar PRODUCT_CONFIG.humedad para saber
+  // si el producto exige humedad, no la presencia de un hint de limite.
+  var hspec=specs?specs.humedad:null;
+
+  var[pIni,setPIni]=useState('');
+  var[pFin,setPFin]=useState('');
+  var[gv,setGv]=useState(sieves.map(function(){return'';}));
+  var[hum,setHum]=useState('');
+  var[quimica,setQuimica]=useState({sio2:'',al2o3:'',fe2o3:'',cao:'',mgo:'',k2o:'',na2o:'',tio2:''});
+  useEffect(function(){ /* SiO2 automatico = 100 - suma de los demas oxidos */
+    setQuimica(function(p){var v=calcSio2(p);return v===p.sio2?p:Object.assign({},p,{sio2:v});});
+  },[quimica.al2o3,quimica.fe2o3,quimica.cao,quimica.mgo,quimica.k2o,quimica.na2o,quimica.tio2]);
+  var[errors,setErrors]=useState({});
+  var[saving,setSaving]=useState(false);
+  var[err,setErr]=useState('');
+
+  function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+  var gc=useMemo(function(){return calcGranu(pk,gv,pFin);},[pk,gv,pFin]);
+
+  function validate(){
+    var e={};
+    if(falta==='granulometria'){
+      var pi=parseDecimal(pIni),pf=parseDecimal(pFin);
+      if(!pIni)e.pesoInicial='Peso inicial requerido';
+      if(!pFin)e.pesoFinal='Peso final requerido';
+      else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
+        e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+      if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+      if(pcfg.humedad&&!hum)e.pctHumedad='Humedad requerida';
+    }else if(falta==='quimica'){
+      validaQuimica(quimica,e);
+    }
+    return e;
+  }
+
+  async function save(){
+    var e=validate();
+    if(Object.keys(e).length){setErrors(e);return;}
+    setErrors({});setSaving(true);setErr('');
+    var extraNext=Object.assign({},extra0);
+    delete extraNext.pendiente;
+    var fields={extra:extraNext};
+    if(falta==='granulometria'){
+      fields.peso_inicial=parseDecimal(pIni)||null;
+      fields.peso_final=parseDecimal(pFin)||null;
+      fields.granu=gv;
+      if(pcfg.humedad)fields.pct_humedad=parseDecimal(hum)||null;
+    }else if(falta==='quimica'){
+      fields.quimica={sio2:quimica.sio2||null,al2o3:quimica.al2o3||null,fe2o3:quimica.fe2o3||null,
+        cao:quimica.cao||null,mgo:quimica.mgo||null,k2o:quimica.k2o||null,na2o:quimica.na2o||null,tio2:quimica.tio2||null};
+    }
+    try{
+      await updateEnsayo(rec.ID||rec.id,fields,account);
+      // Ahora que el registro quedo completo, recien evaluamos EETT y
+      // disparamos el correo automatico (no se hizo al guardar la parte
+      // parcial, ver PRODUCTOS_CON_CORREO/PRODUCTOS_DATO_PARCIAL).
+      var existingGv=rec.granu&&Array.isArray(rec.granu)?rec.granu:sieves.map(function(s){return String(rec[s.us+'_'+s.mm+'g']||0);});
+      var existingQuimica=rec.quimica&&typeof rec.quimica==='object'?rec.quimica:{
+        sio2:String(rec.SiO2||0),al2o3:String(rec.Al2O3||0),fe2o3:String(rec.Fe2O3||0),
+        cao:String(rec.CaO||0),mgo:String(rec.MgO||0),k2o:String(rec.K2O||0),
+        na2o:String(rec.Na2O||0),tio2:String(rec.TiO2||0),
+      };
+      var existingPesoInicial=String(rec.PesoInicial!=null?rec.PesoInicial:(rec.pesoInicial!=null?rec.pesoInicial:''));
+      var existingPesoFinal=String(rec.PesoFinal!=null?rec.PesoFinal:(rec.pesoFinal!=null?rec.pesoFinal:''));
+      var existingHum=String(rec.PctHumedad!=null?rec.PctHumedad:(rec.pctHumedad!=null?rec.pctHumedad:''));
+      var finalPesoInicial=falta==='granulometria'?pIni:existingPesoInicial;
+      var finalPesoFinal=falta==='granulometria'?pFin:existingPesoFinal;
+      var finalGv=falta==='granulometria'?gv:existingGv;
+      var finalHum=falta==='granulometria'?hum:existingHum;
+      var finalQuimica=falta==='quimica'?fields.quimica:existingQuimica;
+      var gcFinal=calcGranu(pk,finalGv,finalPesoFinal);
+      var data={
+        id:rec.ID||rec.id,fecha:rec.FechaMuestreo||rec.fecha||'',
+        turno:rec.Turno||rec.turno||'',analista:rec.Analista||rec.analista||'',
+        producto:pk,productoLabel:rec.Producto||rec.productoLabel||pk,
+        pesoInicial:finalPesoInicial,pesoFinal:finalPesoFinal,granu:finalGv,pesoFondo:gcFinal.fondPeso,
+        pctHumedad:finalHum,quimica:finalQuimica,observaciones:rec.Observaciones||rec.observaciones||'',
+        extra:extraNext,
+      };
+      if(PRODUCTOS_CON_CORREO.indexOf(pk)>=0)await enviarReporteRegistro(data,gcFinal,account);
+      setSaving(false);
+      onSaved();
+    }catch(e2){setSaving(false);setErr('Error al guardar: '+(e2.message||e2));}
+  }
+
+  var lbS={fontSize:'.72rem',fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:3};
+
+  return(
+    <div className="rmodal-ov" onClick={onClose}>
+      <div className="rmodal-wrap" style={{maxWidth:640}} onClick={function(e){e.stopPropagation();}}>
+        <div className="rmodal-bar">
+          <div className="rmodal-bar-title">⏳ Completar {falta==='granulometria'?'Granulometría':'Química'} — {rec.Producto||rec.productoLabel}</div>
+          <button className="back-btn" onClick={onClose}>✕</button>
+        </div>
+        <div style={{padding:'16px 18px',maxHeight:'70vh',overflowY:'auto'}}>
+          {err&&<div className="err-box" style={{marginBottom:10}}>{err}</div>}
+          <div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginBottom:14}}>
+            Este registro se guardo con {falta==='granulometria'?'Química':'Granulometría'} completa pero sin {falta==='granulometria'?'Granulometría':'Química'}. Complete la parte faltante para cerrar el registro.
+          </div>
+          {falta==='granulometria'&&(
+            <>
+              <div className="fg fg-2" style={{marginBottom:12}}>
+                <Field name="pi" label="Peso Inicial (g)" type="decimal" required value={pIni}
+                  onChange={function(e){setPIni(e.target.value);}} error={errors.pesoInicial} placeholder="0,00"/>
+                <PesoFinalField name="pf" value={pFin} error={errors.pesoFinal}/>
+              </div>
+              <div style={{marginBottom:12}}>
+                <label style={lbS}>Granulometría</label>
+                <GranuTable producto={pk} pesoFinal={pFin} pesoInicial={pIni} values={gv} onChange={updGv}
+                  onPesoFinal={function(v){setPFin(v);}}/>
+                {errors.granu&&<div style={{color:'var(--error)',fontSize:'.84rem',marginTop:9,fontWeight:600}}>Aviso: {errors.granu}</div>}
+              </div>
+              {pcfg.humedad&&(
+                <div style={{maxWidth:240,marginBottom:12}}>
+                  <Field name="hum" label="% Humedad" type="decimal" required value={hum}
+                    onChange={function(e){setHum(e.target.value);}} error={errors.pctHumedad} placeholder="0,00"
+                    specHint={hspec?'max '+fmt(hspec.max,1)+'%':null} specSemVal={hspec?calcSemaforo(parseDecimal(hum),null,hspec.max):'info'}/>
+                </div>
+              )}
+            </>
+          )}
+          {falta==='quimica'&&(
+            <TurcoQuimicaCard quimica={quimica} setQuimica={setQuimica} errors={errors} qspec={qspec}/>
+          )}
+        </div>
+        <div className="rmodal-ctrl">
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?'Guardando...':'Guardar y completar'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── HISTORY SCREEN ── */
 function HistoryScreen({account,onBack}){
   var[records,setRecords]=useState([]);
@@ -10967,6 +11217,8 @@ function HistoryScreen({account,onBack}){
   var[reportView,setReportView]=useState(null);
   var[editRec,setEditRec]=useState(null);
   var[certRec,setCertRec]=useState(null);
+  var[completarRec,setCompletarRec]=useState(null);
+  var[soloPendientes,setSoloPendientes]=useState(false);
   var[page,setPage]=useState(0);
   var[busca,setBusca]=useState('');
   var[fDesde,setFDesde]=useState('');
@@ -11145,6 +11397,7 @@ function HistoryScreen({account,onBack}){
       if(filterTurno&&(r.Turno||r.turno)!==filterTurno)return false;
       if(filterAnalista&&(r.Analista||r.analista)!==filterAnalista)return false;
       if(filterAcopio&&normAcopio(r.NumAcopio||r.numAcopio||'')!==filterAcopio)return false;
+      if(soloPendientes&&!datoPendiente(r))return false;
       if(!q)return true;
       var folio=r.Folio?String(r.Folio):'';
       var hay=[folio,'#'+folio,r.Producto||r.productoLabel||'',
@@ -11152,7 +11405,7 @@ function HistoryScreen({account,onBack}){
         r.Lote||r.lote||'',r.Guia||r.guia||'',r.NumAcopio||r.numAcopio||''].join(' ').toLowerCase();
       return hay.indexOf(q)!==-1;
     });
-  },[records,busca,fPlanta,fProd,periodType,selWeek,selMonth,selYear,fDesde,fHasta,filterTurno,filterAnalista,filterAcopio]);
+  },[records,busca,fPlanta,fProd,periodType,selWeek,selMonth,selYear,fDesde,fHasta,filterTurno,filterAnalista,filterAcopio,soloPendientes]);
 
   if(reportView){
     return(
@@ -11171,6 +11424,9 @@ function HistoryScreen({account,onBack}){
       {editRec&&<EditEnsayoModal rec={editRec} account={account}
         onClose={function(){setEditRec(null);}}
         onSaved={function(){setEditRec(null);setToast({msg:'Registro actualizado',type:'success'});load();}}/>}
+      {completarRec&&<CompletarEnsayoModal rec={completarRec} account={account}
+        onClose={function(){setCompletarRec(null);}}
+        onSaved={function(){setCompletarRec(null);setToast({msg:'Registro completado',type:'success'});load();}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
         <h2>Historial — Calidad</h2>
@@ -11184,7 +11440,7 @@ function HistoryScreen({account,onBack}){
       {(function(){
         var wks=[];for(var wi=1;wi<=52;wi++)wks.push(wi);
         var nAvanzados=(filterTurno?1:0)+(filterAnalista?1:0)+(filterAcopio?1:0);
-        var huboFiltro=busca||fDesde||fHasta||fPlanta!=='Arenas'||fProd!=='__all'||periodType!=='custom'||nAvanzados>0;
+        var huboFiltro=busca||fDesde||fHasta||fPlanta!=='Arenas'||fProd!=='__all'||periodType!=='custom'||nAvanzados>0||soloPendientes;
         return(
           <>
           <div style={{display:'flex',gap:8,marginBottom:8,flexWrap:'wrap',alignItems:'flex-end',
@@ -11267,10 +11523,16 @@ function HistoryScreen({account,onBack}){
             {huboFiltro&&(
               <button className="btn btn-secondary" style={{padding:'8px 14px'}}
                 onClick={function(){setBusca('');setFDesde('');setFHasta('');setFPlanta('Arenas');setFProd('__all');
-                  setPeriodType('custom');setFilterTurno('');setFilterAnalista('');setFilterAcopio('');setPage(0);}}>
+                  setPeriodType('custom');setFilterTurno('');setFilterAnalista('');setFilterAcopio('');setSoloPendientes(false);setPage(0);}}>
                 ✕ Limpiar
               </button>
             )}
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.82rem',fontWeight:600,
+              color:soloPendientes?'#b7791f':'#555',cursor:'pointer',alignSelf:'flex-end',padding:'8px 4px'}}>
+              <input type="checkbox" checked={soloPendientes}
+                onChange={function(e){setSoloPendientes(e.target.checked);setPage(0);}}/>
+              ⏳ Solo pendientes
+            </label>
           </div>
           {filtrosOpen&&(
             <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end',
@@ -11350,6 +11612,11 @@ function HistoryScreen({account,onBack}){
                           {r.status==='sent'
                             ?<span className="badge badge-s">Enviado</span>
                             :<span className="badge badge-w">Pendiente</span>}
+                          {datoPendiente(r)&&(
+                            <span className="badge badge-i" style={{marginLeft:5}}>
+                              &#9203; Falta {datoPendiente(r)==='granulometria'?'Granulometría':'Química'}
+                            </span>
+                          )}
                         </td>
                         <td style={{textAlign:'center',fontSize:'1rem',color:'var(--primary)',fontWeight:700}}>
                           {isOpen?'▲':'▼'}
@@ -11540,6 +11807,12 @@ function HistoryScreen({account,onBack}){
                                     disabled={rst.loading}
                                     onClick={function(e){e.stopPropagation();resend(r);}}>
                                     {rst.loading?'Enviando...':'&#8679; Sincronizar'}
+                                  </button>
+                                )}
+                                {r.status==='sent'&&datoPendiente(r)&&(
+                                  <button className="btn btn-primary" style={{padding:'7px 14px',fontSize:'.84rem'}}
+                                    onClick={function(e){e.stopPropagation();setCompletarRec(r);}}>
+                                    &#9203; Completar {datoPendiente(r)==='granulometria'?'Granulometría':'Química'}
                                   </button>
                                 )}
                                 {rst.ok&&(
