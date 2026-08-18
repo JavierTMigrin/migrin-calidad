@@ -3284,7 +3284,7 @@ const PUNTOS_MUESTREO_TURCO = [{
   value: 'Zona Segura Patas',
   label: 'Zona Segura Patas'
 }];
-const MEZCLA_COMPONENTES = ['banco', 'amarilla', 'blanca', 'grancilla'];
+const MEZCLA_COMPONENTES = ['banco1', 'banco2', 'amarilla', 'blanca', 'grancilla'];
 /* EETT por defecto Lodo: +#120 (ret. acumulado) max 10% */
 const SPECS_TT_LODO = {
   granulometria: {
@@ -6961,10 +6961,14 @@ var SECTORES_GOLF = [{
   label: 'Sector Mina'
 }];
 var TT_FORM_CFG = {
+  // Humedad se sigue midiendo y mostrando, pero no bloquea el envio si
+  // queda en blanco (a diferencia de granulometria/quimica, que si son
+  // obligatorias cuando se llena esa seccion — ver PRODUCTOS_DATO_PARCIAL).
   TT_TLH: {
     granu: true,
     quimica: true,
     humedad: true,
+    humedadOpcional: true,
     acopio: true,
     analista: true,
     datoParcial: true
@@ -7240,7 +7244,8 @@ function TurcoEnsayoForm({
   var [tipoArena, setTipoArena] = useState('');
   var [pctArcilla, setPctArcilla] = useState('');
   var [mezcla, setMezcla] = useState({
-    banco: '',
+    banco1: '',
+    banco2: '',
     amarilla: '',
     blanca: '',
     grancilla: ''
@@ -7268,6 +7273,7 @@ function TurcoEnsayoForm({
       });
     });
   }, [quimica.al2o3, quimica.fe2o3, quimica.cao, quimica.mgo, quimica.k2o, quimica.na2o, quimica.tio2]);
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -7328,8 +7334,8 @@ function TurcoEnsayoForm({
       if (!pesoInicial) e.pesoInicial = 'Peso inicial requerido';
       if (!pesoFinal) e.pesoFinal = 'Peso final requerido';else if (pi > 0 && Math.abs(pf - pi) / pi > 0.25) e.pesoFinal = 'El peso final difiere mas del 25% del peso inicial. Verifique.';
       if (!gc.closeOk) e.granu = 'El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
-      if (cfg.humedad && !pctHumedad) e.pctHumedad = 'Humedad requerida';
-    } else if (!cfg.datoParcial && cfg.humedad && !pctHumedad) {
+      if (cfg.humedad && !cfg.humedadOpcional && !pctHumedad) e.pctHumedad = 'Humedad requerida';
+    } else if (!cfg.datoParcial && cfg.humedad && !cfg.humedadOpcional && !pctHumedad) {
       e.pctHumedad = 'Humedad requerida';
     }
     if (cfg.quimica && !cfg.quimicaOpcional && !quimVacio) validaQuimica(quimica, e);
@@ -7373,7 +7379,7 @@ function TurcoEnsayoForm({
       pesoFondo: cfg.granu ? gc.fondPeso : null,
       pctHumedad: cfg.humedad ? pctHumedad : '',
       quimica: cfg.quimica ? quimica : {},
-      observaciones: '',
+      observaciones: obs,
       extra: extra,
       horaSalida: cfg.hora ? hora : ''
     };
@@ -7566,11 +7572,19 @@ function TurcoEnsayoForm({
   }, /*#__PURE__*/React.createElement("div", {
     className: "fg fg-2"
   }, /*#__PURE__*/React.createElement(Field, {
-    name: "mzBanco",
-    label: "Banco",
-    value: mezcla.banco,
+    name: "mzBanco1",
+    label: "Banco 1",
+    value: mezcla.banco1,
     onChange: function (e) {
-      updMezcla('banco', e.target.value);
+      updMezcla('banco1', e.target.value);
+    },
+    placeholder: "0"
+  }), /*#__PURE__*/React.createElement(Field, {
+    name: "mzBanco2",
+    label: "Banco 2",
+    value: mezcla.banco2,
+    onChange: function (e) {
+      updMezcla('banco2', e.target.value);
     },
     placeholder: "0"
   }), /*#__PURE__*/React.createElement(Field, {
@@ -7641,7 +7655,7 @@ function TurcoEnsayoForm({
       fontWeight: 600
     }
   }, "Aviso: ", errors.granu))), cfg.humedad && /*#__PURE__*/React.createElement(SecCard, {
-    title: "Humedad",
+    title: 'Humedad' + (cfg.humedadOpcional ? ' — opcional' : ''),
     icon: "💧"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7651,7 +7665,7 @@ function TurcoEnsayoForm({
     name: "humTT",
     label: "% Humedad",
     type: "decimal",
-    required: true,
+    required: !cfg.humedadOpcional,
     value: pctHumedad,
     onChange: function (e) {
       setPctHumedad(e.target.value);
@@ -7666,7 +7680,22 @@ function TurcoEnsayoForm({
     errors: errors,
     qspec: qspec,
     opcional: cfg.quimicaOpcional
-  }), pendienteActual && /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsTT",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), pendienteActual && /*#__PURE__*/React.createElement("div", {
     style: {
       margin: '0 0 16px',
       padding: '12px 16px',
@@ -7701,6 +7730,7 @@ function TurcoGranosForm({
   var [punto, setPunto] = useState('');
   var [granos, setGranos] = useState(Array(sieves.length).fill(''));
   var [arcillas, setArcillas] = useState(Array(sieves.length).fill(''));
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -7761,7 +7791,7 @@ function TurcoGranosForm({
       pesoFondo: null,
       pctHumedad: '',
       quimica: {},
-      observaciones: '',
+      observaciones: obs,
       extra: {
         hora: hora,
         punto: punto,
@@ -7925,7 +7955,22 @@ function TurcoGranosForm({
       marginTop: 9,
       fontWeight: 600
     }
-  }, "Aviso: ", errors.granos)), /*#__PURE__*/React.createElement("div", {
+  }, "Aviso: ", errors.granos)), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsTG",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -7950,6 +7995,7 @@ function TurcoArcillasForm({
   var [lectura2, setLectura2] = useState('');
   var [pctArena, setPctArena] = useState('');
   var [pctArcillas, setPctArcillas] = useState('');
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -7994,7 +8040,7 @@ function TurcoArcillasForm({
       pesoFondo: null,
       pctHumedad: '',
       quimica: {},
-      observaciones: '',
+      observaciones: obs,
       extra: {
         tipoArena: tipoArena,
         temperatura: temperatura,
@@ -8162,7 +8208,22 @@ function TurcoArcillasForm({
     },
     error: errors.pctArcillas,
     placeholder: "0,00"
-  }))), /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsAR",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -8186,6 +8247,7 @@ function TurcoCilindroForm({
   var [panE, setPanE] = useState('');
   var [gvS, setGvS] = useState(Array(sieves.length).fill(''));
   var [panS, setPanS] = useState('');
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -8253,7 +8315,7 @@ function TurcoCilindroForm({
       pesoFondo: parseDecimal(panE) || 0,
       pctHumedad: '',
       quimica: {},
-      observaciones: '',
+      observaciones: obs,
       extra: {
         salidaGranu: gvS,
         salidaPan: panS,
@@ -8390,7 +8452,22 @@ function TurcoCilindroForm({
       setFecha(e.target.value);
     },
     error: errors.fecha
-  }))), granuGrid('Entrada Cilindro (g)', gvE, updE, panE, setPanE, totE, 'entrada'), granuGrid('Salida Cilindro (g)', gvS, updS, panS, setPanS, totS, 'salida'), /*#__PURE__*/React.createElement("div", {
+  }))), granuGrid('Entrada Cilindro (g)', gvE, updE, panE, setPanE, totE, 'entrada'), granuGrid('Salida Cilindro (g)', gvS, updS, panS, setPanS, totS, 'salida'), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsCI",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -8420,6 +8497,7 @@ function TurcoFloculanteForm({
   var [frasco2, setFrasco2] = useState(''); // Dilucion (obligatorio)
   var [frasco3, setFrasco3] = useState(''); // Madre Estanque Preparacion (opcional)
   var [frasco4, setFrasco4] = useState(''); // Madre Estanque 2 (opcional)
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -8478,7 +8556,7 @@ function TurcoFloculanteForm({
       pesoFondo: null,
       pctHumedad: '',
       quimica: {},
-      observaciones: estado ? estado + ' — dilucion ' + frasco2 + ' g' : '',
+      observaciones: [estado ? estado + ' — dilucion ' + frasco2 + ' g' : '', obs].filter(Boolean).join(' | '),
       extra: {
         horario: horario,
         solucionMl: solucion,
@@ -8753,7 +8831,22 @@ function TurcoFloculanteForm({
       fontWeight: 800,
       color: estadoColor
     }
-  })))), /*#__PURE__*/React.createElement("div", {
+  })))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsFL",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -8778,6 +8871,7 @@ function TurcoEspesadorForm({
   var [pesoHumedo, setPesoHumedo] = useState('');
   var [pesoSeco, setPesoSeco] = useState('');
   var [pesoVidrio, setPesoVidrio] = useState('');
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -8829,7 +8923,7 @@ function TurcoEspesadorForm({
       pesoFondo: null,
       pctHumedad: '',
       quimica: {},
-      observaciones: pctSolido ? '% Solido: ' + pctSolido + ' %' : '',
+      observaciones: [pctSolido ? '% Solido: ' + pctSolido + ' %' : '', obs].filter(Boolean).join(' | '),
       extra: {
         horario: horario,
         pesoHumedoG: pesoHumedo,
@@ -9002,7 +9096,22 @@ function TurcoEspesadorForm({
     style: {
       fontWeight: 800
     }
-  })))), /*#__PURE__*/React.createElement("div", {
+  })))), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsES",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -9024,6 +9133,7 @@ function TurcoLodoForm({
   var [fecha, setFecha] = useState(today());
   var [gv, setGv] = useState(Array(sieves.length).fill(''));
   var [pan, setPan] = useState('');
+  var [obs, setObs] = useState('');
   var [errors, setErrors] = useState({});
   var [sending, setSending] = useState(false);
   var [reportModal, setReportModal] = useState(null);
@@ -9098,7 +9208,7 @@ function TurcoLodoForm({
       pesoFondo: isNaN(panN) ? 0 : panN,
       pctHumedad: '',
       quimica: {},
-      observaciones: '',
+      observaciones: obs,
       extra: {
         menos100: menos100,
         mas120: mas120
@@ -9271,7 +9381,22 @@ function TurcoLodoForm({
       fontWeight: 700,
       fontSize: '.88rem'
     }
-  }, "🚨 +#120 supera el 10% — fuera de norma")), /*#__PURE__*/React.createElement("div", {
+  }, "🚨 +#120 supera el 10% — fuera de norma")), /*#__PURE__*/React.createElement(SecCard, {
+    title: "Observaciones",
+    icon: "📝"
+  }, /*#__PURE__*/React.createElement(Field, {
+    name: "obsLO",
+    label: "Observaciones",
+    type: "textarea",
+    value: obs,
+    onChange: function (e) {
+      if (e.target.value.length <= 300) setObs(e.target.value);
+    },
+    placeholder: "Observaciones adicionales (opcional)",
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cc"
+  }, obs.length, "/300")), /*#__PURE__*/React.createElement("div", {
     className: "form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-secondary",
@@ -13641,6 +13766,7 @@ function DashboardScreen({
       acum: acum,
       parc: parc,
       fondoP: fondo ? fondo.pctP : null,
+      fondoA: fondo ? fondo.pctA : null,
       d50: d50,
       quim: quim,
       hum: isNaN(hum) ? null : hum
@@ -13961,19 +14087,21 @@ function DashboardScreen({
       });
       r++;
 
-      // Granulometria - Retenido Acumulado
+      // Granulometria - Retenido Acumulado (incluye Fondo/PAN si hay dato:
+      // el cierre real por muestra puede variar unas decimas del 100%, y
+      // omitirlo dejaba a los despachos sin ese dato en el certificado)
       r = sectionTitle(r, 'GRANULOMETRÍA — RETENIDO ACUMULADO (%)');
       r = headerRow(r, ['malla en mm'].concat(sievesX.map(function (s) {
         return rnd(parseFloat(String(s.mm).replace(',', '.')) || 0, 3);
-      })));
+      })).concat(st.fondoAcum ? ['—'] : []));
       r = headerRow(r, ['N° malla'].concat(sievesX.map(function (s) {
         return String(s.us).replace('#', '');
-      })));
+      })).concat(st.fondoAcum ? ['Fondo'] : []));
       [['Media', 'media'], ['Máximo', 'max'], ['Mínimo', 'min'], ['Desv. Est.', 'sd']].forEach(function (rw) {
         r = dataRow(r, [rw[0]].concat(sievesX.map(function (s) {
           var a = st.acum[s.us];
           return a ? rnd(a[rw[1]], 2) : null;
-        })));
+        })).concat(st.fondoAcum ? [rnd(st.fondoAcum[rw[1]], 2)] : []));
       });
       r++;
 
@@ -14242,6 +14370,13 @@ function DashboardScreen({
     var fondoM = aggCert(det.map(function (d) {
       return d.fondoP;
     }));
+    // Fondo/PAN acumulado (deberia rondar el 100%, pero se muestra igual que
+    // cualquier otra malla en la tabla de Retenido Acumulado — el cierre
+    // real por muestra puede variar unas decimas, y omitirlo dejaba a los
+    // despachos sin ese dato en el certificado).
+    var fondoAcum = aggCert(det.map(function (d) {
+      return d.fondoA;
+    }));
     var quim = {};
     ['sio2', 'al2o3', 'fe2o3', 'cao', 'mgo', 'k2o', 'na2o', 'tio2', 'k2o_na2o'].forEach(function (k) {
       quim[k] = aggCert(det.map(function (d) {
@@ -14252,6 +14387,7 @@ function DashboardScreen({
       acum: acum,
       parcM: parcM,
       fondoM: fondoM ? fondoM.media : null,
+      fondoAcum: fondoAcum,
       quim: quim,
       d50: aggCert(det.map(function (d) {
         return d.d50;
@@ -18334,14 +18470,18 @@ function DashboardScreen({
           key: s.us,
           style: cH
         }, fmt(parseFloat(String(s.mm).replace(',', '.')) || 0, 3));
-      })), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+      }), certStats.fondoAcum && /*#__PURE__*/React.createElement("th", {
+        style: cH
+      }, "—")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
         style: cH
       }, "N° malla"), sieves.map(function (s) {
         return /*#__PURE__*/React.createElement("th", {
           key: s.us,
           style: cH
         }, String(s.us).replace('#', ''));
-      }))), /*#__PURE__*/React.createElement("tbody", null, [['Media', 'media'], ['Máximo', 'max'], ['Mínimo', 'min'], ['Desv. Est.', 'sd']].map(function (rw) {
+      }), certStats.fondoAcum && /*#__PURE__*/React.createElement("th", {
+        style: cH
+      }, "Fondo"))), /*#__PURE__*/React.createElement("tbody", null, [['Media', 'media'], ['Máximo', 'max'], ['Mínimo', 'min'], ['Desv. Est.', 'sd']].map(function (rw) {
         return /*#__PURE__*/React.createElement("tr", {
           key: rw[1]
         }, /*#__PURE__*/React.createElement("td", {
@@ -18355,7 +18495,9 @@ function DashboardScreen({
             key: s.us,
             style: cD
           }, st ? fmt(st[rw[1]], 2) : '—');
-        }));
+        }), certStats.fondoAcum && /*#__PURE__*/React.createElement("td", {
+          style: cD
+        }, fmt(certStats.fondoAcum[rw[1]], 2)));
       }))), /*#__PURE__*/React.createElement("div", {
         style: {
           border: '1px solid #c3d0dd',
@@ -23498,6 +23640,9 @@ function CompletarEnsayoModal({
   var falta = extra0.pendiente || null;
   var sieves = SIEVE_CONFIG[pk] || [];
   var pcfg = PRODUCT_CONFIG[pk] || {};
+  // TT_TLH mide Humedad pero no la exige (ver TT_FORM_CFG.humedadOpcional);
+  // PRODUCT_CONFIG no distingue esto, asi que se consulta aparte.
+  var humedadOpcional = !!(TT_FORM_CFG[pk] && TT_FORM_CFG[pk].humedadOpcional);
   var specs = getSpecs(pk);
   var qspec = specs && specs.quimica || {};
   // getSpecs devuelve null para A36 (se evalua aparte contra SPECS_A36, con
@@ -23550,7 +23695,7 @@ function CompletarEnsayoModal({
       if (!pIni) e.pesoInicial = 'Peso inicial requerido';
       if (!pFin) e.pesoFinal = 'Peso final requerido';else if (pi > 0 && Math.abs(pf - pi) / pi > 0.25) e.pesoFinal = 'El peso final difiere mas del 25% del peso inicial. Verifique.';
       if (!gc.closeOk) e.granu = 'El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
-      if (pcfg.humedad && !hum) e.pctHumedad = 'Humedad requerida';
+      if (pcfg.humedad && !humedadOpcional && !hum) e.pctHumedad = 'Humedad requerida';
     } else if (falta === 'quimica') {
       validaQuimica(quimica, e);
     }
@@ -23731,7 +23876,7 @@ function CompletarEnsayoModal({
     name: "hum",
     label: "% Humedad",
     type: "decimal",
-    required: true,
+    required: !humedadOpcional,
     value: hum,
     onChange: function (e) {
       setHum(e.target.value);
