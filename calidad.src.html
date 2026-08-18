@@ -1847,7 +1847,7 @@ const PRODUCTOS_CON_CORREO=['A36','TT_TLH','TT_IMAN_PROD'];
    quimica suele demorar mas que granulometria y bloquear el envio hasta
    tener ambas frena el trabajo del analista sin necesidad. Ver extra.pendiente
    y CompletarEnsayoModal. */
-const PRODUCTOS_DATO_PARCIAL=['A36','TT_TLH'];
+const PRODUCTOS_DATO_PARCIAL=['A36','TT_TLH','TT_IMAN_PROD'];
 
 /* Envia el reporte detallado del ensayo recien registrado (siempre, cumpla
    o no), con PDF adjunto (incluye la curva de distribucion). Best-effort:
@@ -1970,6 +1970,23 @@ async function updateEnsayo(id,fields,user){
       usuario:user?user.email:'desconocido',
     }]);
   }catch(e){console.warn('audit',e);}
+}
+
+/* Registros de un producto que quedaron guardados con Granulometria o
+   Quimica pendiente de completar (ver PRODUCTOS_DATO_PARCIAL/extra.pendiente).
+   Usado para avisar al analista, al abrir el formulario de un producto con
+   llenado parcial, que hay un registro en reserva antes de que cargue otro
+   nuevo. Best-effort: si falla (offline, etc.) no bloquea el formulario. */
+async function buscarPendientesProducto(producto){
+  try{
+    var res=await supabase.from('ensayos').select('*')
+      .eq('producto_key',producto)
+      .not('extra->>pendiente','is',null)
+      .order('fecha_muestreo',{ascending:false})
+      .limit(20);
+    if(res.error)return[];
+    return (res.data||[]).map(dbToRow);
+  }catch(e){console.warn('buscarPendientesProducto',e);return[];}
 }
 
 /* planta: 'Arenas' (incluye Cuarzo) o 'Turco'. Si la columna planta no
@@ -2248,15 +2265,22 @@ function GranuTable({producto,pesoFinal,pesoInicial,values,onChange,onPesoFinal}
 }
 
 /* ── REVIEW SCREEN ── */
-function ReviewScreen({data,gc,onConfirm,onBack,sending}){
+function ReviewScreen({data,gc,onConfirm,onBack,sending,pendiente}){
   var cfg=PRODUCT_CONFIG[data.producto]||{quimica:true,humedad:true,tipoMuestra:false};
   var tipoDisplay=data.tipoMuestra==='Acopio'?(data.numAcopio||'Acopio'):data.tipoMuestra||'';
   return(
     <div>
       <div className="page-hdr">
         <button className="back-btn" onClick={onBack}>&#8592;</button>
-        <h2>Revisar antes de enviar</h2>
+        <h2>{pendiente?'Revisar antes de guardar':'Revisar antes de enviar'}</h2>
       </div>
+      {pendiente&&(
+        <div style={{margin:'0 0 16px',padding:'12px 16px',background:'#fffbea',border:'1.5px solid #f6e05e',
+          borderRadius:10,color:'#7a6a3a',fontSize:'.85rem'}}>
+          ⏳ Falta <b>{pendiente==='granulometria'?'Granulometría':'Química'}</b>: este registro quedará <b>guardado como pendiente</b>.
+          Los datos quedan en la base de datos ahora mismo; el correo automático de cumplimiento EETT recién se envía cuando se complete la parte faltante desde Historial.
+        </div>
+      )}
       <SecCard title="Informacion General" icon="&#128203;">
         <table className="rev-tbl"><tbody>
           <tr><td>Fecha de muestreo</td><td>{data.fecha}</td></tr>
@@ -2320,7 +2344,7 @@ function ReviewScreen({data,gc,onConfirm,onBack,sending}){
       <div className="form-actions">
         <button className="btn btn-secondary" onClick={onBack} disabled={sending}>Volver</button>
         <button className="btn btn-primary" onClick={onConfirm} disabled={sending}>
-          {sending?'Enviando...':'Confirmar y Enviar'}
+          {sending?(pendiente?'Guardando...':'Enviando...'):(pendiente?'Guardar (pendiente)':'Confirmar y Enviar')}
         </button>
       </div>
     </div>
@@ -3520,7 +3544,7 @@ var TT_FORM_CFG={
   // Silo cumple para Arena Iman el mismo rol que Acopio cumple para TT_TLH:
   // es la clave de agrupacion para promediar muestras al generar un
   // certificado de despacho (ver flujo de Despachos Turco).
-  TT_IMAN_PROD:{granu:true,quimica:true,analista:true,acopio:true,acopioLabel:'Silo',acopioOptions:SILOS_IMAN_PROD},
+  TT_IMAN_PROD:{granu:true,quimica:true,analista:true,acopio:true,acopioLabel:'Silo',acopioOptions:SILOS_IMAN_PROD,datoParcial:true},
 };
 
 var TT_QUIM_FIELDS=[
@@ -3578,6 +3602,41 @@ function validaQuimica(quimica,e){
   });
 }
 
+/* Aviso de registros en reserva (Granulometria o Quimica pendiente) para el
+   producto que se esta por ingresar — ver PRODUCTOS_DATO_PARCIAL. Se muestra
+   al abrir el formulario de A36/TT_TLH, ANTES de cargar un ensayo nuevo, para
+   que el analista no se olvide de que hay uno a medio llenar. "Completar
+   ahora" abre CompletarEnsayoModal ahi mismo, sin salir del formulario. */
+function PendientesAvisoBanner({pendientes,onCompletar}){
+  if(!pendientes||!pendientes.length)return null;
+  return(
+    <div style={{marginBottom:16,padding:'12px 16px',background:'#fffbea',border:'1.5px solid #f6e05e',borderRadius:10}}>
+      <div style={{fontWeight:800,color:'#b7791f',fontSize:'.88rem',marginBottom:8}}>
+        ⏳ Hay {pendientes.length} registro{pendientes.length===1?'':'s'} de este producto pendiente{pendientes.length===1?'':'s'} de completar antes de seguir
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {pendientes.map(function(p){
+          var falta=(p.Extra||{}).pendiente;
+          return(
+            <div key={p.ID} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',
+              background:'#fff',border:'1px solid #f0e2a0',borderRadius:8,padding:'7px 11px',fontSize:'.8rem'}}>
+              <span>
+                {p.Folio?'#'+p.Folio+' — ':''}{p.FechaMuestreo||''}
+                {p.NumAcopio?' · '+p.NumAcopio:''}{p.Turno?' · Turno '+p.Turno:''}
+                {' — falta '}<b>{falta==='granulometria'?'Granulometría':'Química'}</b>
+              </span>
+              <button type="button" className="btn btn-secondary" style={{padding:'4px 12px',fontSize:'.78rem',whiteSpace:'nowrap'}}
+                onClick={function(){onCompletar(p);}}>
+                Completar ahora
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* Formulario generico de ensayo Turco (TLH, Alimentacion, Grano Mina,
    Arenas Minas, Fierrillo Casillero, Arena Mina Cristaleria) */
 function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
@@ -3587,6 +3646,14 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
 
   var[analistasList,setAnalistasList]=useState(ANALISTAS_TURCO_DEFAULT);
   useEffect(function(){if(cfg.analista)loadAnalistas('Turco').then(setAnalistasList).catch(function(){});},[]);
+
+  // Aviso de registros en reserva de este producto (ver PendientesAvisoBanner).
+  var[pendientesProd,setPendientesProd]=useState([]);
+  var[completarPend,setCompletarPend]=useState(null);
+  function recargarPendientes(){
+    if(cfg.datoParcial)buscarPendientesProducto(producto).then(setPendientesProd);
+  }
+  useEffect(function(){recargarPendientes();},[producto]);
 
   var[fecha,setFecha]=useState(today());
   var[hora,setHora]=useState(nowTime());
@@ -3620,6 +3687,15 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     var clean=v.replace(/[^0-9]/g,'');
     setMezcla(function(p){var n=Object.assign({},p);n[k]=clean;return n;});
   }
+
+  // Si el producto admite dato parcial (cfg.datoParcial, ver
+  // PRODUCTOS_DATO_PARCIAL) y una de las dos secciones quedo vacia, este
+  // envio se guardara como pendiente (sin correo automatico hasta
+  // completarse) — usado por validate(), handleSend() y por el aviso junto
+  // al boton de enviar.
+  var granuVacioActual=cfg.datoParcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+  var quimVacioActual=cfg.datoParcial&&TT_QUIM_FIELDS.every(function(f){return !quimica[f.k];});
+  var pendienteActual=granuVacioActual?'granulometria':(quimVacioActual?'quimica':null);
 
   function validate(){
     var e={};
@@ -3659,9 +3735,7 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
     if(cfg.tipoArena)extra.tipoArena=tipoArena;
     if(cfg.pctArcilla&&pctArcilla)extra.pctArcilla=pctArcilla;
     if(cfg.mezcla)extra.mezcla=mezcla;
-    var granuVacio=cfg.datoParcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
-    var quimVacio=cfg.datoParcial&&TT_QUIM_FIELDS.every(function(f){return !quimica[f.k];});
-    var pendiente=granuVacio?'granulometria':(quimVacio?'quimica':null);
+    var pendiente=pendienteActual;
     if(pendiente)extra.pendiente=pendiente;
     var data={
       id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
@@ -3719,7 +3793,11 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
 
   return(
     <div>
+      {completarPend&&<CompletarEnsayoModal rec={completarPend} account={account}
+        onClose={function(){setCompletarPend(null);}}
+        onSaved={function(){setCompletarPend(null);recargarPendientes();}}/>}
       <TurcoPageHdr onBack={onBack} sub={prodLabel}/>
+      <PendientesAvisoBanner pendientes={pendientesProd} onCompletar={setCompletarPend}/>
       <TurcoErrBox errors={errors}/>
 
       <SecCard title="Informacion General" icon="&#128203;">
@@ -3810,10 +3888,18 @@ function TurcoEnsayoForm({account,producto,onBack,onSuccess}){
 
       {cfg.quimica&&<TurcoQuimicaCard quimica={quimica} setQuimica={setQuimica} errors={errors} qspec={qspec} opcional={cfg.quimicaOpcional}/>}
 
+      {pendienteActual&&(
+        <div style={{margin:'0 0 16px',padding:'12px 16px',background:'#fffbea',border:'1.5px solid #f6e05e',
+          borderRadius:10,color:'#7a6a3a',fontSize:'.85rem'}}>
+          ⏳ Falta <b>{pendienteActual==='granulometria'?'Granulometría':'Química'}</b>: este registro quedará <b>guardado como pendiente</b>.
+          Los datos quedan en la base de datos ahora mismo; el correo automático de cumplimiento EETT recién se envía cuando se complete la parte faltante desde Historial.
+        </div>
+      )}
+
       <div className="form-actions">
         <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
         <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
-          {sending?'Enviando...':'Registrar'}
+          {sending?(pendienteActual?'Guardando...':'Enviando...'):(pendienteActual?'Guardar (pendiente)':'Registrar')}
         </button>
       </div>
     </div>
@@ -4873,6 +4959,15 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
   var qspec=specs?specs.quimica:{};
   var hspec=specs?specs.humedad:null;
 
+  // Aviso de registros en reserva de este producto (ver PendientesAvisoBanner).
+  var[pendientesProd,setPendientesProd]=useState([]);
+  var[completarPend,setCompletarPend]=useState(null);
+  function recargarPendientes(){
+    if(PRODUCTOS_DATO_PARCIAL.indexOf(producto)>=0)buscarPendientesProducto(producto).then(setPendientesProd);
+    else setPendientesProd([]);
+  }
+  useEffect(function(){recargarPendientes();},[producto]);
+
   useEffect(function(){
     setGv(Array(SIEVE_CONFIG[producto]?SIEVE_CONFIG[producto].length:0).fill(''));
     setTipoMuestra('');setNumAcopio('');
@@ -4880,6 +4975,15 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
 
   var gc=useMemo(function(){return calcGranu(producto,gv,pesoFinal);},[producto,gv,pesoFinal]);
   function updGv(i,v){setGv(function(p){var n=p.slice();n[i]=v;return n;});}
+
+  // Si el producto admite dato parcial (ver PRODUCTOS_DATO_PARCIAL) y una de
+  // las dos secciones quedo vacia, este envio se guardara como pendiente
+  // (sin correo automatico hasta completarse) — usado por validate(),
+  // handleConfirm() y por el aviso en ReviewScreen.
+  var parcialProd=PRODUCTOS_DATO_PARCIAL.indexOf(producto)>=0;
+  var granuVacioActual=parcialProd&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+  var quimVacioActual=parcialProd&&cfg.quimica&&!quimica.al2o3&&!quimica.fe2o3&&!quimica.cao&&!quimica.mgo&&!quimica.k2o&&!quimica.na2o&&!quimica.tio2;
+  var pendienteActual=granuVacioActual?'granulometria':(quimVacioActual?'quimica':null);
 
   function validate(){
     var e={};
@@ -4930,10 +5034,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
     var prodLabel=prodObj?prodObj.label:producto;
     var tmVal=cfg.tipoMuestra?tipoMuestra:'';
     var naVal=cfg.tipoMuestra&&tipoMuestra?numAcopio:'';
-    var parcial=PRODUCTOS_DATO_PARCIAL.indexOf(producto)>=0;
-    var granuVacio=parcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
-    var quimVacio=parcial&&cfg.quimica&&!quimica.al2o3&&!quimica.fe2o3&&!quimica.cao&&!quimica.mgo&&!quimica.k2o&&!quimica.na2o&&!quimica.tio2;
-    var pendiente=granuVacio?'granulometria':(quimVacio?'quimica':null);
+    var pendiente=pendienteActual;
     var data={
       id:uid(),fecha:fecha,fechaEnvio:fechaEnvio,horaEnvio:horaEnvio,
       turno:turno,analista:analista,producto:producto,productoLabel:prodLabel,
@@ -4998,7 +5099,7 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
                numAcopio:cfg.tipoMuestra&&tipoMuestra?numAcopio:'',
                pesoInicial:pesoInicial,pesoFinal:pesoFinal,
                pctHumedad:pctHumedad,quimica:quimica,observaciones:obs}}
-        gc={gc} onConfirm={handleConfirm} onBack={function(){setView('form');}} sending={sending}/>
+        gc={gc} onConfirm={handleConfirm} onBack={function(){setView('form');}} sending={sending} pendiente={pendienteActual}/>
     );
   }
 
@@ -5008,6 +5109,9 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
 
   return(
     <div>
+      {completarPend&&<CompletarEnsayoModal rec={completarPend} account={account}
+        onClose={function(){setCompletarPend(null);}}
+        onSaved={function(){setCompletarPend(null);recargarPendientes();}}/>}
       <div className="page-hdr">
         <button className="back-btn" onClick={producto?function(){setProducto('');}:onBack}>&#8592;</button>
         <div>
@@ -5015,6 +5119,8 @@ function PlantaForm({account,onBack,onSuccess,plantaLabel,products,lsGet,lsAdd,l
           {prodLabel3&&<div style={{fontSize:'.82rem',color:'var(--text-secondary)',marginTop:2}}>{prodLabel3}</div>}
         </div>
       </div>
+
+      {producto&&<PendientesAvisoBanner pendientes={pendientesProd} onCompletar={setCompletarPend}/>}
 
       {producto&&(
         <button className="btn btn-secondary" style={{marginBottom:16}}
