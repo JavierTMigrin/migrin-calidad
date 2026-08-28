@@ -1614,6 +1614,7 @@ function buildDbRowDespacho(d,user){
 }
 async function sendDespachoToSupabase(data,user){
   var row=buildDbRowDespacho(data,user);
+  if(data.extra!==undefined)row.extra=data.extra;
   var res=await supabase.from('ensayos').insert([row]);
   if(res.error)throw res.error;
 }
@@ -1847,7 +1848,8 @@ const PRODUCTOS_CON_CORREO=['A36','TT_TLH','TT_IMAN_PROD'];
    quimica suele demorar mas que granulometria y bloquear el envio hasta
    tener ambas frena el trabajo del analista sin necesidad. Ver extra.pendiente
    y CompletarEnsayoModal. */
-const PRODUCTOS_DATO_PARCIAL=['A36','TT_TLH','TT_IMAN_PROD'];
+const PRODUCTOS_DATO_PARCIAL=['A36','A38','ALIM','VERALTA','VERBAJA','MESP','CALIM','CTLH','CCOMP','CDLK',
+  'DESP_PH','DESP_LIR','DESP_LLAY','TT_TLH','TT_IMAN_PROD'];
 
 /* Envia el reporte detallado del ensayo recien registrado (siempre, cumpla
    o no), con PDF adjunto (incluye la curva de distribucion). Best-effort:
@@ -3058,25 +3060,42 @@ function DespachoForm({account,producto,onBack,onSuccess}){
 
   var gc=useMemo(function(){return calcGranu(producto,gv,pesoFinal);},[producto,gv,pesoFinal]);
 
+  // Despacho tambien admite dato parcial (Granulometria o Quimica, ver
+  // PRODUCTOS_DATO_PARCIAL): la quimica de laboratorio suele demorar mas
+  // que el pesaje/malla, y bloquear el despacho hasta tenerla completa
+  // frenaba el registro sin necesidad. El certificado (extraActions mas
+  // abajo) queda oculto mientras el registro este pendiente — no tiene
+  // sentido certificar un despacho con datos incompletos.
+  var parcial=PRODUCTOS_DATO_PARCIAL.indexOf(producto)>=0;
+  var granuVacioActual=parcial&&!pesoInicial&&!pesoFinal&&!gv.some(function(v){return v!=='';});
+  var quimVacioActual=parcial&&!quimica.al2o3&&!quimica.fe2o3&&!quimica.cao&&!quimica.mgo&&!quimica.k2o&&!quimica.na2o&&!quimica.tio2;
+  var pendienteActual=granuVacioActual?'granulometria':(quimVacioActual?'quimica':null);
+
   function validate(){
     var e={};
     if(!fecha)e.fecha='Fecha de despacho requerida';
     if(!horaSalida)e.horaSalida='Hora de salida requerida';
     if(!guia)e.guia='Numero de guia requerido';
     var pi=parseDecimal(pesoInicial),pf=parseDecimal(pesoFinal);
-    if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
-    if(!pesoFinal)e.pesoFinal='Peso final requerido';
-    else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
-      e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
-    if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
-    if(!pctHumedad)e.pctHumedad='Humedad requerida';
-    if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
-    if(!quimica.fe2o3)e.fe2o3='Fe₂O₃ requerido';
-    if(!quimica.cao)e.cao='CaO requerido';
-    if(!quimica.mgo)e.mgo='MgO requerido';
-    if(!quimica.k2o)e.k2o='K₂O requerido';
-    if(!quimica.na2o)e.na2o='Na₂O requerido';
-    if(!quimica.tio2)e.tio2='TiO₂ requerido';
+    if(parcial&&granuVacioActual&&quimVacioActual)
+      e._parcial='Debe completar Granulometria o Quimica.';
+    if(!(parcial&&granuVacioActual)){
+      if(!pesoInicial)e.pesoInicial='Peso inicial requerido';
+      if(!pesoFinal)e.pesoFinal='Peso final requerido';
+      else if(pi>0&&Math.abs(pf-pi)/pi>0.25)
+        e.pesoFinal='El peso final difiere mas del 25% del peso inicial. Verifique.';
+      if(!gc.closeOk)e.granu='El cierre granulometrico no es correcto (debe ser 100%). Revise los pesos.';
+      if(!pctHumedad)e.pctHumedad='Humedad requerida';
+    }
+    if(!(parcial&&quimVacioActual)){
+      if(!quimica.al2o3)e.al2o3='Al₂O₃ requerido';
+      if(!quimica.fe2o3)e.fe2o3='Fe₂O₃ requerido';
+      if(!quimica.cao)e.cao='CaO requerido';
+      if(!quimica.mgo)e.mgo='MgO requerido';
+      if(!quimica.k2o)e.k2o='K₂O requerido';
+      if(!quimica.na2o)e.na2o='Na₂O requerido';
+      if(!quimica.tio2)e.tio2='TiO₂ requerido';
+    }
     return e;
   }
 
@@ -3085,6 +3104,7 @@ function DespachoForm({account,producto,onBack,onSuccess}){
     if(Object.keys(e).length){setErrors(e);window.scrollTo({top:0,behavior:'smooth'});return;}
     setErrors({});setSending(true);
     var now=new Date();
+    var pendiente=pendienteActual;
     var data={
       id:uid(),fecha:fecha,fechaEnvio:now.toISOString(),horaEnvio:now.toLocaleTimeString('es-CL'),
       turno:'',analista:account?account.email:'',producto:producto,productoLabel:prodLabel,
@@ -3093,15 +3113,17 @@ function DespachoForm({account,producto,onBack,onSuccess}){
       pctHumedad:pctHumedad,quimica:quimica,observaciones:'',
       guia:guia,lote:lote,horaSalida:horaSalida,
     };
+    if(pendiente)data.extra={pendiente:pendiente};
     addPending(data);
     setSendError(null);
     var violations=collectViolations(data,gc);
-    if(PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
+    if(!pendiente&&PRODUCTOS_CON_CORREO.indexOf(producto)>=0)enviarReporteRegistro(data,gc,account);
     try{
       await sendDespachoToSupabase(data,account);
       delPending(data.id);
       setSending(false);
-      setReportModal({data:data,gc:gc,violations:violations,msg:'Despacho registrado exitosamente.'});
+      setReportModal({data:data,gc:gc,violations:violations,
+        msg:pendiente?'Despacho guardado — falta completar '+(pendiente==='granulometria'?'Granulometria':'Quimica')+'. No se genera certificado hasta completarlo.':'Despacho registrado exitosamente.'});
     }catch(err){
       console.error(err);
       setSending(false);
@@ -3131,7 +3153,8 @@ function DespachoForm({account,producto,onBack,onSuccess}){
         <ReportModal
           data={reportModal.data} gc={reportModal.gc} violations={reportModal.violations}
           sendError={sendError} retrying={retrying} onRetry={handleRetry}
-          extraActions={<button className="btn btn-secondary" onClick={function(){setCert(true);}}>📄 Certificado</button>}
+          extraActions={(reportModal.data.extra||{}).pendiente?null:
+            <button className="btn btn-secondary" onClick={function(){setCert(true);}}>📄 Certificado</button>}
           onClose={function(){
             setReportModal(null);setSendError(null);
             onSuccess(sendError?'Despacho guardado localmente como pendiente.':reportModal.msg);
@@ -3232,10 +3255,18 @@ function DespachoForm({account,producto,onBack,onSuccess}){
         </div>
       </SecCard>
 
+      {pendienteActual&&(
+        <div style={{margin:'0 0 16px',padding:'12px 16px',background:'#fffbea',border:'1.5px solid #f6e05e',
+          borderRadius:10,color:'#7a6a3a',fontSize:'.85rem'}}>
+          ⏳ Falta <b>{pendienteActual==='granulometria'?'Granulometría':'Química'}</b>: este despacho quedará <b>guardado como pendiente</b> y
+          no se podrá generar su certificado hasta que se complete la parte faltante desde Historial.
+        </div>
+      )}
+
       <div className="form-actions">
         <button className="btn btn-secondary" onClick={onBack}>Cancelar</button>
         <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
-          {sending?'Enviando...':'Registrar Despacho'}
+          {sending?(pendienteActual?'Guardando...':'Enviando...'):(pendienteActual?'Guardar (pendiente)':'Registrar Despacho')}
         </button>
       </div>
     </div>
@@ -3533,17 +3564,19 @@ var TT_FORM_CFG={
   // queda en blanco (a diferencia de granulometria/quimica, que si son
   // obligatorias cuando se llena esa seccion — ver PRODUCTOS_DATO_PARCIAL).
   TT_TLH:    {granu:true,quimica:true,humedad:true,humedadOpcional:true,acopio:true,analista:true,datoParcial:true},
-  TT_ALIM:   {granu:true,quimica:true,mezcla:true,analista:true},
-  TT_GMINA:  {granu:true,quimica:true,sector:true,hora:true,analista:true},
-  TT_AMINAS: {granu:true,quimica:true,tipoArena:true,pctArcilla:true},
-  TT_MATPRIMAS:{granu:true,quimica:true,tipoArena:true,pctArcilla:true},
+  TT_ALIM:   {granu:true,quimica:true,mezcla:true,analista:true,datoParcial:true},
+  TT_GMINA:  {granu:true,quimica:true,sector:true,hora:true,analista:true,datoParcial:true},
+  TT_AMINAS: {granu:true,quimica:true,tipoArena:true,pctArcilla:true,datoParcial:true},
+  TT_MATPRIMAS:{granu:true,quimica:true,tipoArena:true,pctArcilla:true,datoParcial:true},
   // Fierrillo Casillero rara vez lleva analisis quimico: la seccion se
-  // muestra por si se quiere completar, pero no bloquea el envio si queda vacia.
+  // muestra por si se quiere completar, pero no bloquea el envio si queda vacia
+  // (a proposito NO lleva datoParcial: no es un dato pendiente, es normal
+  // que este producto casi nunca tenga quimica).
   TT_FIERRC: {granu:true,quimica:true,quimicaOpcional:true},
   TT_AMCRIST:{quimica:true,tipoArena:true},
-  TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true,
+  TT_GOLF:   {granu:true,quimica:true,humedad:true,acopio:true,analista:true,datoParcial:true,
     acopioLabel:'Sector',acopioOptions:SECTORES_GOLF},
-  TT_IMAN_ALIM:{granu:true,quimica:true,analista:true},
+  TT_IMAN_ALIM:{granu:true,quimica:true,analista:true,datoParcial:true},
   // Silo cumple para Arena Iman el mismo rol que Acopio cumple para TT_TLH:
   // es la clave de agrupacion para promediar muestras al generar un
   // certificado de despacho (ver flujo de Despachos Turco).
@@ -11953,7 +11986,7 @@ function HistoryScreen({account,onBack}){
                                     &#11015; Ver informe / Descargar PNG
                                   </button>
                                 )}
-                                {(String(r.ProductoKey||r.producto||'').indexOf('DESP_')===0)&&(
+                                {(String(r.ProductoKey||r.producto||'').indexOf('DESP_')===0)&&!datoPendiente(r)&&(
                                   <button className="btn btn-secondary" style={{padding:'7px 14px',fontSize:'.84rem'}}
                                     onClick={function(e){e.stopPropagation();setCertRec(reconstruirRegistro(r));}}>
                                     📄 Certificado

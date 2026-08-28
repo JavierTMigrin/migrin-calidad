@@ -2,7 +2,7 @@
    Estrategia network-first: siempre intenta traer la version mas
    reciente; si no hay conexion sirve la copia en cache (la app ya
    maneja la cola de envios pendientes en localStorage). */
-const CACHE = 'migrin-calidad-v76';
+const CACHE = 'migrin-calidad-v79';
 const PRECACHE = ['./calidad.html', './logo.png', './manifest.json'];
 
 self.addEventListener('install', function (e) {
@@ -27,7 +27,11 @@ self.addEventListener('fetch', function (e) {
   // No cachear la API de Supabase: datos siempre frescos
   if (e.request.url.indexOf('supabase.co') !== -1) return;
   e.respondWith(
-    fetch(e.request).then(function (res) {
+    // no-store: ignora la cache HTTP del navegador (que a veces sirve una
+    // version vieja aunque el SW pida red primero) y siempre valida contra
+    // el servidor cuando hay conexion; el cache propio (Cache Storage,
+    // arriba) sigue siendo el respaldo offline.
+    fetch(e.request, { cache: 'no-store' }).then(function (res) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
       return res;
