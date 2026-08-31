@@ -24182,10 +24182,134 @@ function HistoryScreen({
       });
     }
   }
+
+  /* Exportacion completa: ademas del resumen basico, agrega TODAS las
+     mallas presentes en los registros filtrados (peso + %ret.parcial +
+     %ret.acumulado, y conteo de arcillas si el producto lo mide), quimica
+     y humedad (si el filtro actual incluye algun producto que las mide),
+     mezcla (Alimentacion Turco) y cualquier otro dato "extra" propio del
+     formulario — union de lo que realmente aparece en `visibles`, no una
+     lista fija, para no arrastrar columnas de productos fuera del filtro
+     actual (por eso conviene filtrar por Planta/Producto antes de exportar
+     si se quiere una planilla mas acotada). */
   function exportExcel() {
-    var hdr = ['Folio', 'ID', 'Fecha', 'Hora', 'Turno', 'Analista', 'Planta', 'Producto', 'PesoInicial', 'PesoFinal', 'Estado'];
+    var MEZCLA_LBL = {
+      banco1: 'Banco 1',
+      banco2: 'Banco 2',
+      amarilla: 'Amarilla',
+      blanca: 'Blanca',
+      grancilla: 'Grancilla'
+    };
+    var sieveMap = {};
+    var anyHumedad = false,
+      anyQuimica = false,
+      anyMezcla = false,
+      anyArcillas = false;
+    var extraScalarKeys = [],
+      extraScalarSeen = {};
+    var extraOtherKeys = [],
+      extraOtherSeen = {};
+    visibles.forEach(function (r) {
+      var pk = r.ProductoKey || r.producto || '';
+      (SIEVE_CONFIG[pk] || []).forEach(function (s) {
+        sieveMap[s.us] = s.mm;
+      });
+      var pcfg = PRODUCT_CONFIG[pk] || {};
+      if (pcfg.humedad) anyHumedad = true;
+      if (pcfg.quimica) anyQuimica = true;
+      var extra = r.Extra || r.extra || {};
+      if (extra.mezcla) anyMezcla = true;
+      if (Array.isArray(extra.arcillas)) anyArcillas = true;
+      Object.keys(extra).forEach(function (k) {
+        if (EXTRA_INTERNAL_KEYS[k] || k === 'mezcla' || k === 'arcillas') return;
+        var v = extra[k];
+        if (v == null || v === '') return;
+        if (typeof v === 'object') {
+          if (!extraOtherSeen[k]) {
+            extraOtherSeen[k] = true;
+            extraOtherKeys.push(k);
+          }
+        } else if (!extraScalarSeen[k]) {
+          extraScalarSeen[k] = true;
+          extraScalarKeys.push(k);
+        }
+      });
+    });
+    var sieveList = Object.keys(sieveMap).sort(function (a, b) {
+      return (parseInt(a.replace('#', ''), 10) || 0) - (parseInt(b.replace('#', ''), 10) || 0);
+    });
+    var hdr = ['Folio', 'ID', 'Fecha Muestreo', 'Fecha Envio', 'Hora Envio', 'Turno', 'Analista', 'Planta', 'Producto', 'Tipo Muestra', 'N Acopio', 'Guia', 'Lote', 'Hora Salida', 'Peso Inicial (g)', 'Peso Final (g)', 'Peso Fondo/PAN (g)'];
+    sieveList.forEach(function (us) {
+      hdr.push('Malla ' + us + ' — Peso (g)', 'Malla ' + us + ' — %Ret.Parcial', 'Malla ' + us + ' — %Ret.Acum.');
+      if (anyArcillas) hdr.push('Malla ' + us + ' — Arcillas (conteo)');
+    });
+    if (anyHumedad) hdr.push('% Humedad');
+    if (anyQuimica) hdr.push('SiO2 (%)', 'Al2O3 (%)', 'Fe2O3 (%)', 'CaO (%)', 'MgO (%)', 'K2O (%)', 'Na2O (%)', 'TiO2 (%)', 'K2O+Na2O (%)');
+    if (anyMezcla) MEZCLA_COMPONENTES.forEach(function (k) {
+      hdr.push('Mezcla — ' + (MEZCLA_LBL[k] || k));
+    });
+    extraScalarKeys.forEach(function (k) {
+      hdr.push(EXTRA_FIELD_LBL[k] || k);
+    });
+    extraOtherKeys.forEach(function (k) {
+      hdr.push(EXTRA_FIELD_LBL[k] || k);
+    });
+    hdr.push('Observaciones', 'Pendiente (dato incompleto)', 'Estado envio', 'Enviado por');
     var rows = visibles.map(function (r) {
-      return [r.Folio || '', r.ID || r.id, r.FechaMuestreo || r.fecha, r.HoraEnvio || r.horaEnvio, r.Turno || r.turno, r.Analista || r.analista, getPlanta(r), r.Producto || r.productoLabel, r.PesoInicial || r.pesoInicial, r.PesoFinal || r.pesoFinal, r.status === 'sent' ? 'Enviado' : 'Pendiente'];
+      var pk = r.ProductoKey || r.producto || '';
+      var sieves = SIEVE_CONFIG[pk] || [];
+      var gv = r.granu && Array.isArray(r.granu) ? r.granu : sieves.map(function (s) {
+        return String(r[s.us + '_' + s.mm + 'g'] || 0);
+      });
+      var pfRaw = r.PesoFinal != null ? r.PesoFinal : r.pesoFinal != null ? r.pesoFinal : '';
+      var gc = calcGranu(pk, gv, String(pfRaw));
+      var gcRows = (gc.rows || []).filter(function (x) {
+        return !x.isFondo;
+      });
+      var bySieve = {};
+      sieves.forEach(function (s, i) {
+        bySieve[s.us] = gcRows[i] || null;
+      });
+      var extra = r.Extra || r.extra || {};
+      var arcillas = Array.isArray(extra.arcillas) ? extra.arcillas : null;
+      var row = [r.Folio || '', r.ID || r.id || '', r.FechaMuestreo || r.fecha || '', r.FechaEnvio || r.fechaEnvio || '', r.HoraEnvio || r.horaEnvio || '', r.Turno || r.turno || '', r.Analista || r.analista || '', getPlanta(r), r.Producto || r.productoLabel || '', r.TipoMuestra || r.tipoMuestra || '', r.NumAcopio || r.numAcopio || '', r.Guia || r.guia || '', r.Lote || r.lote || '', r.HoraSalida || r.horaSalida || '', r.PesoInicial != null ? r.PesoInicial : r.pesoInicial != null ? r.pesoInicial : '', r.PesoFinal != null ? r.PesoFinal : r.pesoFinal != null ? r.pesoFinal : '', r.PesoFondo != null ? r.PesoFondo : r.pesoFondo != null ? r.pesoFondo : ''];
+      sieveList.forEach(function (us) {
+        var cell = bySieve[us];
+        row.push(cell ? cell.peso : '', cell ? fmt(cell.pctP, 2) : '', cell ? fmt(cell.pctA, 2) : '');
+        if (anyArcillas) {
+          var idx = sieves.findIndex(function (s) {
+            return s.us === us;
+          });
+          row.push(arcillas && idx >= 0 && arcillas[idx] != null ? arcillas[idx] : '');
+        }
+      });
+      if (anyHumedad) row.push(r.PctHumedad != null ? r.PctHumedad : r.pctHumedad != null ? r.pctHumedad : '');
+      if (anyQuimica) {
+        var q = r.quimica || {};
+        var sio2 = parseDecimal(q.sio2),
+          al2o3 = parseDecimal(q.al2o3),
+          fe2o3 = parseDecimal(q.fe2o3),
+          cao = parseDecimal(q.cao),
+          mgo = parseDecimal(q.mgo),
+          k2o = parseDecimal(q.k2o),
+          na2o = parseDecimal(q.na2o),
+          tio2 = parseDecimal(q.tio2);
+        row.push(isNaN(sio2) ? '' : sio2, isNaN(al2o3) ? '' : al2o3, isNaN(fe2o3) ? '' : fe2o3, isNaN(cao) ? '' : cao, isNaN(mgo) ? '' : mgo, isNaN(k2o) ? '' : k2o, isNaN(na2o) ? '' : na2o, isNaN(tio2) ? '' : tio2, isNaN(k2o) && isNaN(na2o) ? '' : fmt((k2o || 0) + (na2o || 0), 2));
+      }
+      if (anyMezcla) {
+        var mz = extra.mezcla || {};
+        MEZCLA_COMPONENTES.forEach(function (k) {
+          row.push(mz[k] != null ? mz[k] : '');
+        });
+      }
+      extraScalarKeys.forEach(function (k) {
+        row.push(extra[k] != null ? extra[k] : '');
+      });
+      extraOtherKeys.forEach(function (k) {
+        row.push(extra[k] != null ? JSON.stringify(extra[k]) : '');
+      });
+      row.push(r.Observaciones || r.observaciones || '', datoPendiente(r) ? datoPendiente(r) === 'granulometria' ? 'Falta Granulometria' : 'Falta Quimica' : '', r.status === 'sent' ? 'Enviado' : 'Pendiente', r.EnviadoPor || r.enviado_por || '');
+      return row;
     });
     descargarExcel('historial_calidad', hdr, rows, 'Historial');
   }
@@ -24369,9 +24493,7 @@ function HistoryScreen({
       value: "Cuarzo"
     }, "Cuarzo"), /*#__PURE__*/React.createElement("option", {
       value: "Turco"
-    }, "Turco"), /*#__PURE__*/React.createElement("option", {
-      value: "__all"
-    }, "Todas"))), /*#__PURE__*/React.createElement("div", {
+    }, "Turco"))), /*#__PURE__*/React.createElement("div", {
       className: "field",
       style: {
         flex: 1,
