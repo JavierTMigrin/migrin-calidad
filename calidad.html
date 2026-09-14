@@ -13011,7 +13011,7 @@ function DashboardScreen({
   // Acopio de A36, pero generico: cada producto define su propia etiqueta
   // y lista de opciones (acopioLabel/acopioOptions).
   var [filterAcopioTurco, setFilterAcopioTurco] = useState('');
-  var [filterTipoArena, setFilterTipoArena] = useState('Todas');
+  var [filterTipoArena, setFilterTipoArena] = useState(SIMIN_TIPOS_BASE.slice());
   // chart refs — granu curves
   var cParRef = useRef(null);
   var cPasRef = useRef(null);
@@ -13042,7 +13042,7 @@ function DashboardScreen({
     setFilterTipoMuestra(['Puntual', 'Acopio']);
     setFilterNumAcopio(ACOPIO_OPTS.slice());
     setFilterAcopioTurco('');
-    setFilterTipoArena('Todas');
+    setFilterTipoArena(SIMIN_TIPOS_BASE.slice());
   }, [prod]);
   async function loadData() {
     setLoading(true);
@@ -13408,9 +13408,9 @@ function DashboardScreen({
       if (tcfg && tcfg.acopio && filterAcopioTurco) {
         if (normAcopio(r.NumAcopio || r.numAcopio || '') !== filterAcopioTurco) return false;
       }
-      if (tcfg && tcfg.tipoArena && filterTipoArena !== 'Todas') {
+      if (tcfg && tcfg.tipoArena && filterTipoArena.length < SIMIN_TIPOS_BASE.length) {
         var extraR = r.Extra || r.extra || {};
-        if (tipoArenaNorm(extraR.tipoArena) !== filterTipoArena) return false;
+        if (filterTipoArena.indexOf(tipoArenaNorm(extraR.tipoArena)) === -1) return false;
       }
       return true;
     });
@@ -13640,7 +13640,7 @@ function DashboardScreen({
         return st && st[s.us] ? fmt(st[s.us].pctP, 2) : '';
       }));
     });
-    var suf = tieneTipoArena && filterTipoArena !== 'Todas' ? '_' + filterTipoArena : '';
+    var suf = tieneTipoArena && filterTipoArena.length < SIMIN_TIPOS_BASE.length ? '_' + filterTipoArena.join('-') : '';
     descargarExcel('Granulometria_' + (GRANU_TITLE[prod] || prod).replace(/\s/g, '_') + suf + '_' + getPeriodoLabel(), hdr, rows, 'Granulometria');
   }
   /* Exporta la quimica de los registros filtrados */
@@ -13657,7 +13657,7 @@ function DashboardScreen({
         return q[o[0]] != null ? q[o[0]] : '';
       }));
     });
-    var suf2 = tieneTipoArena && filterTipoArena !== 'Todas' ? '_' + filterTipoArena : '';
+    var suf2 = tieneTipoArena && filterTipoArena.length < SIMIN_TIPOS_BASE.length ? '_' + filterTipoArena.join('-') : '';
     descargarExcel('Quimica_' + (GRANU_TITLE[prod] || prod).replace(/\s/g, '_') + suf2 + '_' + getPeriodoLabel(), hdr, rows, 'Quimica');
   }
   /* Exporta el resumen consolidado por planta/producto */
@@ -16170,16 +16170,38 @@ function DashboardScreen({
       }, a.label);
     }))), TT_FORM_CFG[prod] && TT_FORM_CFG[prod].tipoArena && /*#__PURE__*/React.createElement("div", {
       className: "dff"
-    }, /*#__PURE__*/React.createElement("label", null, "Tipo de Arena"), /*#__PURE__*/React.createElement("select", {
-      value: filterTipoArena,
-      onChange: function (e) {
-        setFilterTipoArena(e.target.value);
+    }, /*#__PURE__*/React.createElement("label", null, "Tipo de Arena"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        minHeight: 34,
+        flexWrap: 'wrap'
       }
-    }, SIMIN_TIPOS.map(function (t) {
-      return /*#__PURE__*/React.createElement("option", {
+    }, SIMIN_TIPOS_BASE.map(function (t) {
+      var chk = filterTipoArena.includes(t);
+      return /*#__PURE__*/React.createElement("label", {
         key: t,
-        value: t
-      }, t);
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          cursor: 'pointer',
+          fontSize: '.8rem',
+          userSelect: 'none',
+          whiteSpace: 'nowrap'
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: chk,
+        onChange: function () {
+          setFilterTipoArena(function (p) {
+            return chk ? p.filter(function (x) {
+              return x !== t;
+            }) : p.concat(t);
+          });
+        }
+      }), t);
     }))), prod === 'A36' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "dff"
     }, /*#__PURE__*/React.createElement("label", null, "Tipo muestra"), /*#__PURE__*/React.createElement("div", {
@@ -18806,7 +18828,7 @@ function DashboardScreen({
         if (hspecT) row.push(r.PctHumedad != null ? r.PctHumedad : r.pctHumedad != null ? r.pctHumedad : '');
         return row;
       });
-      var sufT = tieneTipoArena && filterTipoArena !== 'Todas' ? '_' + filterTipoArena : '';
+      var sufT = tieneTipoArena && filterTipoArena.length < SIMIN_TIPOS_BASE.length ? '_' + filterTipoArena.join('-') : '';
       descargarExcel('TablaDatos_' + (GRANU_TITLE[prod] || prod).replace(/\s/g, '_') + sufT + '_' + getPeriodoLabel(), hdr, rows, 'Tabla de Datos');
     }
     return /*#__PURE__*/React.createElement("div", {
@@ -27610,8 +27632,11 @@ const SIMIN_PLANTAS = [{
 
 // Tipo de arena (materia prima) es texto libre y muy sucio (mayusculas,
 // typos "Amarila"/"baco"): se normaliza por color, igual que en el
-// analisis de variacion de arenas Turco.
-const SIMIN_TIPOS = ['Todas', 'Blanca', 'Amarilla', 'Grancilla'];
+// analisis de variacion de arenas Turco. El filtro es de seleccion
+// multiple: un arreglo con todos los tipos (SIMIN_TIPOS_BASE) equivale
+// a "sin filtro" (se muestra todo, incluido texto que no matchea
+// ningun color y quedo como 'Otro').
+const SIMIN_TIPOS_BASE = ['Blanca', 'Amarilla', 'Grancilla'];
 function tipoArenaNorm(raw) {
   if (!raw) return null;
   var t = String(raw).toLowerCase();
@@ -27644,9 +27669,9 @@ function siminFilas(records, prodKey, hist, tipoFiltro) {
   records.forEach(function (r) {
     if (r.ProductoKey !== prodKey || !r.FechaMuestreo) return;
     if (isNaN(r.SiO2)) return;
-    if (tipoFiltro && tipoFiltro !== 'Todas') {
+    if (tipoFiltro && tipoFiltro.length < SIMIN_TIPOS_BASE.length) {
       var extra = r.Extra || r.extra || {};
-      if (tipoArenaNorm(extra.tipoArena) !== tipoFiltro) return;
+      if (tipoFiltro.indexOf(tipoArenaNorm(extra.tipoArena)) === -1) return;
     }
     var fp = r.FechaMuestreo.split('-');
     var per = siminPeriodoDe(+fp[0], +fp[1], +fp[2]);
@@ -27712,7 +27737,7 @@ function SiminPiedrasScreen({
   var [loading, setLoading] = useState(true);
   var [planta, setPlanta] = useState('Arenas');
   var [etapaSel, setEtapaSel] = useState('Ambas');
-  var [tipoSel, setTipoSel] = useState('Todas');
+  var [tipoSel, setTipoSel] = useState(SIMIN_TIPOS_BASE.slice());
   useEffect(function () {
     load();
   }, []);
@@ -27769,7 +27794,7 @@ function SiminPiedrasScreen({
         rows.push([planta, s.etapa, f.anio, f.mes, f.sio2 != null ? fmt(f.sio2, 3) : '', f.al2o3 != null ? fmt(f.al2o3, 3) : '', f.fe2o3 != null ? fmt(f.fe2o3, 3) : '', f.n == null ? '—' : f.n]);
       });
     });
-    var sufijo = planta === 'Turco' && tipoSel !== 'Todas' ? '_' + tipoSel : '';
+    var sufijo = planta === 'Turco' && tipoSel.length < SIMIN_TIPOS_BASE.length ? '_' + tipoSel.join('-') : '';
     descargarExcel('SIMIN_' + planta + sufijo, hdr, rows, 'Promedio mensual');
   }
   async function exportarPDF() {
@@ -27894,7 +27919,7 @@ function SiminPiedrasScreen({
       className: 'btn ' + (planta === p.planta ? 'btn-primary' : 'btn-secondary'),
       onClick: function () {
         setPlanta(p.planta);
-        setTipoSel('Todas');
+        setTipoSel(SIMIN_TIPOS_BASE.slice());
       }
     }, p.planta);
   })), /*#__PURE__*/React.createElement("div", {
@@ -27922,19 +27947,40 @@ function SiminPiedrasScreen({
   }))), planta === 'Turco' && /*#__PURE__*/React.createElement("div", {
     className: "dff",
     style: {
-      marginBottom: 16,
-      maxWidth: 220
+      marginBottom: 16
     }
-  }, /*#__PURE__*/React.createElement("label", null, "Tipo de materia prima"), /*#__PURE__*/React.createElement("select", {
-    value: tipoSel,
-    onChange: function (e) {
-      setTipoSel(e.target.value);
+  }, /*#__PURE__*/React.createElement("label", null, "Tipo de materia prima"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      minHeight: 34,
+      flexWrap: 'wrap'
     }
-  }, SIMIN_TIPOS.map(function (t) {
-    return /*#__PURE__*/React.createElement("option", {
+  }, SIMIN_TIPOS_BASE.map(function (t) {
+    var chk = tipoSel.includes(t);
+    return /*#__PURE__*/React.createElement("label", {
       key: t,
-      value: t
-    }, t);
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        cursor: 'pointer',
+        fontSize: '.8rem',
+        userSelect: 'none',
+        whiteSpace: 'nowrap'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: chk,
+      onChange: function () {
+        setTipoSel(function (p) {
+          return chk ? p.filter(function (x) {
+            return x !== t;
+          }) : p.concat(t);
+        });
+      }
+    }), t);
   })))), loading && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',

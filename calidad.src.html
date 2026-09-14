@@ -6622,7 +6622,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
   // Acopio de A36, pero generico: cada producto define su propia etiqueta
   // y lista de opciones (acopioLabel/acopioOptions).
   var[filterAcopioTurco,setFilterAcopioTurco]=useState('');
-  var[filterTipoArena,setFilterTipoArena]=useState('Todas');
+  var[filterTipoArena,setFilterTipoArena]=useState(SIMIN_TIPOS_BASE.slice());
   // chart refs — granu curves
   var cParRef=useRef(null);var cPasRef=useRef(null);
   var iParRef=useRef(null);var iPasRef=useRef(null);
@@ -6641,7 +6641,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
     setFilterTipoMuestra(['Puntual','Acopio']);
     setFilterNumAcopio(ACOPIO_OPTS.slice());
     setFilterAcopioTurco('');
-    setFilterTipoArena('Todas');
+    setFilterTipoArena(SIMIN_TIPOS_BASE.slice());
   },[prod]);
 
   async function loadData(){
@@ -6878,9 +6878,9 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       if(tcfg&&tcfg.acopio&&filterAcopioTurco){
         if(normAcopio(r.NumAcopio||r.numAcopio||'')!==filterAcopioTurco)return false;
       }
-      if(tcfg&&tcfg.tipoArena&&filterTipoArena!=='Todas'){
+      if(tcfg&&tcfg.tipoArena&&filterTipoArena.length<SIMIN_TIPOS_BASE.length){
         var extraR=r.Extra||r.extra||{};
-        if(tipoArenaNorm(extraR.tipoArena)!==filterTipoArena)return false;
+        if(filterTipoArena.indexOf(tipoArenaNorm(extraR.tipoArena))===-1)return false;
       }
       return true;
     });
@@ -7029,7 +7029,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
         .concat(tieneTipoArena?[extra.tipoArena||'']:[])
         .concat(sieves.map(function(s){return st&&st[s.us]?fmt(st[s.us].pctP,2):'';}));
     });
-    var suf=(tieneTipoArena&&filterTipoArena!=='Todas')?('_'+filterTipoArena):'';
+    var suf=(tieneTipoArena&&filterTipoArena.length<SIMIN_TIPOS_BASE.length)?('_'+filterTipoArena.join('-')):'';
     descargarExcel('Granulometria_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+suf+'_'+getPeriodoLabel(),hdr,rows,'Granulometria');
   }
   /* Exporta la quimica de los registros filtrados */
@@ -7047,7 +7047,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
         .concat(tieneTipoArena?[extra.tipoArena||'']:[])
         .concat(ox.map(function(o){return q[o[0]]!=null?q[o[0]]:'';}));
     });
-    var suf2=(tieneTipoArena&&filterTipoArena!=='Todas')?('_'+filterTipoArena):'';
+    var suf2=(tieneTipoArena&&filterTipoArena.length<SIMIN_TIPOS_BASE.length)?('_'+filterTipoArena.join('-')):'';
     descargarExcel('Quimica_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+suf2+'_'+getPeriodoLabel(),hdr,rows,'Quimica');
   }
   /* Exporta el resumen consolidado por planta/producto */
@@ -8268,9 +8268,18 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                 {TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].tipoArena&&(
                   <div className="dff">
                     <label>Tipo de Arena</label>
-                    <select value={filterTipoArena} onChange={function(e){setFilterTipoArena(e.target.value);}}>
-                      {SIMIN_TIPOS.map(function(t){return <option key={t} value={t}>{t}</option>;})}
-                    </select>
+                    <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34,flexWrap:'wrap'}}>
+                      {SIMIN_TIPOS_BASE.map(function(t){
+                        var chk=filterTipoArena.includes(t);
+                        return(
+                          <label key={t} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:'.8rem',userSelect:'none',whiteSpace:'nowrap'}}>
+                            <input type="checkbox" checked={chk}
+                              onChange={function(){setFilterTipoArena(function(p){return chk?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
+                            {t}
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
                 {prod==='A36'&&(
@@ -9401,7 +9410,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
             if(hspecT)row.push(r.PctHumedad!=null?r.PctHumedad:(r.pctHumedad!=null?r.pctHumedad:''));
             return row;
           });
-          var sufT=(tieneTipoArena&&filterTipoArena!=='Todas')?('_'+filterTipoArena):'';
+          var sufT=(tieneTipoArena&&filterTipoArena.length<SIMIN_TIPOS_BASE.length)?('_'+filterTipoArena.join('-')):'';
           descargarExcel('TablaDatos_'+(GRANU_TITLE[prod]||prod).replace(/\s/g,'_')+sufT+'_'+getPeriodoLabel(),hdr,rows,'Tabla de Datos');
         }
         return(
@@ -13238,8 +13247,11 @@ const SIMIN_PLANTAS=[
 
 // Tipo de arena (materia prima) es texto libre y muy sucio (mayusculas,
 // typos "Amarila"/"baco"): se normaliza por color, igual que en el
-// analisis de variacion de arenas Turco.
-const SIMIN_TIPOS=['Todas','Blanca','Amarilla','Grancilla'];
+// analisis de variacion de arenas Turco. El filtro es de seleccion
+// multiple: un arreglo con todos los tipos (SIMIN_TIPOS_BASE) equivale
+// a "sin filtro" (se muestra todo, incluido texto que no matchea
+// ningun color y quedo como 'Otro').
+const SIMIN_TIPOS_BASE=['Blanca','Amarilla','Grancilla'];
 function tipoArenaNorm(raw){
   if(!raw)return null;
   var t=String(raw).toLowerCase();
@@ -13264,9 +13276,9 @@ function siminFilas(records,prodKey,hist,tipoFiltro){
   records.forEach(function(r){
     if(r.ProductoKey!==prodKey||!r.FechaMuestreo)return;
     if(isNaN(r.SiO2))return;
-    if(tipoFiltro&&tipoFiltro!=='Todas'){
+    if(tipoFiltro&&tipoFiltro.length<SIMIN_TIPOS_BASE.length){
       var extra=r.Extra||r.extra||{};
-      if(tipoArenaNorm(extra.tipoArena)!==tipoFiltro)return;
+      if(tipoFiltro.indexOf(tipoArenaNorm(extra.tipoArena))===-1)return;
     }
     var fp=r.FechaMuestreo.split('-');
     var per=siminPeriodoDe(+fp[0],+fp[1],+fp[2]);
@@ -13308,7 +13320,7 @@ function SiminPiedrasScreen({account,onBack}){
   var[loading,setLoading]=useState(true);
   var[planta,setPlanta]=useState('Arenas');
   var[etapaSel,setEtapaSel]=useState('Ambas');
-  var[tipoSel,setTipoSel]=useState('Todas');
+  var[tipoSel,setTipoSel]=useState(SIMIN_TIPOS_BASE.slice());
 
   useEffect(function(){load();},[]);
   async function load(){
@@ -13346,7 +13358,7 @@ function SiminPiedrasScreen({account,onBack}){
           f.n==null?'—':f.n]);
       });
     });
-    var sufijo=(planta==='Turco'&&tipoSel!=='Todas')?('_'+tipoSel):'';
+    var sufijo=(planta==='Turco'&&tipoSel.length<SIMIN_TIPOS_BASE.length)?('_'+tipoSel.join('-')):'';
     descargarExcel('SIMIN_'+planta+sufijo,hdr,rows,'Promedio mensual');
   }
 
@@ -13395,7 +13407,7 @@ function SiminPiedrasScreen({account,onBack}){
         {SIMIN_PLANTAS.map(function(p){
           return(
             <button key={p.planta} className={'btn '+(planta===p.planta?'btn-primary':'btn-secondary')}
-              onClick={function(){setPlanta(p.planta);setTipoSel('Todas');}}>{p.planta}</button>
+              onClick={function(){setPlanta(p.planta);setTipoSel(SIMIN_TIPOS_BASE.slice());}}>{p.planta}</button>
           );
         })}
       </div>
@@ -13407,11 +13419,20 @@ function SiminPiedrasScreen({account,onBack}){
           </select>
         </div>
         {planta==='Turco'&&(
-          <div className="dff" style={{marginBottom:16,maxWidth:220}}>
+          <div className="dff" style={{marginBottom:16}}>
             <label>Tipo de materia prima</label>
-            <select value={tipoSel} onChange={function(e){setTipoSel(e.target.value);}}>
-              {SIMIN_TIPOS.map(function(t){return <option key={t} value={t}>{t}</option>;})}
-            </select>
+            <div style={{display:'flex',gap:8,alignItems:'center',minHeight:34,flexWrap:'wrap'}}>
+              {SIMIN_TIPOS_BASE.map(function(t){
+                var chk=tipoSel.includes(t);
+                return(
+                  <label key={t} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:'.8rem',userSelect:'none',whiteSpace:'nowrap'}}>
+                    <input type="checkbox" checked={chk}
+                      onChange={function(){setTipoSel(function(p){return chk?p.filter(function(x){return x!==t;}):p.concat(t);});}}/>
+                    {t}
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
