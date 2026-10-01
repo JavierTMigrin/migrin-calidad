@@ -6518,7 +6518,7 @@ const MN=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic
    Turco, el sub-tipo (TLH o Arena Iman) — luego abre el mismo Dashboard
    con la pestana "Acopio / Despacho" generalizada (ver DashboardScreen). */
 function DespachosScreen({account,onBack}){
-  var[modo,setModo]=useState(null); // 'A36' | 'TT_TLH' | 'TT_IMAN_PROD' | null
+  var[modo,setModo]=useState(null); // 'A36' | 'A38' | 'TT_TLH' | 'TT_IMAN_PROD' | null
   var[turcoOpen,setTurcoOpen]=useState(false);
   if(modo)return <DashboardScreen account={account} initProd={modo} initTab="acopio" onBack={function(){setModo(null);}}/>;
   return(
@@ -6535,6 +6535,13 @@ function DespachosScreen({account,onBack}){
             <div className="mod-icon"><span>🏖️</span></div>
             <div className="mod-label">Arenas</div>
             <div className="mod-desc">Certificado de despacho A36 — Vidrios Lirquén / Cristalerías</div>
+          </div>
+          <div className="mod-card active" role="button" tabIndex={0}
+            onClick={function(){setModo('A38');}}
+            onKeyDown={function(e){if(e.key==='Enter')setModo('A38');}}>
+            <div className="mod-icon"><span>🪨</span></div>
+            <div className="mod-label">A38 Fierrillo</div>
+            <div className="mod-desc">Certificado de despacho A38 — Planta Arenas</div>
           </div>
           <div className="mod-card active" role="button" tabIndex={0}
             onClick={function(){setTurcoOpen(true);}}
@@ -7106,7 +7113,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
      A36 (Arenas): valida en paralelo contra Lirquen y Cristalerias.
      TT_TLH / TT_IMAN_PROD (Turco): valida contra su unica EETT (getSpecs),
      agrupando por Acopio (TLH) o Silo (Arena Iman) via TT_FORM_CFG. */
-  var PROD_CON_DESPACHO=['A36','TT_TLH','TT_IMAN_PROD'];
+  var PROD_CON_DESPACHO=['A36','A38','TT_TLH','TT_IMAN_PROD'];
   useEffect(function(){if(tab==='acopio'&&PROD_CON_DESPACHO.indexOf(prod)<0)setTab('granu');},[prod]);
 
   // Ultimos 10 registros del producto dentro del periodo seleccionado arriba,
@@ -7300,7 +7307,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       r++;
 
       r=labelValRow(r,'Fecha informe:',(cm.fecha?cm.fecha.split('-').reverse().join('/'):'—')+(cm.hora?' · '+cm.hora+' h':''));
-      r=labelValRow(r,'Lugar de muestreo:',esA36cert?'Planta Las Piedras':'Planta Turco');
+      r=labelValRow(r,'Lugar de muestreo:',(esA36cert||prod==='A38')?'Planta Las Piedras':'Planta Turco');
       r=labelValRow(r,'Muestreador:',cm.muestreador||'—');
       if(cm.patente)r=labelValRow(r,'Patente camión:',cm.patente);
       if(cm.humedad)r=labelValRow(r,'Humedad:',cm.humedad+' %');
@@ -8807,11 +8814,12 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       {/* ── VALIDACION DE ACOPIO / CERTIFICADO DE DESPACHO (A36) ── */}
       {!loading&&tab==='acopio'&&PROD_CON_DESPACHO.indexOf(prod)>=0&&(function(){
         var esA36=prod==='A36';
+        var esA38=prod==='A38';
         var sieves=SIEVE_CONFIG[prod]||[];
         var glir=(SPECS_A36.LIRQUEN||{}).granulometria||{};
         var gcch=(SPECS_A36.CRISTALERIAS||{}).granulometria||{};
-        // Turco: una sola EETT (getSpecs), sin nocion de "cliente"
-        var specT=esA36?null:(getSpecs(prod)||{});
+        // Turco y A38: una sola EETT (getSpecs), sin nocion de "cliente"
+        var specT=esA36?null:(getSpecs(prod)||(esA38?SPECS_A38:{}));
         var gT=specT?(specT.granulometria||{}):{};
         var qT=specT?(specT.quimica||{}):{};
         var mallasEval=esA36?sieves.filter(function(s){return glir[s.us]||gcch[s.us];}):sieves.filter(function(s){return gT[s.us];});
@@ -8820,8 +8828,20 @@ function DashboardScreen({account,onBack,initProd,initTab}){
         // Agrupacion (Acopio para TLH, Silo para Arena Iman); en A36 sigue
         // siendo ACOPIO_OPTS/"Acopio" tal cual funcionaba hasta ahora.
         var grpLabel=esA36?'Acopio':((TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopioLabel)||'Acopio');
-        var grpOptions=esA36?ACOPIO_OPTS:((TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopioOptions)?TT_FORM_CFG[prod].acopioOptions.map(function(o){return o.value;}):ACOPIOS_TURCO.map(function(o){return o.value;}));
-        var folioPrefix=esA36?'CCVL-':(prod==='TT_TLH'?'CTLH-':'CIMAN-');
+        var grpOptions=esA36?ACOPIO_OPTS:esA38?[]:((TT_FORM_CFG[prod]&&TT_FORM_CFG[prod].acopioOptions)?TT_FORM_CFG[prod].acopioOptions.map(function(o){return o.value;}):ACOPIOS_TURCO.map(function(o){return o.value;}));
+        var folioPrefix=esA36?'CCVL-':esA38?'CA38-':(prod==='TT_TLH'?'CTLH-':'CIMAN-');
+        // A38 no se evalua por Ret.Acum como Turco, sino igual que evalParams:
+        // +#40 (= Ret.Acum #40), Ret.Parcial por malla y Pasante -#400 (= Fondo).
+        var evalA38=[];
+        if(esA38&&certStats){
+          var g38c=gT;
+          if(g38c['+#40'])evalA38.push({k:'+#40',label:'+#40 (Ret.Acum #40)',val:certStats.acum['#40']?certStats.acum['#40'].media:null,mn:g38c['+#40'].retAcumMin,mx:g38c['+#40'].retAcumMax});
+          sieves.forEach(function(s){
+            var sp=g38c[s.us];if(!sp||(sp.retMin==null&&sp.retMax==null))return;
+            evalA38.push({k:s.us,label:'Ret.Parcial '+s.us,val:certStats.parcM[s.us],mn:sp.retMin,mx:sp.retMax});
+          });
+          if(g38c['-#400'])evalA38.push({k:'-#400',label:'-#400 Pasante',val:certStats.fondoM,mn:g38c['-#400'].pasMin,mx:g38c['-#400'].pasMax});
+        }
         function limG(s){if(!s)return'—';if(s.retAcumMin!=null&&s.retAcumMax!=null)return fmt(s.retAcumMin,2)+' – '+fmt(s.retAcumMax,2);if(s.retAcumMax!=null)return'≤ '+fmt(s.retAcumMax,2);if(s.retAcumMin!=null)return'≥ '+fmt(s.retAcumMin,2);return'—';}
         function limQ(s){if(!s)return'—';if(s.min!=null&&s.max!=null)return fmt(s.min,2)+' – '+fmt(s.max,2);if(s.max!=null)return'≤ '+fmt(s.max,2);if(s.min!=null)return'≥ '+fmt(s.min,2);return'—';}
         function estC(val,mn,mx){if(val==null||(mn==null&&mx==null))return{t:'—',c:'#94a3b8'};return calcSemaforo(val,mn==null?null:mn,mx==null?null:mx)==='error'?{t:'✗ FUERA',c:'#c0392b'}:{t:'✓ OK',c:'#1e7e44'};}
@@ -8847,7 +8867,11 @@ function DashboardScreen({account,onBack,initProd,initTab}){
         function verdT(){
           if(!certStats||!specT)return null;
           var ok=true,n=0;
-          Object.keys(gT).forEach(function(us){
+          if(esA38)evalA38.forEach(function(p){
+            if(p.val==null)return;
+            n++;if(calcSemaforo(p.val,p.mn,p.mx)==='error')ok=false;
+          });
+          else Object.keys(gT).forEach(function(us){
             var st=certStats.acum[us],s=gT[us];
             if(!st||(s.retMin==null&&s.retMax==null))return;
             n++;if(calcSemaforo(st.media,s.retMin,s.retMax)==='error')ok=false;
@@ -9084,7 +9108,18 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                         <th style={thV}>EETT</th><th style={thV}>Estado</th>
                       </tr></thead>
                       <tbody>
-                        {mallasEval.map(function(s){
+                        {esA38&&evalA38.map(function(p){
+                          var e=estC(p.val,p.mn,p.mx);
+                          return(
+                            <tr key={p.k}>
+                              <td style={Object.assign({},tdV,{textAlign:'left',fontWeight:700})}>{p.label}</td>
+                              <td style={Object.assign({},tdV,{fontWeight:700})}>{p.val!=null?fmt(p.val,2)+' %':'—'}</td>
+                              <td style={tdV}>{limQ({min:p.mn,max:p.mx})}</td>
+                              <td style={Object.assign({},tdV,{color:e.c,fontWeight:800})}>{e.t}</td>
+                            </tr>
+                          );
+                        })}
+                        {!esA38&&mallasEval.map(function(s){
                           var st=certStats.acum[s.us];var sp=gT[s.us];
                           var e=estC(st?st.media:null,sp?sp.retMin:null,sp?sp.retMax:null);
                           return(
@@ -9268,7 +9303,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                       </div>
                       <table style={{fontSize:11,marginBottom:14,borderCollapse:'collapse'}}><tbody>
                         <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Fecha informe:</td><td>{cm.fecha?cm.fecha.split('-').reverse().join('/'):'—'}{cm.hora?' · '+cm.hora+' h':''}</td></tr>
-                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Lugar de muestreo:</td><td>{esA36?'Planta Las Piedras':'Planta Turco'}</td></tr>
+                        <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Lugar de muestreo:</td><td>{(esA36||esA38)?'Planta Las Piedras':'Planta Turco'}</td></tr>
                         <tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Muestreador:</td><td>{cm.muestreador||'—'}</td></tr>
                         {cm.patente?<tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Patente camión:</td><td>{cm.patente}</td></tr>:null}
                         {cm.humedad?<tr><td style={{padding:'1px 8px 1px 0',fontWeight:700}}>Humedad:</td><td>{cm.humedad} %</td></tr>:null}
@@ -11172,6 +11207,12 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
   var pk=rec.ProductoKey||rec.producto||'';
   var sieves=SIEVE_CONFIG[pk]||[];
   var cfg=PRODUCT_CONFIG[pk]||{};
+  // Productos Turco con acopio/sector/silo (TT_TLH, TT_GOLF, TT_IMAN_PROD):
+  // no tienen tipoMuestra, el acopio va directo en num_acopio.
+  var tcfg=TT_FORM_CFG[pk]||{};
+  var acopioOpts=(cfg.tipoMuestra?ACOPIOS_PRODUCCION:tcfg.acopio?(tcfg.acopioOptions||ACOPIOS_TURCO):[])
+    .map(function(o){return typeof o==='string'?{value:o,label:o}:o;});
+  var acopioLbl=cfg.tipoMuestra?'N° Acopio':(tcfg.acopioLabel||'Acopio');
   // Control de Granos (Arenas y Turco) mide CONTEO por malla, no masa: no
   // usa Peso Inicial/Final (siempre quedan null) y las mallas son unidades,
   // no gramos.
@@ -11237,9 +11278,11 @@ function EditEnsayoModal({rec,account,onClose,onSaved}){
               <select style={inS} value={tipoM} onChange={function(e){setTipoM(e.target.value);}}>
                 <option value="">—</option><option value="Puntual">Puntual</option><option value="Acopio">Acopio</option>
               </select></div>}
-            {cfg.tipoMuestra&&<div><label style={lbS}>N° Acopio</label>
+            {acopioOpts.length>0&&<div><label style={lbS}>{acopioLbl}</label>
               <select style={inS} value={numA} onChange={function(e){setNumA(e.target.value);}}>
-                <option value="">—</option>{ACOPIOS_PRODUCCION.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
+                <option value="">—</option>
+                {numA&&!acopioOpts.some(function(a){return a.value===numA;})&&<option value={numA}>{numA}</option>}
+                {acopioOpts.map(function(a){return <option key={a.value} value={a.value}>{a.label}</option>;})}
               </select></div>}
             {!isCount&&<div><label style={lbS}>Peso inicial (g)</label><input style={inS} value={pIni} onChange={function(e){setPIni(e.target.value);}}/></div>}
             {!isCount&&<div><label style={lbS}>Peso final (g)</label><input style={inS} value={pFin} onChange={function(e){setPFin(e.target.value);}}/></div>}
@@ -11933,12 +11976,12 @@ function HistoryScreen({account,onBack}){
                           {(function(){
                             var tm=r.TipoMuestra||r.tipoMuestra;
                             var na=r.NumAcopio||r.numAcopio;
-                            if(!tm)return null;
+                            if(!tm&&!na)return null;
                             var label=na||tm;
                             var style={marginLeft:5,display:'inline-block',padding:'1px 7px',
                               borderRadius:20,fontSize:'.68rem',fontWeight:700};
                             if(na==='Emergencia')return <span style={Object.assign({},style,{background:'#fff5f5',color:'#c53030',border:'1px solid #feb2b2'})}>{label}</span>;
-                            if(tm==='Acopio')return <span style={Object.assign({},style,{background:'#d6eaf8',color:'#1a5276',border:'1px solid #aed6f1'})}>{label}</span>;
+                            if(tm==='Acopio'||(!tm&&na))return <span style={Object.assign({},style,{background:'#d6eaf8',color:'#1a5276',border:'1px solid #aed6f1'})}>{label}</span>;
                             return <span style={Object.assign({},style,{background:'#f5f5f5',color:'#888',border:'1px solid #e0e0e0'})}>{label}</span>;
                           })()}
                         </td>
@@ -11977,6 +12020,7 @@ function HistoryScreen({account,onBack}){
                                 <div><b>Turno:</b> {rec.data.turno?'Turno '+rec.data.turno:'—'}</div>
                                 <div><b>Planta:</b> {planta}</div>
                                 <div><b>Producto:</b> {rec.data.productoLabel}</div>
+                                {(r.NumAcopio||r.numAcopio)&&<div><b>{((TT_FORM_CFG[rec.data.producto]||{}).acopioLabel)||'Acopio'}:</b> {r.NumAcopio||r.numAcopio}</div>}
                                 {rec.data.pesoInicial!==''&&<div><b>Peso Inicial:</b> {rec.data.pesoInicial} g</div>}
                                 {rec.data.pesoFinal!==''&&<div><b>Peso Final:</b> {rec.data.pesoFinal} g</div>}
                               </div>
@@ -14135,7 +14179,7 @@ const CONSULTAR_ITEMS=[
   {id:'simin-piedras',icon:'🧾',bg:'linear-gradient(135deg,#154360,#2874a6)',tit:'SIMIN — Las Piedras',
     desc:'Promedio mensual de química A36 (SiO₂, Al₂O₃, Fe₂O₃) en formato certificado'},
   {id:'despachos',icon:'📜',bg:'linear-gradient(135deg,#154360,#48c9b0)',tit:'Despachos',
-    desc:'Certificado de despacho — Arenas (A36) o Turco (TLH / Arena Iman)'},
+    desc:'Certificado de despacho — Arenas (A36 / A38) o Turco (TLH / Arena Iman)'},
   {id:'despachos-sur-reporte',icon:'🚛',bg:'linear-gradient(135deg,#0e6251,#48c9b0)',tit:'Despachos Sur',
     desc:'Tendencia de %Humedad Acopios Cancha, con filtros por destino y acopio'},
   {id:'acopios-vista',icon:'📈',bg:'linear-gradient(135deg,#6c3483,#2874a6)',tit:'Calidad TLH Turco',
