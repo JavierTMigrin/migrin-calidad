@@ -7137,7 +7137,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
     var antesPendiente=rs.length;
     rs=rs.filter(function(r){return!datoPendiente(r);});
     rs.sort(function(a,b){return(a.FechaMuestreo||a.fecha||'').localeCompare(b.FechaMuestreo||b.fecha||'');});
-    return{recs:rs.slice(-20),excluidos:antesPendiente-rs.length};
+    return{recs:rs.slice(-30),excluidos:antesPendiente-rs.length};
   },[records,prod,certFiltro,periodType,selWeek,selMonth,selYear,custFrom,custTo]);
   var certRecs=certInfo.recs;
   var certExcluidosPendiente=certInfo.excluidos;
@@ -8930,7 +8930,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                   <div className="dff">
                     <label>Promediar últimos</label>
                     <select value={certLastN} onChange={function(e){var n=parseInt(e.target.value);setCertLastN(n);var sel={};certDet.slice(-n).forEach(function(d){sel[d.id]=true;});setCertSel(sel);}}>
-                      {[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(function(n){return <option key={n} value={n}>{n} muestras</option>;})}
+                      {Array.from({length:29},function(_,i){return i+2;}).map(function(n){return <option key={n} value={n}>{n} muestras</option>;})}
                     </select>
                   </div>
                   <div style={{fontSize:'.76rem',color:'var(--text-muted)',paddingBottom:8}}>

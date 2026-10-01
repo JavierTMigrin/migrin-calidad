@@ -13779,7 +13779,7 @@ function DashboardScreen({
       return (a.FechaMuestreo || a.fecha || '').localeCompare(b.FechaMuestreo || b.fecha || '');
     });
     return {
-      recs: rs.slice(-20),
+      recs: rs.slice(-30),
       excluidos: antesPendiente - rs.length
     };
   }, [records, prod, certFiltro, periodType, selWeek, selMonth, selYear, custFrom, custTo]);
@@ -17553,7 +17553,11 @@ function DashboardScreen({
         });
         setCertSel(sel);
       }
-    }, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(function (n) {
+    }, Array.from({
+      length: 29
+    }, function (_, i) {
+      return i + 2;
+    }).map(function (n) {
       return /*#__PURE__*/React.createElement("option", {
         key: n,
         value: n
