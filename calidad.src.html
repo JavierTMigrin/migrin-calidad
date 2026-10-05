@@ -14186,12 +14186,16 @@ const CONSULTAR_ITEMS=[
     desc:'Tendencia química por acopio, curada para consulta rápida'},
   {id:'habilitador-acopios',icon:'👁️',bg:'linear-gradient(135deg,#6c3483,#1a5276)',tit:'Habilitador de Acopios (Admin)',
     desc:'Configura qué acopios, fechas y químicos ve todo el mundo en "Calidad TLH Turco"',adminOnly:true},
+  {id:'panel-acopios',icon:'🧪',bg:'linear-gradient(135deg,#1e3a5f,#0e9f6e)',tit:'Panel por Acopio (privado)',
+    desc:'Último llenado de cada acopio TLH: química, curva granulométrica y EETT',flag:'ver_panel_acopios'},
 ];
 
 /* Menu del sidebar de Inicio: igual contenido que CONSULTAR_ITEMS, pero
    Despachos/Despachos Sur/Calidad TLH Turco/Habilitador quedan
    agrupados bajo un solo item "Despachos" que se despliega. */
 const SIDEBAR_TREE=[
+  {id:'panel-acopios',icon:'🧪',tit:'Panel por Acopio (privado)',
+    desc:'Último llenado de cada acopio TLH: química, curva granulométrica y EETT',flag:'ver_panel_acopios'},
   {id:'dashboard',icon:'📈',tit:'Reportes',
     desc:'Tendencias, cumplimiento EETT, cartas de control y resumen ejecutivo'},
   {id:'history',icon:'📋',tit:'Historial',
@@ -14216,13 +14220,39 @@ const SIDEBAR_TREE=[
     ]},
 ];
 
+/* Acceso a items/pantallas restringidas a usuarios puntuales: se marca el
+   usuario con user_metadata.<flag> = true (no se escribe el correo en el
+   codigo porque el repo es publico). Hoy: 'ver_panel_acopios'. */
+function tieneFlag(account,flag){
+  return !!(account&&account.user_metadata&&account.user_metadata[flag]===true);
+}
+function itemVisible(it,isAdmin,account){
+  return(!it.adminOnly||isAdmin)&&(!it.flag||tieneFlag(account,it.flag));
+}
+
+/* Panel por Acopio: pagina independiente (panel_acopio_turco.html) embebida.
+   Mismo origen = misma sesion de Supabase, no pide login de nuevo. */
+function PanelAcopiosScreen({onBack}){
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}}>
+        <button className="btn btn-secondary" onClick={onBack}>&larr; Volver</button>
+        <h2 style={{margin:0,fontSize:'1.15rem'}}>🧪 Panel por Acopio — TLH Turco</h2>
+        <a href="panel_acopio_turco.html" target="_blank" rel="noopener" style={{marginLeft:'auto',fontSize:'.85rem'}}>Abrir en pestaña nueva ↗</a>
+      </div>
+      <iframe src="panel_acopio_turco.html?embed=1" title="Panel por Acopio"
+        style={{width:'100%',height:'calc(100vh - 170px)',minHeight:560,border:'1px solid #e5e7eb',borderRadius:12,background:'#f3f4f6'}}/>
+    </div>
+  );
+}
+
 /* Panel lateral desplegable "Consultar y analizar" — se abre desde el
    boton de Inicio o desde el ☰ del header, en cualquier pantalla. */
-function NavDrawer({open,onClose,onNav,isAdmin}){
+function NavDrawer({open,onClose,onNav,isAdmin,account}){
   var[closing,setClosing]=useState(false);
   var[expandedGroup,setExpandedGroup]=useState(null);
-  var items=SIDEBAR_TREE.filter(function(it){return !it.adminOnly||isAdmin;}).map(function(it){
-    return it.children?Object.assign({},it,{children:it.children.filter(function(c){return !c.adminOnly||isAdmin;})}):it;
+  var items=SIDEBAR_TREE.filter(function(it){return itemVisible(it,isAdmin,account);}).map(function(it){
+    return it.children?Object.assign({},it,{children:it.children.filter(function(c){return itemVisible(c,isAdmin,account);})}):it;
   });
   function requestClose(){
     setClosing(true);
@@ -14295,7 +14325,7 @@ function NavDrawer({open,onClose,onNav,isAdmin}){
 function HomeScreen({onSelect,onNav,onOpenMenu,isViewer,account}){
   var nombre=account&&account.email?account.email.split('@')[0]:'';
   var isAdminHS=!!(account&&account.user_metadata&&account.user_metadata.is_admin===true);
-  var itemsHS=CONSULTAR_ITEMS.filter(function(it){return !it.adminOnly||isAdminHS;});
+  var itemsHS=CONSULTAR_ITEMS.filter(function(it){return itemVisible(it,isAdminHS,account);});
   var modPlantasActivas=MODULE_PLANTAS.filter(function(p){return MODULES.some(function(m){return m.planta===p.key;});});
   var emailHS=(account&&account.email||'').trim().toLowerCase();
   var plantaDefaultHS=HOME_PLANTA_POR_EMAIL[emailHS]||(modPlantasActivas[0]?modPlantasActivas[0].key:'');
@@ -14867,10 +14897,11 @@ function App(){
         {screen==='despachos-sur-reporte'&&<DespachosSurScreen account={account} onBack={function(){setScreen('home');}}/>}
         {isAdmin&&screen==='habilitador-acopios'&&<HabilitadorAcopiosScreen account={account} onBack={function(){setScreen('home');}}/>}
         {screen==='acopios-vista'&&<AcopiosVistaScreen account={account} onBack={function(){setScreen('home');}}/>}
+        {tieneFlag(account,'ver_panel_acopios')&&screen==='panel-acopios'&&<PanelAcopiosScreen onBack={function(){setScreen('home');}}/>}
         {!isViewer&&screen==='settings'&&<SettingsScreen account={account} onBack={function(){setScreen('home');}} onLogout={logout}/>}
       </div>
       <NavDrawer open={menuOpen} onClose={function(){setMenuOpen(false);}}
-        onNav={function(s){setScreen(s);}} isAdmin={isAdmin}/>
+        onNav={function(s){setScreen(s);}} isAdmin={isAdmin} account={account}/>
       {isAdmin&&<AsistenteIA/>}
     </>
   );
