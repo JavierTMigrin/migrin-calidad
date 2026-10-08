@@ -6959,7 +6959,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       var data={producto:prod,quimica:r.quimica||{},
         pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')};
       if(porCliente){
-        var ps=evalParams(data,gc,{comparativas:true});
+        var ps=evalParams(data,gc);
         porCliente.forEach(function(c){
           var mios=ps.filter(function(p){return p.spec===c.nombre;});
           if(!mios.length)return;
@@ -8406,13 +8406,9 @@ function DashboardScreen({account,onBack,initProd,initTab}){
               </span>
             );
           }
-          if(cumplimiento.porCliente){
-            return(
-              <span style={{marginLeft:'auto',display:'inline-flex',gap:8,flexWrap:'wrap'}}>
-                {cumplimiento.porCliente.map(function(c,i){return chipCumpl(c.nombre,c,i);})}
-              </span>
-            );
-          }
+          // A36: sin indicadores de cumplimiento por cliente en la barra
+          // (a pedido de usuario, 08-10-2026); siguen en el PDF/correo.
+          if(cumplimiento.porCliente)return null;
           return <span style={{marginLeft:'auto'}}>{chipCumpl('Cumplimiento EETT',cumplimiento,0)}</span>;
         })()}
       </div>
