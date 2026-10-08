@@ -1639,6 +1639,106 @@ const SPECS_A36 = {
     humedad: {
       max: 4.8
     }
+  },
+  /* Veralia Alta/Baja Hierro: SOLO COMPARATIVAS (temporal). Se pueden
+     elegir en Informe/Dashboard/Tabla para ver la A36 contra ellas, pero
+     evalParams las omite por defecto: no cambian alertas, correos, banner
+     fuera de norma ni "cumple alguna". Limites tomados de SPECS_VERALTA /
+     SPECS_VERBAJA; #140/#200 se leen como ret. acum. minimo (en A36 el
+     pasante en #140 ronda 5-15 %, un "pasante >= 85" nunca cumpliria). */
+  VERALTA: {
+    nombre: 'Veralia Alta Hierro',
+    soloComparar: true,
+    granulometria: {
+      '#20': {
+        retAcumMax: 0.1,
+        retAcumMin: null
+      },
+      '#30': {
+        retAcumMax: 1.6,
+        retAcumMin: null
+      },
+      '#140': {
+        retAcumMax: null,
+        retAcumMin: 85.0
+      },
+      '#200': {
+        retAcumMax: null,
+        retAcumMin: 98.0
+      }
+    },
+    quimica: {
+      SiO2: {
+        min: 88.0,
+        max: null
+      },
+      Al2O3: {
+        min: 0.3,
+        max: 0.45
+      },
+      Fe2O3: {
+        min: null,
+        max: 2.0
+      },
+      TiO2: {
+        min: null,
+        max: 0.2
+      },
+      K2O_Na2O: {
+        min: null,
+        max: 2.0
+      }
+    },
+    humedad: {
+      max: 5.0
+    }
+  },
+  VERBAJA: {
+    nombre: 'Veralia Baja Hierro',
+    soloComparar: true,
+    granulometria: {
+      '#20': {
+        retAcumMax: 0.1,
+        retAcumMin: null
+      },
+      '#30': {
+        retAcumMax: 1.6,
+        retAcumMin: null
+      },
+      '#140': {
+        retAcumMax: null,
+        retAcumMin: 86.0
+      },
+      '#200': {
+        retAcumMax: null,
+        retAcumMin: 98.0
+      }
+    },
+    quimica: {
+      SiO2: {
+        min: 88.5,
+        max: null
+      },
+      Al2O3: {
+        min: 0.5,
+        max: 2.0
+      },
+      Fe2O3: {
+        min: null,
+        max: 0.1
+      },
+      TiO2: {
+        min: null,
+        max: 0.2
+      },
+      K2O_Na2O: {
+        min: null,
+        max: 2.0
+      }
+    },
+    humedad: {
+      max: 5.0
+    }
   }
 };
 const SPECS_CTLH = {
@@ -2296,7 +2396,8 @@ const SEM_ICON = {
 /* ── DETECCION FUERA DE NORMA ──
    Devuelve lista de violaciones [{param,valor,limite,spec}] para el ensayo.
    A36 se evalua contra ambas especificaciones (Lirquen y Cristalerias) en paralelo. */
-function evalParams(data, gc) {
+function evalParams(data, gc, opts) {
+  var conComparativas = !!(opts && opts.comparativas); // A36: incluir EETT soloComparar (Veralia)
   var producto = data.producto;
   var sieves = SIEVE_CONFIG[producto] || [];
   var sieveRows = (gc && gc.rows ? gc.rows : []).filter(function (r) {
@@ -2368,6 +2469,7 @@ function evalParams(data, gc) {
     Object.entries(SPECS_A36).forEach(function (se) {
       var sp = se[1],
         sname = sp.nombre || se[0];
+      if (sp.soloComparar && !conComparativas) return;
       Object.entries(sp.granulometria || {}).forEach(function (en) {
         var us = en[0],
           s = en[1];
@@ -5083,7 +5185,7 @@ function ReportModal({
     v: q.na2o
   }, {
     p: 'TiO₂',
-    sk: null,
+    sk: 'TiO2',
     v: q.tio2
   }, {
     p: 'K₂O+Na₂O',
@@ -5178,7 +5280,7 @@ function ReportModal({
     }).then(function (canvas) {
       var link = document.createElement('a');
       var prod = (data.productoLabel || data.producto).replace(/[\s—]+/g, '_');
-      var suf = key === 'LIRQUEN' ? '_Lirquen' : key === 'CRISTALERIAS' ? '_Cristalerias' : '';
+      var suf = key === 'LIRQUEN' ? '_Lirquen' : key === 'CRISTALERIAS' ? '_Cristalerias' : key && SPECS_A36[key] ? '_' + SPECS_A36[key].nombre.replace(/\s+/g, '_') : '';
       link.download = 'Ensayo_' + prod + suf + '_' + (data.fecha || 'fecha') + '.png';
       link.href = canvas.toDataURL('image/png');
       link.click();
@@ -5289,7 +5391,9 @@ function ReportModal({
       color: '#7a6a3a'
     }
   }, "El registro se guardo con los datos disponibles. La evaluacion de cumplimiento EETT y el correo automatico quedan en espera hasta que se complete la parte faltante desde Historial.")), !pendiente && violations && violations.length > 0 && function () {
-    var specNames = isA36 ? Object.keys(SPECS_A36).map(function (k) {
+    var specNames = isA36 ? Object.keys(SPECS_A36).filter(function (k) {
+      return !SPECS_A36[k].soloComparar;
+    }).map(function (k) {
       return SPECS_A36[k].nombre;
     }) : [];
     var specsFuera = specNames.filter(function (n) {
@@ -5504,7 +5608,7 @@ function ReportModal({
       fontWeight: 700,
       color: '#1a5276'
     }
-  }, isA36 ? SPECS_A36[specKey] ? SPECS_A36[specKey].nombre : '—' : prodSpecs && prodSpecs.nombre ? prodSpecs.nombre : data.productoLabel || data.producto)), /*#__PURE__*/React.createElement("div", {
+  }, isA36 ? SPECS_A36[specKey] ? SPECS_A36[specKey].nombre + (SPECS_A36[specKey].soloComparar ? ' (comparativo)' : '') : '—' : prodSpecs && prodSpecs.nombre ? prodSpecs.nombre : data.productoLabel || data.producto)), /*#__PURE__*/React.createElement("div", {
     className: "rc-meta-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "rc-meta-k"
@@ -5719,7 +5823,12 @@ function ReportModal({
     onClick: function () {
       downloadWith('CRISTALERIAS');
     }
-  }, "Descargar PNG — Cristalerias Chile")) : /*#__PURE__*/React.createElement("button", {
+  }, "Descargar PNG — Cristalerias Chile"), SPECS_A36[specKey] && SPECS_A36[specKey].soloComparar && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-secondary",
+    onClick: function () {
+      downloadWith(specKey);
+    }
+  }, "Descargar PNG — ", SPECS_A36[specKey].nombre, " (comparativo)")) : /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: function () {
       doDownload(null);
@@ -13464,7 +13573,9 @@ function DashboardScreen({
         pctHumedad: String(r.PctHumedad !== undefined ? r.PctHumedad : r.pctHumedad !== undefined ? r.pctHumedad : '')
       };
       if (porCliente) {
-        var ps = evalParams(data, gc);
+        var ps = evalParams(data, gc, {
+          comparativas: true
+        });
         porCliente.forEach(function (c) {
           var mios = ps.filter(function (p) {
             return p.spec === c.nombre;

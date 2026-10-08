@@ -758,6 +758,38 @@ const SPECS_A36={
     quimica:{SiO2:{min:94.3,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:0.06,max:0.12}},
     humedad:{max:4.8},
   },
+  /* Veralia Alta/Baja Hierro: SOLO COMPARATIVAS (temporal). Se pueden
+     elegir en Informe/Dashboard/Tabla para ver la A36 contra ellas, pero
+     evalParams las omite por defecto: no cambian alertas, correos, banner
+     fuera de norma ni "cumple alguna". Limites tomados de SPECS_VERALTA /
+     SPECS_VERBAJA; #140/#200 se leen como ret. acum. minimo (en A36 el
+     pasante en #140 ronda 5-15 %, un "pasante >= 85" nunca cumpliria). */
+  VERALTA:{
+    nombre:'Veralia Alta Hierro',
+    soloComparar:true,
+    granulometria:{
+      '#20':{retAcumMax:0.1,retAcumMin:null},
+      '#30':{retAcumMax:1.6,retAcumMin:null},
+      '#140':{retAcumMax:null,retAcumMin:85.0},
+      '#200':{retAcumMax:null,retAcumMin:98.0},
+    },
+    quimica:{SiO2:{min:88.0,max:null},Al2O3:{min:0.3,max:0.45},Fe2O3:{min:null,max:2.0},
+      TiO2:{min:null,max:0.2},K2O_Na2O:{min:null,max:2.0}},
+    humedad:{max:5.0},
+  },
+  VERBAJA:{
+    nombre:'Veralia Baja Hierro',
+    soloComparar:true,
+    granulometria:{
+      '#20':{retAcumMax:0.1,retAcumMin:null},
+      '#30':{retAcumMax:1.6,retAcumMin:null},
+      '#140':{retAcumMax:null,retAcumMin:86.0},
+      '#200':{retAcumMax:null,retAcumMin:98.0},
+    },
+    quimica:{SiO2:{min:88.5,max:null},Al2O3:{min:0.5,max:2.0},Fe2O3:{min:null,max:0.1},
+      TiO2:{min:null,max:0.2},K2O_Na2O:{min:null,max:2.0}},
+    humedad:{max:5.0},
+  },
 };
 
 const SPECS_CTLH={
@@ -955,7 +987,8 @@ const SEM_ICON={ok:'✓',warning:'⚠',error:'✗',info:'—'};
 /* ── DETECCION FUERA DE NORMA ──
    Devuelve lista de violaciones [{param,valor,limite,spec}] para el ensayo.
    A36 se evalua contra ambas especificaciones (Lirquen y Cristalerias) en paralelo. */
-function evalParams(data,gc){
+function evalParams(data,gc,opts){
+  var conComparativas=!!(opts&&opts.comparativas); // A36: incluir EETT soloComparar (Veralia)
   var producto=data.producto;
   var sieves=SIEVE_CONFIG[producto]||[];
   var sieveRows=(gc&&gc.rows?gc.rows:[]).filter(function(r){return !r.isFondo;});
@@ -999,6 +1032,7 @@ function evalParams(data,gc){
   if(producto==='A36'){
     Object.entries(SPECS_A36).forEach(function(se){
       var sp=se[1],sname=sp.nombre||se[0];
+      if(sp.soloComparar&&!conComparativas)return;
       Object.entries(sp.granulometria||{}).forEach(function(en){
         var us=en[0],s=en[1];
         chk('Ret.Acum '+us,sv(us,'pctA'),s.retAcumMin,s.retAcumMax,'%',2,sname);
@@ -2496,7 +2530,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
     {p:'MgO',sk:null,v:q.mgo},
     {p:'K₂O',sk:null,v:q.k2o},
     {p:'Na₂O',sk:null,v:q.na2o},
-    {p:'TiO₂',sk:null,v:q.tio2},
+    {p:'TiO₂',sk:'TiO2',v:q.tio2},
     {p:'K₂O+Na₂O',sk:'K2O_Na2O',v:fmt(k2ona2o),isCalc:true},
   ];
   var granuSpec=(isA36&&specKey)?SPECS_A36[specKey].granulometria:(prodSpecs&&prodSpecs.granulometria)||{};
@@ -2528,7 +2562,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
     .then(function(canvas){
       var link=document.createElement('a');
       var prod=(data.productoLabel||data.producto).replace(/[\s—]+/g,'_');
-      var suf=key==='LIRQUEN'?'_Lirquen':key==='CRISTALERIAS'?'_Cristalerias':'';
+      var suf=key==='LIRQUEN'?'_Lirquen':key==='CRISTALERIAS'?'_Cristalerias':key&&SPECS_A36[key]?'_'+SPECS_A36[key].nombre.replace(/\s+/g,'_'):'';
       link.download='Ensayo_'+prod+suf+'_'+(data.fecha||'fecha')+'.png';
       link.href=canvas.toDataURL('image/png');link.click();
     });
@@ -2610,7 +2644,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
            al menos una, el aviso es parcial (ambar) y sin recomendacion de
            cono de emergencia; rojo solo si no cumple NINGUNA. */}
         {!pendiente&&violations&&violations.length>0&&(function(){
-          var specNames=isA36?Object.keys(SPECS_A36).map(function(k){return SPECS_A36[k].nombre;}):[];
+          var specNames=isA36?Object.keys(SPECS_A36).filter(function(k){return !SPECS_A36[k].soloComparar;}).map(function(k){return SPECS_A36[k].nombre;}):[];
           var specsFuera=specNames.filter(function(n){return violations.some(function(v){return v.spec===n;});});
           var specsOk=specNames.filter(function(n){return specsFuera.indexOf(n)<0;});
           var parcial=isA36&&specsOk.length>0;
@@ -2720,7 +2754,7 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
             {showSpecCols&&<div className="rc-meta-row" style={{gridColumn:'1/-1'}}>
               <span className="rc-meta-k">Especificacion:</span>
               <span style={{fontWeight:700,color:'#1a5276'}}>
-                {isA36?(SPECS_A36[specKey]?SPECS_A36[specKey].nombre:'—'):(prodSpecs&&prodSpecs.nombre?prodSpecs.nombre:data.productoLabel||data.producto)}
+                {isA36?(SPECS_A36[specKey]?SPECS_A36[specKey].nombre+(SPECS_A36[specKey].soloComparar?' (comparativo)':''):'—'):(prodSpecs&&prodSpecs.nombre?prodSpecs.nombre:data.productoLabel||data.producto)}
               </span>
             </div>}
             <div className="rc-meta-row"><span className="rc-meta-k">Fecha muestreo:</span><span>{data.fecha}</span></div>
@@ -2869,6 +2903,9 @@ function ReportModal({data,gc,onClose,sendError,onRetry,retrying,hideBanner,viol
             <>
               <button className="btn btn-primary" onClick={function(){downloadWith('LIRQUEN');}}>Descargar PNG — Vidrios Lirquen</button>
               <button className="btn btn-primary" onClick={function(){downloadWith('CRISTALERIAS');}}>Descargar PNG — Cristalerias Chile</button>
+              {SPECS_A36[specKey]&&SPECS_A36[specKey].soloComparar&&(
+                <button className="btn btn-secondary" onClick={function(){downloadWith(specKey);}}>Descargar PNG — {SPECS_A36[specKey].nombre} (comparativo)</button>
+              )}
             </>
           ):(
             <button className="btn btn-primary" onClick={function(){doDownload(null);}}>Descargar PNG</button>
@@ -6915,7 +6952,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
       var data={producto:prod,quimica:r.quimica||{},
         pctHumedad:String(r.PctHumedad!==undefined?r.PctHumedad:r.pctHumedad!==undefined?r.pctHumedad:'')};
       if(porCliente){
-        var ps=evalParams(data,gc);
+        var ps=evalParams(data,gc,{comparativas:true});
         porCliente.forEach(function(c){
           var mios=ps.filter(function(p){return p.spec===c.nombre;});
           if(!mios.length)return;
