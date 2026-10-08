@@ -364,6 +364,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600}
 .kpi4-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
 @media(min-width:700px){.kpi4-grid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:700px){.kpi4-grid.kpi-n{grid-template-columns:repeat(var(--kpi-n),minmax(0,1fr))}}
 .kpi4-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
   padding:14px 16px;border-left:4px solid #e0e0e0}
 .kpi4-card.bd-ok{border-left-color:var(--success)}.kpi4-card.bd-warn{border-left-color:var(--warning)}.kpi4-card.bd-err{border-left-color:var(--error)}
@@ -8446,9 +8447,13 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                 {/* KPIs: 4 tarjetas. En A36 una por control con limite de la
                     EETT elegida (con 4 fijas se perdian #200 de Veralia y
                     #170 de Lirquen). */}
-                {hasSpecs&&(
-                <div className="kpi4-grid">
-                  {(function(){var cl=prod==='A36'?ctrlStats.filter(function(k){return k.limMin!=null||k.limMax!=null;}):[];return cl.length?cl:ctrlStats.slice(0,4);})().map(function(k,i){
+                {hasSpecs&&(function(){
+                var kpiCards=(function(){var cl=prod==='A36'?ctrlStats.filter(function(k){return k.limMin!=null||k.limMax!=null;}):[];return cl.length?cl:ctrlStats.slice(0,4);})();
+                // Mas de 4 tarjetas: todas en una sola fila (en pantalla ancha)
+                var nCols=kpiCards.length>4?kpiCards.length:0;
+                return(
+                <div className={'kpi4-grid'+(nCols?' kpi-n':'')} style={nCols?{'--kpi-n':nCols}:undefined}>
+                  {kpiCards.map(function(k,i){
                     var bd=k.sem==='ok'?'bd-ok':k.sem==='warning'?'bd-warn':k.sem==='error'?'bd-err':'';
                     var sc=SEM_COLOR[k.sem]||'#999';
                     var dp=k.key==='_d50'||k.key==='_p80'?3:2;
@@ -8463,7 +8468,7 @@ function DashboardScreen({account,onBack,initProd,initTab}){
                     );
                   })}
                 </div>
-                )}
+                );})()}
 
                 {/* Curvas granulométricas */}
                 <div className="granu-curves">
