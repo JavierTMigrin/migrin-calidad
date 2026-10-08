@@ -8443,10 +8443,12 @@ function DashboardScreen({account,onBack,initProd,initTab}){
 
                 {muestraSelBar()}
 
-                {/* KPIs 4 tarjetas */}
+                {/* KPIs: 4 tarjetas. En A36 una por control con limite de la
+                    EETT elegida (con 4 fijas se perdian #200 de Veralia y
+                    #170 de Lirquen). */}
                 {hasSpecs&&(
                 <div className="kpi4-grid">
-                  {ctrlStats.slice(0,4).map(function(k,i){
+                  {(function(){var cl=prod==='A36'?ctrlStats.filter(function(k){return k.limMin!=null||k.limMax!=null;}):[];return cl.length?cl:ctrlStats.slice(0,4);})().map(function(k,i){
                     var bd=k.sem==='ok'?'bd-ok':k.sem==='warning'?'bd-warn':k.sem==='error'?'bd-err':'';
                     var sc=SEM_COLOR[k.sem]||'#999';
                     var dp=k.key==='_d50'||k.key==='_p80'?3:2;

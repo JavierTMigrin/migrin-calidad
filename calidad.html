@@ -16545,7 +16545,12 @@ function DashboardScreen({
     }
   }, expHdr(), muestraSelBar(), hasSpecs && /*#__PURE__*/React.createElement("div", {
     className: "kpi4-grid"
-  }, ctrlStats.slice(0, 4).map(function (k, i) {
+  }, function () {
+    var cl = prod === 'A36' ? ctrlStats.filter(function (k) {
+      return k.limMin != null || k.limMax != null;
+    }) : [];
+    return cl.length ? cl : ctrlStats.slice(0, 4);
+  }().map(function (k, i) {
     var bd = k.sem === 'ok' ? 'bd-ok' : k.sem === 'warning' ? 'bd-warn' : k.sem === 'error' ? 'bd-err' : '';
     var sc = SEM_COLOR[k.sem] || '#999';
     var dp = k.key === '_d50' || k.key === '_p80' ? 3 : 2;
