@@ -761,19 +761,19 @@ const SPECS_A36={
   /* Veralia Alta/Baja Hierro: SOLO COMPARATIVAS (temporal). Se pueden
      elegir en Informe/Dashboard/Tabla para ver la A36 contra ellas, pero
      evalParams las omite por defecto: no cambian alertas, correos, banner
-     fuera de norma ni "cumple alguna". Limites tomados de SPECS_VERALTA /
-     SPECS_VERBAJA; #140/#200 se leen como ret. acum. minimo (en A36 el
-     pasante en #140 ronda 5-15 %, un "pasante >= 85" nunca cumpliria). */
+     fuera de norma ni "cumple alguna". Mismos limites que SPECS_VERALTA /
+     SPECS_VERBAJA (fichas tecnicas Verallia, ver nota alli). */
   VERALTA:{
     nombre:'Veralia Alta Hierro',
     soloComparar:true,
     granulometria:{
       '#20':{retAcumMax:0.1,retAcumMin:null},
-      '#30':{retAcumMax:1.6,retAcumMin:null},
-      '#140':{retAcumMax:null,retAcumMin:85.0},
-      '#200':{retAcumMax:null,retAcumMin:98.0},
+      '#30':{retAcumMax:1.5,retAcumMin:null},
+      '#60':{retAcumMax:null,retAcumMin:40.0},
+      '#140':{retAcumMax:null,retAcumMin:95.0},
+      '#200':{retAcumMax:null,retAcumMin:99.0},
     },
-    quimica:{SiO2:{min:88.0,max:null},Al2O3:{min:0.3,max:0.45},Fe2O3:{min:null,max:2.0},
+    quimica:{SiO2:{min:96.0,max:null},Al2O3:{min:0.3,max:2.0},Fe2O3:{min:0.30,max:0.45},
       TiO2:{min:null,max:0.2},K2O_Na2O:{min:null,max:2.0}},
     humedad:{max:5.0},
   },
@@ -782,11 +782,12 @@ const SPECS_A36={
     soloComparar:true,
     granulometria:{
       '#20':{retAcumMax:0.1,retAcumMin:null},
-      '#30':{retAcumMax:1.6,retAcumMin:null},
-      '#140':{retAcumMax:null,retAcumMin:86.0},
-      '#200':{retAcumMax:null,retAcumMin:98.0},
+      '#30':{retAcumMax:1.5,retAcumMin:null},
+      '#60':{retAcumMax:null,retAcumMin:40.0},
+      '#140':{retAcumMax:null,retAcumMin:95.0},
+      '#200':{retAcumMax:null,retAcumMin:99.0},
     },
-    quimica:{SiO2:{min:88.5,max:null},Al2O3:{min:0.5,max:2.0},Fe2O3:{min:null,max:0.1},
+    quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:0.3,max:2.0},Fe2O3:{min:null,max:0.1},
       TiO2:{min:null,max:0.2},K2O_Na2O:{min:null,max:2.0}},
     humedad:{max:5.0},
   },
@@ -817,15 +818,20 @@ const SPECS_CDLK={
   },
   humedad:{max:7.0},
 };
+/* EETT Veralia segun fichas tecnicas Verallia (vigentes al 08-10-2026):
+   Alta Hierro = "Arena Rubia" MP-01 (FI-I-PR03/2), vidrio color verde/ebano.
+   Baja Hierro = "Arena Blanca" MP-03 (FI-I-PR01/2), vidrio incoloro.
+   Granulometria en % retenido ACUMULADO (max en #20/#30, min en #60/#140/#200). */
 const SPECS_VERALTA={
   granulometria:{
     '#20' :{retMax:0.1, retMin:null,pasMax:null,pasMin:null},
-    '#30' :{retMax:1.6, retMin:null,pasMax:null,pasMin:null},
-    '#140':{retMax:null,retMin:null,pasMax:null,pasMin:85.0},
-    '#200':{retMax:null,retMin:null,pasMax:null,pasMin:98.0},
+    '#30' :{retMax:1.5, retMin:null,pasMax:null,pasMin:null},
+    '#60' :{retMax:null,retMin:40.0,pasMax:null,pasMin:null},
+    '#140':{retMax:null,retMin:95.0,pasMax:null,pasMin:null},
+    '#200':{retMax:null,retMin:99.0,pasMax:null,pasMin:null},
   },
   quimica:{
-    SiO2    :{min:88.0,max:null}, Al2O3:{min:0.3,max:0.45}, Fe2O3:{min:null,max:2.0},
+    SiO2    :{min:96.0,max:null}, Al2O3:{min:0.3,max:2.0}, Fe2O3:{min:0.30,max:0.45},
     CaO     :{min:null,max:null}, MgO  :{min:null,max:null}, K2O  :{min:null,max:null},
     Na2O    :{min:null,max:null}, TiO2 :{min:null,max:0.2},
     K2O_Na2O:{min:null,max:2.0},
@@ -835,12 +841,13 @@ const SPECS_VERALTA={
 const SPECS_VERBAJA={
   granulometria:{
     '#20' :{retMax:0.1, retMin:null,pasMax:null,pasMin:null},
-    '#30' :{retMax:1.6, retMin:null,pasMax:null,pasMin:null},
-    '#140':{retMax:null,retMin:null,pasMax:null,pasMin:86.0},
-    '#200':{retMax:null,retMin:null,pasMax:null,pasMin:98.0},
+    '#30' :{retMax:1.5, retMin:null,pasMax:null,pasMin:null},
+    '#60' :{retMax:null,retMin:40.0,pasMax:null,pasMin:null},
+    '#140':{retMax:null,retMin:95.0,pasMax:null,pasMin:null},
+    '#200':{retMax:null,retMin:99.0,pasMax:null,pasMin:null},
   },
   quimica:{
-    SiO2    :{min:88.5,max:null}, Al2O3:{min:0.5,max:2.0}, Fe2O3:{min:null,max:0.1},
+    SiO2    :{min:98.5,max:null}, Al2O3:{min:0.3,max:2.0}, Fe2O3:{min:null,max:0.1},
     CaO     :{min:null,max:null}, MgO  :{min:null,max:null}, K2O  :{min:null,max:null},
     Na2O    :{min:null,max:null}, TiO2 :{min:null,max:0.2},
     K2O_Na2O:{min:null,max:2.0},

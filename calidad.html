@@ -1643,9 +1643,8 @@ const SPECS_A36 = {
   /* Veralia Alta/Baja Hierro: SOLO COMPARATIVAS (temporal). Se pueden
      elegir en Informe/Dashboard/Tabla para ver la A36 contra ellas, pero
      evalParams las omite por defecto: no cambian alertas, correos, banner
-     fuera de norma ni "cumple alguna". Limites tomados de SPECS_VERALTA /
-     SPECS_VERBAJA; #140/#200 se leen como ret. acum. minimo (en A36 el
-     pasante en #140 ronda 5-15 %, un "pasante >= 85" nunca cumpliria). */
+     fuera de norma ni "cumple alguna". Mismos limites que SPECS_VERALTA /
+     SPECS_VERBAJA (fichas tecnicas Verallia, ver nota alli). */
   VERALTA: {
     nombre: 'Veralia Alta Hierro',
     soloComparar: true,
@@ -1655,30 +1654,34 @@ const SPECS_A36 = {
         retAcumMin: null
       },
       '#30': {
-        retAcumMax: 1.6,
+        retAcumMax: 1.5,
         retAcumMin: null
+      },
+      '#60': {
+        retAcumMax: null,
+        retAcumMin: 40.0
       },
       '#140': {
         retAcumMax: null,
-        retAcumMin: 85.0
+        retAcumMin: 95.0
       },
       '#200': {
         retAcumMax: null,
-        retAcumMin: 98.0
+        retAcumMin: 99.0
       }
     },
     quimica: {
       SiO2: {
-        min: 88.0,
+        min: 96.0,
         max: null
       },
       Al2O3: {
         min: 0.3,
-        max: 0.45
+        max: 2.0
       },
       Fe2O3: {
-        min: null,
-        max: 2.0
+        min: 0.30,
+        max: 0.45
       },
       TiO2: {
         min: null,
@@ -1702,25 +1705,29 @@ const SPECS_A36 = {
         retAcumMin: null
       },
       '#30': {
-        retAcumMax: 1.6,
+        retAcumMax: 1.5,
         retAcumMin: null
+      },
+      '#60': {
+        retAcumMax: null,
+        retAcumMin: 40.0
       },
       '#140': {
         retAcumMax: null,
-        retAcumMin: 86.0
+        retAcumMin: 95.0
       },
       '#200': {
         retAcumMax: null,
-        retAcumMin: 98.0
+        retAcumMin: 99.0
       }
     },
     quimica: {
       SiO2: {
-        min: 88.5,
+        min: 98.5,
         max: null
       },
       Al2O3: {
-        min: 0.5,
+        min: 0.3,
         max: 2.0
       },
       Fe2O3: {
@@ -1853,6 +1860,10 @@ const SPECS_CDLK = {
     max: 7.0
   }
 };
+/* EETT Veralia segun fichas tecnicas Verallia (vigentes al 08-10-2026):
+   Alta Hierro = "Arena Rubia" MP-01 (FI-I-PR03/2), vidrio color verde/ebano.
+   Baja Hierro = "Arena Blanca" MP-03 (FI-I-PR01/2), vidrio incoloro.
+   Granulometria en % retenido ACUMULADO (max en #20/#30, min en #60/#140/#200). */
 const SPECS_VERALTA = {
   granulometria: {
     '#20': {
@@ -1862,36 +1873,42 @@ const SPECS_VERALTA = {
       pasMin: null
     },
     '#30': {
-      retMax: 1.6,
+      retMax: 1.5,
       retMin: null,
+      pasMax: null,
+      pasMin: null
+    },
+    '#60': {
+      retMax: null,
+      retMin: 40.0,
       pasMax: null,
       pasMin: null
     },
     '#140': {
       retMax: null,
-      retMin: null,
+      retMin: 95.0,
       pasMax: null,
-      pasMin: 85.0
+      pasMin: null
     },
     '#200': {
       retMax: null,
-      retMin: null,
+      retMin: 99.0,
       pasMax: null,
-      pasMin: 98.0
+      pasMin: null
     }
   },
   quimica: {
     SiO2: {
-      min: 88.0,
+      min: 96.0,
       max: null
     },
     Al2O3: {
       min: 0.3,
-      max: 0.45
+      max: 2.0
     },
     Fe2O3: {
-      min: null,
-      max: 2.0
+      min: 0.30,
+      max: 0.45
     },
     CaO: {
       min: null,
@@ -1931,31 +1948,37 @@ const SPECS_VERBAJA = {
       pasMin: null
     },
     '#30': {
-      retMax: 1.6,
+      retMax: 1.5,
       retMin: null,
+      pasMax: null,
+      pasMin: null
+    },
+    '#60': {
+      retMax: null,
+      retMin: 40.0,
       pasMax: null,
       pasMin: null
     },
     '#140': {
       retMax: null,
-      retMin: null,
+      retMin: 95.0,
       pasMax: null,
-      pasMin: 86.0
+      pasMin: null
     },
     '#200': {
       retMax: null,
-      retMin: null,
+      retMin: 99.0,
       pasMax: null,
-      pasMin: 98.0
+      pasMin: null
     }
   },
   quimica: {
     SiO2: {
-      min: 88.5,
+      min: 98.5,
       max: null
     },
     Al2O3: {
-      min: 0.5,
+      min: 0.3,
       max: 2.0
     },
     Fe2O3: {
