@@ -1417,7 +1417,7 @@ async function destinatariosParaProducto(producto){
     .map(function(d){return d.email;});
 }
 const TURNOS_ABC=[{value:'A',label:'Turno A'},{value:'B',label:'Turno B'},{value:'C',label:'Turno C'}];
-const ACOPIOS_TURCO=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8']
+const ACOPIOS_TURCO=['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8','Acopio 9']
   .map(function(n){return{value:n,label:n};});
 const SILOS_IMAN_PROD=['Silo 3','Silo 4','Cancha'].map(function(n){return{value:n,label:n};});
 const PUNTOS_MUESTREO_TURCO=[
@@ -13764,7 +13764,7 @@ const HAB_QUIMICOS=[
   {key:'na2o',label:'Na₂O',spec:'Na2O'},
   {key:'tio2',label:'TiO₂',spec:'TiO2'},
 ];
-const HAB_COLORS=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#e67e22','#2e86c1','#117864'];
+const HAB_COLORS=['#1a5276','#c53030','#276749','#b7791f','#8e44ad','#e67e22','#2e86c1','#117864','#6d4c41'];
 /* ACOPIOS_TURCO es un array de {value,label} (ver linea ~1197), no de
    strings — se convierte una vez a nombres planos para usar como llaves. */
 const ACOPIOS_TURCO_LIST=ACOPIOS_TURCO.map(function(o){return o.value;});
