@@ -116,7 +116,7 @@
 </script>
 <header>
   <div>
-    <div class="kick">MIGRIN · Lavado Turco</div>
+    <div class="kick" id="kick">MIGRIN · Lavado Turco</div>
     <h1>Panel por Acopio</h1>
     <div class="sub">Química (prom · mín · máx · amplitud), curva granulométrica y cumplimiento EETT</div>
   </div>
@@ -147,6 +147,10 @@
           <option value="ultima">Última campaña de cada acopio</option>
           <option value="rango">Todas las muestras de un periodo</option>
         </select>
+      </div>
+      <div id="boxEett" class="hidden" title="A36 se evalúa contra dos EETT incompatibles entre sí. 'Cumple alguna' = conforme si cumple completa al menos una (igual que el aviso de la app). Veralia es solo comparativa.">
+        <label class="l">EETT</label>
+        <select id="selEett"></select>
       </div>
       <div class="m-ultima">
         <label class="l">Campaña</label>
@@ -191,6 +195,7 @@
     <span class="l" id="lblAcopio">Acopio</span>
     <div class="chips" id="chipsAcopio"></div>
     <span id="selResumen"></span>
+    <button id="btnExportMd" title="Descarga un resumen en Markdown de lo que estás viendo">⬇ Exportar .md</button>
   </div>
 
   <div id="ctLogin" class="box hidden" style="max-width:420px;margin:0 0 16px">
@@ -369,6 +374,13 @@ const TURCO_SIEVES=[
   {us:'#70',mm:0.212},{us:'#100',mm:0.150},{us:'#140',mm:0.106},
   {us:'#200',mm:0.075},{us:'#270',mm:0.053},
 ];
+const A36_SIEVES=[
+  {us:'#18',mm:1.000},{us:'#20',mm:0.850},{us:'#25',mm:0.710},
+  {us:'#30',mm:0.600},{us:'#35',mm:0.500},{us:'#40',mm:0.425},
+  {us:'#60',mm:0.250},{us:'#100',mm:0.150},{us:'#120',mm:0.125},
+  {us:'#140',mm:0.106},{us:'#170',mm:0.090},{us:'#200',mm:0.075},
+  {us:'#270',mm:0.053},
+];
 const OXIDOS=[
   {k:'SiO2',db:'sio2',lbl:'SiO₂',d:2},{k:'Al2O3',db:'al2o3',lbl:'Al₂O₃',d:3},
   {k:'Fe2O3',db:'fe2o3',lbl:'Fe₂O₃',d:3},{k:'CaO',db:'cao',lbl:'CaO',d:3},
@@ -382,7 +394,7 @@ const OXIDOS=[
 const PRODUCTOS={
   TT_TLH:{
     label:'TLH Turco (TT_TLH)',acopioLabel:'Acopio',
-    acopios:['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8'],
+    acopios:['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Acopio 8','Acopio 9'],
     sieves:TURCO_SIEVES,
     quimica:{SiO2:{min:88.0,max:null},Al2O3:{min:2.3,max:5.0},Fe2O3:{min:0.15,max:0.6}},
     humedad:{min:18.0,max:21.0},humedadOpcional:true,
@@ -399,8 +411,50 @@ const PRODUCTOS={
       {us:'#40',pas:80,dir:'min',txt:'+#40 ≤ 20'},
       {us:'#100',pas:2.5,dir:'max',txt:'−#100 ≤ 2,5'},
     ],
+    afs:true,
+    // columnas granulometricas de la tabla de acopios / muestras fuera
+    cols:[{k:'p40',lbl:'+#40',d:2},{k:'m100',lbl:'−#100',d:2},{k:'afs',lbl:'AFS',d:0}],
+    kpiGranu:{k:'afs',lbl:'AFS promedio',d:0},
+  },
+  /* A36 (Planta Arenas): dos EETT incompatibles entre si (Lirquen y
+     Cristalerias) + Veralia solo comparativas, igual que SPECS_A36 de la
+     app (con override por cliente desde `especificaciones`). Indicadores
+     = % retenido acumulado por tamiz + D50 interpolado lineal en mm, como
+     evalParams. El acopio se registra desde jun-2026: las muestras sin
+     acopio no entran al panel. La humedad A36 registrada es valor de
+     relleno (20,00) y no se evalua contra la EETT. */
+  A36:{
+    label:'A36 TLH — Planta Arenas',planta:'Planta Arenas',acopioLabel:'Acopio',
+    acopios:['Acopio 1','Acopio 2','Acopio 3','Acopio 4','Acopio 5','Acopio 6','Acopio 7','Emergencia'],
+    sieves:A36_SIEVES,
+    soloConAcopio:true,humedadNoEval:true,
+    eetts:{
+      LIRQUEN:{nombre:'Vidrios Lirquen',corto:'Lirquén',
+        granulometria:{'#18':{retAcumMax:0},'#25':{retAcumMax:0.4},'#35':{retAcumMax:2.0},'#120':{retAcumMin:86.0},'#170':{retAcumMin:95.0}},
+        d50Max:0.290,quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:0.08,max:0.11}},humedad:{max:4.8}},
+      CRISTALERIAS:{nombre:'Cristalerias Chile',corto:'Cristalerías',
+        granulometria:{'#16':{retAcumMax:0},'#20':{retAcumMax:0},'#30':{retAcumMax:0.1},'#100':{retAcumMin:98.5}},
+        quimica:{SiO2:{min:94.3,max:null},Al2O3:{min:null,max:null},Fe2O3:{min:0.06,max:0.12}},humedad:{max:4.8}},
+      VERALTA:{nombre:'Veralia Alta Hierro',corto:'Veralia Alta',soloComparar:true,
+        granulometria:{'#20':{retAcumMax:0.1},'#30':{retAcumMax:1.5},'#60':{retAcumMin:40.0},'#140':{retAcumMin:95.0},'#200':{retAcumMin:99.0}},
+        quimica:{SiO2:{min:96.0,max:null},Al2O3:{min:0.3,max:2.0},Fe2O3:{min:0.30,max:0.45},TiO2:{min:null,max:0.2},K2O_Na2O:{min:null,max:2.0}},humedad:{max:5.0}},
+      VERBAJA:{nombre:'Veralia Baja Hierro',corto:'Veralia Baja',soloComparar:true,
+        granulometria:{'#20':{retAcumMax:0.1},'#30':{retAcumMax:1.5},'#60':{retAcumMin:40.0},'#140':{retAcumMin:95.0},'#200':{retAcumMin:99.0}},
+        quimica:{SiO2:{min:98.5,max:null},Al2O3:{min:0.3,max:2.0},Fe2O3:{min:null,max:0.1},TiO2:{min:null,max:0.2},K2O_Na2O:{min:null,max:2.0}},humedad:{max:5.0}},
+    },
+    retAcum:true,d50:true,
+    indicadores:[
+      {k:'ra18',lbl:'Ret. acum. #18'},{k:'ra20',lbl:'Ret. acum. #20'},{k:'ra25',lbl:'Ret. acum. #25'},
+      {k:'ra30',lbl:'Ret. acum. #30'},{k:'ra35',lbl:'Ret. acum. #35'},{k:'ra60',lbl:'Ret. acum. #60'},
+      {k:'ra100',lbl:'Ret. acum. #100'},{k:'ra120',lbl:'Ret. acum. #120'},{k:'ra140',lbl:'Ret. acum. #140'},
+      {k:'ra170',lbl:'Ret. acum. #170'},{k:'ra200',lbl:'Ret. acum. #200'},{k:'d50',lbl:'D50 (mm)',d:3},
+    ],
+    cols:[{k:'ra30',lbl:'+#30',d:2},{k:'ra35',lbl:'+#35',d:2},{k:'ra120',lbl:'Ret. #120',d:2},{k:'d50',lbl:'D50 mm',d:3}],
+    kpiGranu:{k:'d50',lbl:'D50 promedio (mm)',d:3},
   },
 };
+/* Clave de indicador de % retenido acumulado de un tamiz ('#25' -> 'ra25') */
+function kRA(us){return'ra'+us.replace('#','');}
 
 /* ── UTILIDADES (mismas reglas que la app) ── */
 function parseDecimal(s){
@@ -444,7 +498,8 @@ function limTxt(lim){
 }
 
 /* ── ESTADO ── */
-var S={prod:'TT_TLH',raw:[],modo:'ultima',atras:0,minN:3,campFija:null,
+var PROD_URL=(location.search.match(/[?&]prod=([A-Z0-9_]+)/)||[])[1];
+var S={prod:PRODUCTOS[PROD_URL]?PROD_URL:'TT_TLH',eett:'alguna',raw:[],modo:'ultima',atras:0,minN:3,campFija:null,
   desde:isoMenos(30),hasta:isoHoy(),acopios:[],dedup:true,comparar:false,eettOverride:null};
 
 /* Campañas: los numeros de acopio se reutilizan (rotacion 1..8) y se llena
@@ -516,39 +571,104 @@ function procesar(r,cfg){
   cfg.sieves.forEach(function(s){acum+=rp[s.us]||0;pas[s.us]=ok?100-acum:NaN;});
   var ind={};
   cfg.indicadores.forEach(function(it){
-    ind[it.k]=ok?+it.tamices.reduce(function(a,us){return a+(rp[us]||0);},0).toFixed(2):NaN;
+    if(it.tamices)ind[it.k]=ok?+it.tamices.reduce(function(a,us){return a+(rp[us]||0);},0).toFixed(2):NaN;
   });
-  var afs=ok?Math.round(
+  if(cfg.retAcum)cfg.sieves.forEach(function(s){ind[kRA(s.us)]=ok?100-pas[s.us]:NaN;});
+  if(cfg.d50){ // interpolacion lineal en mm entre los tamices que cruzan el 50 % pasante (evalParams)
+    ind.d50=NaN;
+    if(ok)for(var i=0;i<cfg.sieves.length-1;i++){
+      var p1=pas[cfg.sieves[i].us],p2=pas[cfg.sieves[i+1].us],m1=cfg.sieves[i].mm,m2=cfg.sieves[i+1].mm;
+      if(p1>=50&&p2<50){ind.d50=p1===p2?m1:m1+(m2-m1)*(p1-50)/(p1-p2);break;}
+    }
+  }
+  var afs=ok&&cfg.afs?Math.round(
     (rp['#20']||0)*0.1+(rp['#30']||0)*0.2+(rp['#40']||0)*0.3+(rp['#50']||0)*0.4+(rp['#70']||0)*0.5
     +((rp['#100']||0)+(rp['#140']||0)+(rp['#200']||0)+(rp['#270']||0)+(rp.PAN||0))*0.7
     +(rp['#140']||0)*1.4+(rp['#270']||0)*2+(rp.PAN||0)*3):NaN;
+  ind.afs=afs;
   return{id:r.id,folio:r.folio,fecha:r.fecha_muestreo,turno:r.turno,acopio:normAcopio(r.num_acopio)||'(sin acopio)',
     pi:r.peso_inicial,creado:r.created_at||"",mig:r.enviado_por==='migracion-historica',q:o,hum:hum,granuOk:ok,rp:rp,pas:pas,ind:ind,afs:afs};
 }
 
 /* Exigencias EETT evaluables sobre una muestra procesada */
+/* EETT vigentes: productos con varias EETT (A36) mezclan los defaults con
+   el override por cliente de `especificaciones` (igual que loadEETT). */
+function specsVivas(cfg){
+  var ov=S.eettOverride||{};
+  if(cfg.eetts){
+    var o={};
+    Object.keys(cfg.eetts).forEach(function(k){o[k]=Object.assign({},cfg.eetts[k],ov[k]||{});});
+    return o;
+  }
+  return{_:{quimica:ov.quimica||cfg.quimica,humedad:ov.humedad||cfg.humedad}};
+}
+/* EETT que se evaluan segun el selector: una sola, o "alguna" = todas las
+   no comparativas (la muestra es conforme si cumple al menos una completa) */
+function clavesEett(cfg){
+  if(!cfg.eetts)return['_'];
+  if(S.eett==='alguna')return Object.keys(cfg.eetts).filter(function(k){return!cfg.eetts[k].soloComparar;});
+  return[S.eett];
+}
 function exigencias(cfg){
-  var spQ=(S.eettOverride&&S.eettOverride.quimica)||cfg.quimica;
-  var spH=(S.eettOverride&&S.eettOverride.humedad)||cfg.humedad;
+  var sv=specsVivas(cfg),claves=clavesEett(cfg),multi=claves.length>1;
   var list=[];
-  OXIDOS.concat([{k:'K2O_Na2O',lbl:'K₂O+Na₂O'}]).forEach(function(x){
-    var lim=spQ[x.k];
-    if(lim&&(lim.min!=null||lim.max!=null))list.push({k:x.k,lbl:x.lbl,tipo:'quim',lim:lim,get:function(m){return m.q[x.k];}});
-  });
-  if(spH&&(spH.min!=null||spH.max!=null))list.push({k:'hum',lbl:'Humedad'+(cfg.humedadOpcional?' (opcional)':''),tipo:'hum',lim:spH,opcional:cfg.humedadOpcional,get:function(m){return m.hum;}});
-  cfg.indicadores.forEach(function(it){
-    list.push({k:it.k,lbl:it.lbl,tipo:'granu',lim:{min:null,max:it.max},get:function(m){return m.ind[it.k];}});
+  claves.forEach(function(key){
+    var sp=sv[key];if(!sp)return;
+    var pre=multi?(sp.corto||sp.nombre)+' · ':'';
+    var spQ=sp.quimica||{},spH=sp.humedad;
+    OXIDOS.concat([{k:'K2O_Na2O',lbl:'K₂O+Na₂O'}]).forEach(function(x){
+      var lim=spQ[x.k];
+      if(lim&&(lim.min!=null||lim.max!=null))list.push({spec:key,k:x.k,lbl:pre+x.lbl,tipo:'quim',lim:lim,get:function(m){return m.q[x.k];}});
+    });
+    if(!cfg.humedadNoEval&&spH&&(spH.min!=null||spH.max!=null))list.push({spec:key,k:'hum',lbl:pre+'Humedad'+(cfg.humedadOpcional?' (opcional)':''),tipo:'hum',lim:spH,opcional:cfg.humedadOpcional,get:function(m){return m.hum;}});
+    if(cfg.eetts){
+      Object.keys(sp.granulometria||{}).forEach(function(us){
+        // tamiz que la A36 no tiene (#16 de Cristalerias): la app tampoco lo evalua
+        if(!cfg.sieves.some(function(s){return s.us===us;}))return;
+        var g=sp.granulometria[us],k=kRA(us);
+        list.push({spec:key,k:k,lbl:pre+'Ret. acum. '+us,tipo:'granu',lim:{min:g.retAcumMin==null?null:g.retAcumMin,max:g.retAcumMax==null?null:g.retAcumMax},get:function(m){return m.ind[k];}});
+      });
+      if(sp.d50Max!=null)list.push({spec:key,k:'d50',lbl:pre+'D50 (mm)',tipo:'granu',d:3,lim:{min:null,max:sp.d50Max},get:function(m){return m.ind.d50;}});
+    }else cfg.indicadores.forEach(function(it){
+      list.push({spec:key,k:it.k,lbl:it.lbl,tipo:'granu',lim:{min:null,max:it.max},get:function(m){return m.ind[it.k];}});
+    });
   });
   return list;
 }
 function evalMuestra(m,exs){
-  var fallas=[],evaluadas=0;
+  var fallas=[],evaluadas=0,porSpec={};
   exs.forEach(function(e){
     var f=fueraLim(e.get(m),e.lim);
     if(f===null)return;
-    evaluadas++;if(f)fallas.push(e.lbl);
+    evaluadas++;
+    var p=porSpec[e.spec]=porSpec[e.spec]||{ev:0,f:0};p.ev++;
+    if(f){fallas.push(e.lbl);p.f++;}
   });
-  return{fallas:fallas,evaluadas:evaluadas,cumple:evaluadas>0&&!fallas.length};
+  var cumple=Object.keys(porSpec).some(function(k){return porSpec[k].ev>0&&!porSpec[k].f;});
+  return{fallas:fallas,evaluadas:evaluadas,cumple:cumple};
+}
+/* Limites de un parametro en las EETT evaluadas; con varias EETT se marca
+   en rojo solo lo que queda fuera de TODAS */
+function limsDe(exs,k){
+  var l=exs.filter(function(e){return e.k===k;}).map(function(e){return e.lim;});
+  // una EETT evaluada que no limita el parametro lo deja siempre "dentro"
+  var specs={};exs.forEach(function(e){specs[e.spec]=1;});
+  var conK={};exs.forEach(function(e){if(e.k===k)conK[e.spec]=1;});
+  if(l.length&&Object.keys(specs).some(function(s){return!conK[s];}))l.push({min:null,max:null});
+  return l;
+}
+function fueraTodos(v,lims){
+  if(v==null||isNaN(v)||!lims||!lims.length)return false;
+  return lims.every(function(l){return fueraLim(v,l)===true;});
+}
+function limsTxt(exs,k){
+  var es=exs.filter(function(e){return e.k===k;});
+  if(!es.length)return'—';
+  var multi=exs.some(function(e){return e.lbl.indexOf(' · ')>0;});
+  return es.map(function(e){
+    var t=e.k==='d50'?(e.lim.max!=null?'≤ '+fmt(e.lim.max,3):'—'):limTxt(e.lim);
+    return multi?e.lbl.split(' · ')[0]+' '+t:t;
+  }).join(' · ');
 }
 
 /* ── DEDUP ── misma fecha + 8 oxidos a 3 decimales; conserva la que tiene peso_inicial */
@@ -597,6 +717,8 @@ function render(){
   var base=S.dedup?dedup(S.raw):S.raw;
   var exs=exigencias(cfg);
   var todas=base.map(function(r){var m=procesar(r,cfg);m.ev=evalMuestra(m,exs);return m;});
+  // A36: antes de jun-2026 no se registraba acopio; sin acopio no hay llenado que seguir
+  if(cfg.soloConAcopio)todas=todas.filter(function(m){return m.acopio!=='(sin acopio)';});
   var camps=campanas(todas,S.minN);
   var acSel=function(a){return!S.acopios.length||S.acopios.indexOf(a)>=0;};
   var grupos,sel,quitados,titulo,hint;
@@ -638,7 +760,7 @@ function render(){
   if(S.dedup&&quitados)msg.innerHTML+='<div class="banner info">Se ocultaron <b>'+quitados+'</b> duplicados de la migración histórica.</div>';
   document.getElementById('ttlAcopios').textContent=titulo;
   document.getElementById('hintAcopios').textContent=hint;
-  renderAcopios(grupos,cfg,fija);
+  renderAcopios(grupos,cfg,fija,exs);
   renderTimeline(camps,cfg,grupos,fija);
   if(!sel.length){
     msg.innerHTML+='<div class="banner warn">Sin muestras para el filtro seleccionado.</div>';
@@ -654,14 +776,19 @@ function render(){
   document.getElementById('selResumen').innerHTML='Viendo: <b>'+(uno?esc(uno.acopio)+'</b> · '+fmtFecha(uno.desde)+(uno.hasta!==uno.desde?' → '+fmtFecha(uno.hasta):''):grupos.length+' acopios</b>')+
     ' · '+sel.length+' muestras'+(fija?' <button id="btnQuitarFija2" style="padding:2px 8px;font-size:12px">✕ llenado fijo</button>':'');
 
-  renderKpis(sel,exs,grupos,fija);
+  ULTIMO={cfg:cfg,grupos:grupos,sel:sel,exs:exs,fija:fija,camps:camps};
+  renderKpis(sel,exs,grupos,fija,cfg);
   renderQuimica(sel,cfg,exs);
   renderCurva(sel,cfg,fija?[fija]:grupos);
   renderGranuTabla(sel,cfg);
   renderEett(sel,exs);
-  renderIndicadores(sel,cfg);
-  renderFuera(sel);
-  document.getElementById('foot').innerHTML=
+  renderIndicadores(sel,cfg,exs);
+  renderFuera(sel,cfg);
+  document.getElementById('foot').innerHTML=cfg.eetts?
+    'EETT: '+esc(nombreEett(cfg))+' — '+(S.eettOverride?'con override de la tabla <i>especificaciones</i>':'valores por defecto de la app')+
+    '. Granulometría como la app (evalParams): % retenido acumulado sobre peso final y D50 interpolado lineal en mm; el #16 de Cristalerías no se evalúa (la A36 no tiene ese tamiz). '+
+    'Humedad A36 no se evalúa: lo registrado es valor de relleno (20,00). Solo entran muestras con N° de acopio (se registra desde jun-2026). '+
+    (S.eett==='alguna'?'Muestra "conforme" = cumple completa al menos una EETT; en rojo lo que queda fuera de todas.':'Muestra "conforme" = cumple todas las exigencias con dato.'):
     'EETT química/humedad: '+(S.eettOverride?'override de la tabla <i>especificaciones</i>':'valores por defecto de la app')+
     '. Indicadores granulométricos: mismos límites que la app (turcoIndicadores). % parcial calculado sobre peso final, como en la app. '+
     'Humedad se evalúa solo si fue registrada. Muestra "conforme" = cumple todas las exigencias con dato.';
@@ -684,21 +811,21 @@ function renderChips(cfg,todas,grupos){
   document.getElementById('lblAcopio').title='Clic = ver solo ese acopio · Ctrl/⌘ + clic = sumar o quitar de la selección';
 }
 
-function renderKpis(sel,exs,grupos,fija){
+function renderKpis(sel,exs,grupos,fija,cfg){
   var conf=sel.filter(function(m){return m.ev.cumple;}).length;
   var evals=sel.filter(function(m){return m.ev.evaluadas>0;}).length;
   var pc=evals?conf/evals*100:NaN;
   var fechas=sel.map(function(m){return m.fecha;}).sort();
   var sio2=stats(sel.map(function(m){return m.q.SiO2;}));
   var fe=stats(sel.map(function(m){return m.q.Fe2O3;}));
-  var afs=stats(sel.map(function(m){return m.afs;}));
+  var kg=cfg.kpiGranu,gk=stats(sel.map(function(m){return m.ind[kg.k];}));
   var cls=pc>=95?'good':pc>=80?'warn':'bad';
   document.getElementById('kpis').innerHTML=
     kpi(sel.length,'Muestras',fmtFecha(fechas[0])+' a '+fmtFecha(fechas[fechas.length-1]))+
     kpi('<span class="'+cls+'">'+fmtPct(pc)+'</span>','Conformes EETT',conf+' de '+evals+' evaluadas')+
     kpi(fmt(sio2.prom,2)+' %','SiO₂ promedio','amplitud '+fmt(sio2.amp,2))+
     kpi(fmt(fe.prom,3)+' %','Fe₂O₃ promedio','amplitud '+fmt(fe.amp,3))+
-    kpi(fmt(afs.prom,0),'AFS promedio','rango '+fmt(afs.min,0)+' – '+fmt(afs.max,0))+
+    kpi(fmt(gk.prom,kg.d),kg.lbl,'rango '+fmt(gk.min,kg.d)+' – '+fmt(gk.max,kg.d))+
     (CT.estado==='ok'?(function(){
       var gs=fija?[fija]:grupos,t=0,tu=0;
       gs.forEach(function(c){var x=tonDe(c);if(x){t+=x.ton;tu+=x.turnos;}});
@@ -708,24 +835,35 @@ function renderKpis(sel,exs,grupos,fija){
 function kpi(v,l,s){return'<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>';}
 
 function renderQuimica(sel,cfg,exs){
-  var exMap={};exs.forEach(function(e){exMap[e.k]=e;});
   var params=OXIDOS.concat([{k:'K2O_Na2O',lbl:'K₂O+Na₂O',d:3},{k:'hum',lbl:'Humedad',d:2}]);
   var h='<thead><tr><th>Parámetro</th><th>n</th><th>Promedio</th><th>Mínimo</th><th>Máximo</th><th>Amplitud</th><th>Desv. est.</th><th>EETT</th><th>% cumple</th></tr></thead><tbody>';
   params.forEach(function(p){
     var vals=sel.map(function(m){return p.k==='hum'?m.hum:m.q[p.k];});
-    var st=stats(vals),ex=exMap[p.k],lim=ex?ex.lim:null;
+    var st=stats(vals),lims=limsDe(exs,p.k),lim=lims.length;
     if(!st.n){h+='<tr><td>'+p.lbl+'</td><td class="num">0</td><td colspan="7" style="text-align:left;color:var(--muted)">sin datos</td></tr>';return;}
-    var nf=lim?vals.filter(function(v){return fueraLim(v,lim)===true;}).length:0;
+    var nf=lim?vals.filter(function(v){return fueraTodos(v,lims);}).length:0;
     var pc=lim?(st.n-nf)/st.n*100:NaN;
-    function c(v){return'<td class="num'+(fueraLim(v,lim)?' out':'')+'">'+fmt(v,p.d)+'</td>';}
+    function c(v){return'<td class="num'+(fueraTodos(v,lims)?' out':'')+'">'+fmt(v,p.d)+'</td>';}
     h+='<tr><td><b>'+p.lbl+'</b></td><td class="num">'+st.n+'</td>'+c(st.prom)+c(st.min)+c(st.max)+
       '<td class="num amp">'+fmt(st.amp,p.d)+'</td><td class="num">'+fmt(st.sd,p.d)+'</td>'+
-      '<td class="num">'+limTxt(lim)+'</td>'+
+      '<td class="num">'+(p.k==='hum'&&cfg.humedadNoEval?'no se evalúa':limsTxt(exs,p.k))+'</td>'+
       '<td class="num">'+(lim?'<span class="'+(pc>=95?'good':pc>=80?'warn':'bad')+'">'+fmtPct(pc)+'</span>'+(nf?' <small style="color:var(--muted)">('+nf+' fuera)</small>':''):'—')+'</td></tr>';
   });
   document.getElementById('tblQuim').innerHTML=h+'</tbody>';
 }
 
+/* Marcas EETT sobre la curva a partir del % retenido acumulado:
+   ret. acum. <= max  ->  pasante >= 100-max ; ret. acum. >= min -> pasante <= 100-min */
+function marcasDeEett(exs){
+  var out=[];
+  exs.forEach(function(e){
+    if(e.tipo!=='granu'||e.k==='d50')return;
+    var us='#'+e.k.slice(2),pre=e.lbl.indexOf(' · ')>0?e.lbl.split(' · ')[0]+': ':'';
+    if(e.lim.max!=null)out.push({us:us,pas:100-e.lim.max,dir:'min',txt:pre+'+'+us+' ≤ '+fmt(e.lim.max,1)});
+    if(e.lim.min!=null)out.push({us:us,pas:100-e.lim.min,dir:'max',txt:pre+'+'+us+' ≥ '+fmt(e.lim.min,1)});
+  });
+  return out;
+}
 /* Curva granulometrica: eje X log(abertura) decreciente, Y % pasante */
 var PALETA=['#1a56db','#0e9f6e','#b7791f','#7e3af2','#e02424','#0694a2','#d61f69','#4b5563'];
 function renderCurva(sel,cfg,grupos){
@@ -773,15 +911,19 @@ function renderCurva(sel,cfg,grupos){
     leg='<span><i style="border-color:#1e3a5f"></i>promedio (n='+conG.length+')</span>'+leg;
   }
   // marcas EETT
-  (cfg.marcasCurva||[]).forEach(function(mk){
+  // A36: limites derivados de la EETT; muchos quedan cerca del 100 % y los
+  // textos se montan, asi que van solo como tooltip
+  var soloTip=!cfg.marcasCurva;
+  (cfg.marcasCurva||marcasDeEett(ULTIMO.exs)).forEach(function(mk){
     var s=cfg.sieves.filter(function(x){return x.us===mk.us;})[0];if(!s)return;
     var x=X(s.mm),y=Y(mk.pas),dy=mk.dir==='min'?10:-10;
-    g+='<line x1="'+(x-9)+'" x2="'+(x+9)+'" y1="'+y+'" y2="'+y+'" stroke="var(--red)" stroke-width="2.5"/>';
+    g+='<line x1="'+(x-9)+'" x2="'+(x+9)+'" y1="'+y+'" y2="'+y+'" stroke="var(--red)" stroke-width="2.5"><title>'+esc(mk.txt)+' (pasante '+(mk.dir==='min'?'≥ ':'≤ ')+fmt(mk.pas,1)+' %)</title></line>';
+    if(soloTip)return;
     g+='<path d="M'+(x-4)+' '+(y+dy*0.4)+' L'+x+' '+(y+dy)+' L'+(x+4)+' '+(y+dy*0.4)+'" fill="none" stroke="var(--red)" stroke-width="1.5" transform="rotate(180 '+x+' '+(y+dy*0.7)+')"/>';
     var tx=x+11,anchor='start';if(x>W-120){tx=x-11;anchor='end';}
     g+='<text x="'+tx+'" y="'+(y+(mk.dir==='min'?14:-6))+'" font-size="10" fill="var(--red)" text-anchor="'+anchor+'">'+mk.txt+'</text>';
   });
-  leg+='<span><i style="border-color:var(--red)"></i>límite EETT</span>';
+  leg+='<span><i style="border-color:var(--red)"></i>límite EETT'+(soloTip?' (pasa el mouse sobre la marca)':'')+'</span>';
   g+='</svg>';
   document.getElementById('svgCurva').innerHTML=g;
   document.getElementById('legCurva').innerHTML=leg;
@@ -811,18 +953,23 @@ function renderEett(sel,exs){
   });
   document.getElementById('barsEett').innerHTML=h;
   var conf=sel.filter(function(m){return m.ev.cumple;}).length,ev=sel.filter(function(m){return m.ev.evaluadas>0;}).length;
-  document.getElementById('hintEett').innerHTML='Conformes en todo: <b>'+conf+' de '+ev+'</b> ('+fmtPct(ev?conf/ev*100:NaN)+').';
+  document.getElementById('hintEett').innerHTML=(exs.some(function(e){return e.lbl.indexOf(' · ')>0;})?'Conformes (cumplen completa al menos una EETT): <b>':'Conformes en todo: <b>')+conf+' de '+ev+'</b> ('+fmtPct(ev?conf/ev*100:NaN)+').';
 }
 
-function renderIndicadores(sel,cfg){
-  var h='<thead><tr><th>Indicador</th><th>Prom</th><th>Mín</th><th>Máx</th><th>Amplitud</th><th>Límite</th></tr></thead><tbody>';
-  cfg.indicadores.forEach(function(it){
-    var st=stats(sel.map(function(m){return m.ind[it.k];})),lim={min:null,max:it.max};
-    function c(v){return'<td class="num'+(fueraLim(v,lim)?' out':'')+'">'+fmt(v,2)+'</td>';}
-    h+='<tr><td><b>'+it.lbl+'</b></td>'+c(st.prom)+c(st.min)+c(st.max)+'<td class="num amp">'+fmt(st.amp,2)+'</td><td class="num">≤ '+fmt(it.max,2)+'</td></tr>';
+function filasIndicadores(sel,cfg,exs){
+  var l=cfg.indicadores.map(function(it){
+    var st=stats(sel.map(function(m){return m.ind[it.k];})),lims=limsDe(exs,it.k);
+    return{lbl:it.lbl,d:it.d||2,st:st,lims:lims,lim:limsTxt(exs,it.k)};
   });
-  var a=stats(sel.map(function(m){return m.afs;}));
-  h+='<tr><td><b>AFS</b></td><td class="num">'+fmt(a.prom,1)+'</td><td class="num">'+fmt(a.min,0)+'</td><td class="num">'+fmt(a.max,0)+'</td><td class="num amp">'+fmt(a.amp,0)+'</td><td class="num">tendencia</td></tr>';
+  if(cfg.afs)l.push({lbl:'AFS',d:0,st:stats(sel.map(function(m){return m.ind.afs;})),lims:[],lim:'tendencia'});
+  return l;
+}
+function renderIndicadores(sel,cfg,exs){
+  var h='<thead><tr><th>Indicador</th><th>Prom</th><th>Mín</th><th>Máx</th><th>Amplitud</th><th>Límite</th></tr></thead><tbody>';
+  filasIndicadores(sel,cfg,exs).forEach(function(f){
+    function c(v){return'<td class="num'+(fueraTodos(v,f.lims)?' out':'')+'">'+fmt(v,f.d)+'</td>';}
+    h+='<tr><td><b>'+f.lbl+'</b></td>'+c(f.st.prom)+c(f.st.min)+c(f.st.max)+'<td class="num amp">'+fmt(f.st.amp,f.d)+'</td><td class="num" style="white-space:normal">'+f.lim+'</td></tr>';
+  });
   document.getElementById('tblInd').innerHTML=h+'</tbody>';
 }
 
@@ -834,14 +981,12 @@ function celdaTon(x){
   return'<td class="num"><b>'+fmtTon(x.ton)+' t</b><br><small style="color:var(--muted)">'+x.turnos+' turnos · CT '+rango+'</small></td>';
 }
 /* Tabla resumen: una fila por grupo (campaña de un acopio, o acopio en el periodo) */
-function renderAcopios(grupos,cfg,fija){
-  var spQ=(S.eettOverride&&S.eettOverride.quimica)||cfg.quimica;
-  var limI={};cfg.indicadores.forEach(function(it){limI[it.k]={min:null,max:it.max};});
-  var masReciente=grupos.reduce(function(a,c){return c.hasta>a?c.hasta:a;},'');
-  var h='<thead><tr><th>'+cfg.acopioLabel+'</th><th>Llenado</th><th>Días</th><th>n</th>'+(CT_HABILITADO?'<th>Toneladas</th>':'')+'<th>SiO₂</th><th>Al₂O₃</th><th>Fe₂O₃</th><th>+#40</th><th>−#100</th><th>AFS</th><th>Humedad</th><th>% conformes</th></tr></thead><tbody>';
-  function celda(st,lim,d){
+function renderAcopios(grupos,cfg,fija,exs){
+  var h='<thead><tr><th>'+cfg.acopioLabel+'</th><th>Llenado</th><th>Días</th><th>n</th>'+(CT_HABILITADO?'<th>Toneladas</th>':'')+'<th>SiO₂</th><th>Al₂O₃</th><th>Fe₂O₃</th>'+
+    cfg.cols.map(function(c){return'<th>'+c.lbl+'</th>';}).join('')+'<th>Humedad</th><th>% conformes</th></tr></thead><tbody>';
+  function celda(st,lims,d){
     if(!st.n)return'<td class="num">—</td>';
-    var o=fueraLim(st.prom,lim),ext=fueraLim(st.min,lim)||fueraLim(st.max,lim);
+    var o=fueraTodos(st.prom,lims),ext=fueraTodos(st.min,lims)||fueraTodos(st.max,lims);
     return'<td class="num'+(o?' out':'')+'"><b>'+fmt(st.prom,d)+'</b><br><small style="color:'+(ext?'var(--red)':'var(--muted)')+';font-weight:400">'+fmt(st.min,d)+' – '+fmt(st.max,d)+' · A '+fmt(st.amp,d)+'</small></td>';
   }
   grupos.forEach(function(c){
@@ -855,13 +1000,12 @@ function renderAcopios(grupos,cfg,fija){
       '<td><b>'+esc(c.acopio)+'</b>'+(c.enCurso?'<span class="tag-act">en curso</span>':'')+'</td>'+
       '<td class="num">'+fmtFecha(c.desde)+(c.hasta!==c.desde?' → '+fmtFecha(c.hasta):'')+'<br><small style="color:var(--muted)">hace '+hace+' d</small></td>'+
       '<td class="num">'+dur+'</td><td class="num">'+g.length+'</td>'+(CT_HABILITADO?celdaTon(tonDe(c)):'')+
-      celda(st(function(m){return m.q.SiO2;}),spQ.SiO2,2)+celda(st(function(m){return m.q.Al2O3;}),spQ.Al2O3,3)+celda(st(function(m){return m.q.Fe2O3;}),spQ.Fe2O3,3)+
-      celda(st(function(m){return m.ind.p40;}),limI.p40,2)+celda(st(function(m){return m.ind.m100;}),limI.m100,2)+
-      celda(st(function(m){return m.afs;}),null,0)+
-      (hu.n?celda(hu,(S.eettOverride&&S.eettOverride.humedad)||cfg.humedad,1):'<td class="num">—</td>')+
+      celda(st(function(m){return m.q.SiO2;}),limsDe(exs,'SiO2'),2)+celda(st(function(m){return m.q.Al2O3;}),limsDe(exs,'Al2O3'),3)+celda(st(function(m){return m.q.Fe2O3;}),limsDe(exs,'Fe2O3'),3)+
+      cfg.cols.map(function(k){return celda(st(function(m){return m.ind[k.k];}),limsDe(exs,k.k),k.d);}).join('')+
+      (hu.n?celda(hu,limsDe(exs,'hum'),1):'<td class="num">—</td>')+
       '<td class="num"><span class="'+(pc>=95?'good':pc>=80?'warn':'bad')+'"><b>'+fmtPct(pc)+'</b></span><br><small style="color:var(--muted)">'+conf+'/'+ev.length+'</small></td></tr>';
   });
-  if(!grupos.length)h+='<tr><td colspan="13" style="text-align:center;color:var(--muted)">Sin datos</td></tr>';
+  if(!grupos.length)h+='<tr><td colspan="'+(10+cfg.cols.length)+'" style="text-align:center;color:var(--muted)">Sin datos</td></tr>';
   document.getElementById('tblAcopios').innerHTML=h+'</tbody>';
 }
 
@@ -931,18 +1075,161 @@ function tablaSueltas(camps,desde){
   return h+'</tbody></table></div>';
 }
 
-function renderFuera(sel){
-  var f=sel.filter(function(m){return m.ev.fallas.length;});
-  document.getElementById('hintFuera').textContent=f.length+' de '+sel.length+' muestras con al menos una exigencia fuera (más recientes primero).';
-  var h='<thead><tr><th>Fecha</th><th>Acopio</th><th>Turno</th><th>Folio</th><th>SiO₂</th><th>Al₂O₃</th><th>Fe₂O₃</th><th>+#40</th><th>−#100</th><th style="text-align:left">Fuera de EETT</th></tr></thead><tbody>';
+function renderFuera(sel,cfg){
+  var f=sel.filter(function(m){return m.ev.evaluadas>0&&!m.ev.cumple;});
+  document.getElementById('hintFuera').textContent=f.length+' de '+sel.length+' muestras '+(cfg.eetts&&S.eett==='alguna'?'que no cumplen ninguna EETT completa':'con al menos una exigencia fuera')+' (más recientes primero).';
+  var h='<thead><tr><th>Fecha</th><th>Acopio</th><th>Turno</th><th>Folio</th><th>SiO₂</th><th>Al₂O₃</th><th>Fe₂O₃</th>'+cfg.cols.map(function(c){return'<th>'+c.lbl+'</th>';}).join('')+'<th style="text-align:left">Fuera de EETT</th></tr></thead><tbody>';
   f.slice(0,300).forEach(function(m){
     h+='<tr><td>'+fmtFecha(m.fecha)+'</td><td style="text-align:left">'+esc(m.acopio)+'</td><td style="text-align:left">'+esc(m.turno||'')+'</td><td class="num">'+esc(m.folio||'')+'</td>'+
       '<td class="num">'+fmt(m.q.SiO2,2)+'</td><td class="num">'+fmt(m.q.Al2O3,3)+'</td><td class="num">'+fmt(m.q.Fe2O3,3)+'</td>'+
-      '<td class="num">'+fmt(m.ind.p40,2)+'</td><td class="num">'+fmt(m.ind.m100,2)+'</td>'+
+      cfg.cols.map(function(c){return'<td class="num">'+fmt(m.ind[c.k],c.d)+'</td>';}).join('')+
       '<td style="text-align:left">'+m.ev.fallas.map(function(x){return'<span class="pill no">'+esc(x)+'</span>';}).join(' ')+'</td></tr>';
   });
-  if(!f.length)h+='<tr><td colspan="10" style="text-align:center;color:var(--muted)">Todas las muestras cumplen.</td></tr>';
+  if(!f.length)h+='<tr><td colspan="'+(7+cfg.cols.length)+'" style="text-align:center;color:var(--muted)">Todas las muestras cumplen.</td></tr>';
   document.getElementById('tblFuera').innerHTML=h+'</tbody>';
+}
+
+/* ── EXPORTAR MARKDOWN ── resumen de la seleccion visible en pantalla */
+var ULTIMO=null;
+function mdEsc(v){return String(v==null?'':v).replace(/\|/g,'\\|').replace(/\n/g,' ');}
+function mdTabla(enc,filas,alin){
+  var a=alin||enc.map(function(_,i){return i===0?'l':'r';});
+  var out='| '+enc.map(mdEsc).join(' | ')+' |\n|'+a.map(function(x){return x==='l'?' :--- ':' ---: ';}).join('|')+'|\n';
+  filas.forEach(function(f){out+='| '+f.map(mdEsc).join(' | ')+' |\n';});
+  return out;
+}
+function rangoFechas(c){return fmtFecha(c.desde)+(c.hasta!==c.desde?' → '+fmtFecha(c.hasta):'');}
+function pmA(st,d){return st.n?fmt(st.prom,d)+' ('+fmt(st.min,d)+'–'+fmt(st.max,d)+', A '+fmt(st.amp,d)+')':'—';}
+function exportarMd(){
+  if(!ULTIMO||!ULTIMO.sel.length)return;
+  var cfg=ULTIMO.cfg,grupos=ULTIMO.grupos,sel=ULTIMO.sel,exs=ULTIMO.exs,fija=ULTIMO.fija;
+  var hoy=fmtFecha(isoHoy());
+  var md='# Panel por Acopio — '+cfg.label+'\n\n';
+  md+='Generado el '+hoy+' desde la app de Control de Calidad MIGRIN. Documento interno.\n\n';
+  // Filtros
+  md+='## Selección\n\n';
+  if(S.modo==='ultima')md+='- Vista: '+['última','penúltima','antepenúltima'][S.atras]+' campaña de llenado de cada acopio (mín. '+S.minN+' muestras por llenado)\n';
+  else md+='- Vista: todas las muestras del periodo '+(S.desde?fmtFecha(S.desde):'inicio')+' a '+(S.hasta?fmtFecha(S.hasta):'hoy')+'\n';
+  md+='- Acopios: '+(fija?fija.acopio+' — llenado fijo '+rangoFechas(fija):(S.acopios.length?S.acopios.join(', '):'todos'))+'\n';
+  if(cfg.eetts)md+='- EETT evaluada: '+nombreEett(cfg)+'\n';
+  md+='- Duplicados de migración: '+(S.dedup?'excluidos':'incluidos')+'\n';
+  var conf=sel.filter(function(m){return m.ev.cumple;}).length,ev=sel.filter(function(m){return m.ev.evaluadas>0;}).length;
+  var fechas=sel.map(function(m){return m.fecha;}).sort();
+  md+='- Muestras: '+sel.length+' ('+fmtFecha(fechas[0])+' a '+fmtFecha(fechas[fechas.length-1])+') · conformes EETT: '+conf+' de '+ev+' ('+fmtPct(ev?conf/ev*100:NaN)+')\n\n';
+
+  // Acopios
+  if(!fija&&grupos.length){
+    md+='## '+(S.modo==='ultima'?'Últimos acopios producidos':'Comparación entre acopios')+'\n\n';
+    md+='Valores: promedio (mín–máx, A = amplitud).\n\n';
+    md+=mdTabla(['Acopio','Llenado','n','SiO₂ %','Al₂O₃ %','Fe₂O₃ %'].concat(cfg.cols.map(function(c){return c.lbl;}),['Humedad %','% conformes']),
+      grupos.map(function(c){
+        var g=c.muestras;function st(f){return stats(g.map(f));}
+        var e=g.filter(function(m){return m.ev.evaluadas>0;}),k=e.filter(function(m){return m.ev.cumple;}).length;
+        return[c.acopio+(c.enCurso?' (en curso)':''),rangoFechas(c),g.length,
+          pmA(st(function(m){return m.q.SiO2;}),2),pmA(st(function(m){return m.q.Al2O3;}),3),pmA(st(function(m){return m.q.Fe2O3;}),3)
+        ].concat(cfg.cols.map(function(c){return pmA(st(function(m){return m.ind[c.k];}),c.d);}),[
+          pmA(st(function(m){return m.hum;}),1),
+          fmtPct(e.length?k/e.length*100:NaN)+' ('+k+'/'+e.length+')']);
+      }));
+    md+='\n';
+  }
+
+  // Quimica
+  var params=OXIDOS.concat([{k:'K2O_Na2O',lbl:'K₂O+Na₂O',d:3},{k:'hum',lbl:'Humedad',d:2}]);
+  md+='## Química\n\n';
+  md+=mdTabla(['Parámetro','n','Promedio','Mínimo','Máximo','Amplitud','Desv. est.','EETT','% cumple'],
+    params.map(function(p){
+      var vals=sel.map(function(m){return p.k==='hum'?m.hum:m.q[p.k];});
+      var st=stats(vals),lims=limsDe(exs,p.k),lim=lims.length,lt=p.k==='hum'&&cfg.humedadNoEval?'no se evalúa':limsTxt(exs,p.k);
+      if(!st.n)return[p.lbl,0,'—','—','—','—','—',lt,'—'];
+      var nf=lim?vals.filter(function(v){return fueraTodos(v,lims);}).length:0;
+      function v(x){return fmt(x,p.d)+(fueraTodos(x,lims)?' ⚠':'');}
+      return[p.lbl,st.n,v(st.prom),v(st.min),v(st.max),fmt(st.amp,p.d),fmt(st.sd,p.d),lt,
+        lim?fmtPct((st.n-nf)/st.n*100)+(nf?' ('+nf+' fuera)':''):'—'];
+    }));
+  md+='\n⚠ = fuera de EETT.\n\n';
+
+  // Granulometria
+  var conG=sel.filter(function(m){return m.granuOk;});
+  md+='## Granulometría\n\n### Retenido parcial y pasante por tamiz (%)\n\n';
+  md+=mdTabla(['Tamiz','Abertura mm','Ret. prom','Ret. mín','Ret. máx','Amplitud','% pasante prom'],
+    cfg.sieves.concat([{us:'PAN'}]).map(function(sv){
+      var st=stats(conG.map(function(m){return m.rp[sv.us];}));
+      var sp=sv.us==='PAN'?null:stats(conG.map(function(m){return m.pas[sv.us];}));
+      return[sv.us==='PAN'?'Fondo':sv.us,sv.mm?fmt(sv.mm,3):'—',fmt(st.prom,2),fmt(st.min,2),fmt(st.max,2),fmt(st.amp,2),sp?fmt(sp.prom,2):'—'];
+    }));
+  md+='\n### Indicadores granulométricos (EETT)\n\n';
+  md+=mdTabla(['Indicador','Promedio','Mínimo','Máximo','Amplitud','Límite'],
+    filasIndicadores(sel,cfg,exs).map(function(f){
+      function v(x){return fmt(x,f.d)+(fueraTodos(x,f.lims)?' ⚠':'');}
+      return[f.lbl,v(f.st.prom),v(f.st.min),v(f.st.max),fmt(f.st.amp,f.d),f.lim];
+    }));
+  md+='\n';
+
+  // Cumplimiento
+  md+='## Cumplimiento EETT\n\n';
+  md+=mdTabla(['Exigencia','Límite','n','% cumple','Fuera'],
+    exs.map(function(e){
+      var vals=sel.map(e.get).filter(function(v){return v!=null&&!isNaN(v);});
+      var nf=vals.filter(function(v){return fueraLim(v,e.lim);}).length;
+      return[e.lbl,limTxt(e.lim),vals.length,vals.length?fmtPct((vals.length-nf)/vals.length*100):'—',nf];
+    }));
+  md+='\n';
+
+  // Fuera de EETT
+  var f=sel.filter(function(m){return m.ev.evaluadas>0&&!m.ev.cumple;});
+  md+='## Muestras fuera de EETT ('+f.length+')\n\n';
+  if(f.length)md+=mdTabla(['Fecha','Acopio','Turno','Folio','SiO₂','Al₂O₃','Fe₂O₃'].concat(cfg.cols.map(function(c){return c.lbl;}),['Fuera de EETT']),
+    f.map(function(m){return[fmtFecha(m.fecha),m.acopio,m.turno||'',m.folio||'',fmt(m.q.SiO2,2),fmt(m.q.Al2O3,3),fmt(m.q.Fe2O3,3)]
+      .concat(cfg.cols.map(function(c){return fmt(m.ind[c.k],c.d);}),[m.ev.fallas.join(', ')]);}),
+    ['l','l','l','r','r','r','r'].concat(cfg.cols.map(function(){return'r';}),['l']));
+  else md+='Todas las muestras cumplen.\n';
+  md+='\n';
+
+  // Fuera de secuencia (solo vista de llenados)
+  if(S.modo==='ultima'){
+    var sueltas=[];
+    Object.keys(ULTIMO.camps).forEach(function(a){ULTIMO.camps[a].forEach(function(c){
+      if(c.aislada&&c.hasta>=isoMenos(45))c.muestras.forEach(function(m){sueltas.push(m);});
+    });});
+    if(sueltas.length){
+      sueltas.sort(function(x,y){return-ordenSecuencia(x,y);});
+      md+='## Muestras fuera de secuencia, últimos 45 días ('+sueltas.length+')\n\n';
+      md+='No se usan en los llenados; revisar si el N° de acopio está bien digitado.\n\n';
+      md+=mdTabla(['Fecha','Turno','Folio','Acopio','Humedad','Motivo'],
+        sueltas.map(function(m){return[fmtFecha(m.fecha),m.turno||'',m.folio||'',m.acopio,fmt(m.hum,2),m.fueraSecuencia||''];}),
+        ['l','l','r','l','r','l']);
+      md+='\n';
+    }
+  }
+  md+='---\nCriterios: EETT '+(S.eettOverride?'según tabla especificaciones (override)':'por defecto de la app')+'; indicadores granulométricos con los límites de la app; % parcial sobre peso final; '+
+    (cfg.humedadNoEval?'humedad no evaluada (valor de relleno)':'humedad evaluada solo si fue registrada')+(cfg.eetts&&S.eett==='alguna'?'; conforme = cumple al menos una EETT completa':'')+'.\n';
+
+  var nombre='Panel_Acopio_'+cfg.label.split(' ')[0]+'_'+(fija?fija.acopio.replace(/\s+/g,''):S.acopios.length===1?S.acopios[0].replace(/\s+/g,''):'Todos')+'_'+hoy+'.md';
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown;charset=utf-8'}));
+  a.download=nombre;document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1000);
+}
+
+/* Cabecera y selector de EETT segun el producto elegido */
+function prepararProducto(){
+  var cfg=PRODUCTOS[S.prod];
+  document.getElementById('kick').textContent='MIGRIN · '+(cfg.planta||'Lavado Turco');
+  document.title='Panel por Acopio — '+(cfg.planta||'Turco')+' | MIGRIN';
+  var box=document.getElementById('boxEett'),se=document.getElementById('selEett');
+  box.classList.toggle('hidden',!cfg.eetts);
+  if(!cfg.eetts)return;
+  var ks=Object.keys(cfg.eetts),normales=ks.filter(function(k){return!cfg.eetts[k].soloComparar;});
+  se.innerHTML='<option value="alguna">Cumple alguna ('+normales.map(function(k){return cfg.eetts[k].corto;}).join(' o ')+')</option>'+
+    ks.map(function(k){return'<option value="'+k+'">'+cfg.eetts[k].corto+(cfg.eetts[k].soloComparar?' (comparativa)':'')+'</option>';}).join('');
+  if(S.eett!=='alguna'&&!cfg.eetts[S.eett])S.eett='alguna';
+  se.value=S.eett;
+}
+function nombreEett(cfg){
+  if(!cfg.eetts)return'';
+  if(S.eett==='alguna')return'cumple alguna ('+clavesEett(cfg).map(function(k){return cfg.eetts[k].corto;}).join(' o ')+')';
+  return cfg.eetts[S.eett].nombre+(cfg.eetts[S.eett].soloComparar?' (comparativa)':'');
 }
 
 /* ── EVENTOS ── */
@@ -961,7 +1248,9 @@ function initUI(){
   var sp=document.getElementById('selProd');
   sp.innerHTML=Object.keys(PRODUCTOS).map(function(k){return'<option value="'+k+'">'+PRODUCTOS[k].label+'</option>';}).join('');
   sp.value=S.prod;
-  sp.onchange=async function(){S.prod=sp.value;S.acopios=[];await cargar();render();};
+  sp.onchange=async function(){S.prod=sp.value;S.acopios=[];S.campFija=null;prepararProducto();await cargar();render();};
+  document.getElementById('selEett').onchange=function(e){S.eett=e.target.value;render();};
+  prepararProducto();
   document.getElementById('fDesde').value=S.desde;document.getElementById('fHasta').value=S.hasta;
   marcarPreset(30);
   document.getElementById('fDesde').onchange=function(e){S.desde=e.target.value;marcarPreset(null);render();};
@@ -980,6 +1269,7 @@ function initUI(){
     else S.acopios=(S.acopios.length===1&&S.acopios[0]===a)?[]:[a];
     render();
   };
+  document.getElementById('btnExportMd').onclick=exportarMd;
   document.getElementById('selResumen').onclick=function(e){
     if(e.target.id==='btnQuitarFija2'){S.campFija=null;render();}
   };

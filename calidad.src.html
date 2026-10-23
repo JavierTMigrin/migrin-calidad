@@ -14234,7 +14234,7 @@ const CONSULTAR_ITEMS=[
   {id:'habilitador-acopios',icon:'👁️',bg:'linear-gradient(135deg,#6c3483,#1a5276)',tit:'Habilitador de Acopios (Admin)',
     desc:'Configura qué acopios, fechas y químicos ve todo el mundo en "Calidad TLH Turco"',adminOnly:true},
   {id:'panel-acopios',icon:'🧪',bg:'linear-gradient(135deg,#1e3a5f,#0e9f6e)',tit:'Panel por Acopio (privado)',
-    desc:'Último llenado de cada acopio TLH: química, curva granulométrica y EETT',flag:'ver_panel_acopios'},
+    desc:'Último llenado de cada acopio (TLH Turco y A36 Arenas): química, curva granulométrica y EETT',flag:'ver_panel_acopios'},
 ];
 
 /* Menu del sidebar de Inicio: igual contenido que CONSULTAR_ITEMS, pero
@@ -14242,7 +14242,7 @@ const CONSULTAR_ITEMS=[
    agrupados bajo un solo item "Despachos" que se despliega. */
 const SIDEBAR_TREE=[
   {id:'panel-acopios',icon:'🧪',tit:'Panel por Acopio (privado)',
-    desc:'Último llenado de cada acopio TLH: química, curva granulométrica y EETT',flag:'ver_panel_acopios'},
+    desc:'Último llenado de cada acopio (TLH Turco y A36 Arenas): química, curva granulométrica y EETT',flag:'ver_panel_acopios'},
   {id:'dashboard',icon:'📈',tit:'Reportes',
     desc:'Tendencias, cumplimiento EETT, cartas de control y resumen ejecutivo'},
   {id:'history',icon:'📋',tit:'Historial',
@@ -14284,7 +14284,7 @@ function PanelAcopiosScreen({onBack}){
     <div>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}}>
         <button className="btn btn-secondary" onClick={onBack}>&larr; Volver</button>
-        <h2 style={{margin:0,fontSize:'1.15rem'}}>🧪 Panel por Acopio — TLH Turco</h2>
+        <h2 style={{margin:0,fontSize:'1.15rem'}}>🧪 Panel por Acopio — TLH Turco · A36 Arenas</h2>
         <a href="panel_acopio_turco.html" target="_blank" rel="noopener" style={{marginLeft:'auto',fontSize:'.85rem'}}>Abrir en pestaña nueva ↗</a>
       </div>
       <iframe src="panel_acopio_turco.html?embed=1" title="Panel por Acopio"
